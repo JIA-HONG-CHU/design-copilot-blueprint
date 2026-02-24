@@ -13,6 +13,7 @@ import SolutionExplorer from "./pages/SolutionExplorer";
 import PreCadReview from "./pages/PreCadReview";
 import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
+import KnowledgeBase from "./pages/KnowledgeBase";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

@@ -22,6 +22,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/projects" element={<ProjectList />} />
             <Route path="/projects/:id" element={<ProjectDashboard />} />
+            <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

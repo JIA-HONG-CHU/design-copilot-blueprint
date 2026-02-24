@@ -8,6 +8,7 @@ import ProjectList from "./pages/ProjectList";
 import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
+import ContradictionIdentification from "./pages/ContradictionIdentification";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/projects/:id" element={<ProjectDashboard />} />
             <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
             <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
+            <Route path="/projects/:id/contradiction-identification" element={<ContradictionIdentification />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

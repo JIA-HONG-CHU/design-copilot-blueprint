@@ -1,0 +1,78 @@
+import { KnowledgeArticle } from "@/types/knowledge";
+
+export const mockKnowledgeArticles: KnowledgeArticle[] = [
+  {
+    id: "kb-001",
+    slug: "triz-contradiction-guide",
+    title: "TRIZ 矛盾分析實務指南",
+    description: "從工程問題到 TRIZ 矛盾句的完整轉化流程，包含常見陷阱與最佳實踐。",
+    category: "playbook",
+    tags: ["TRIZ", "矛盾分析", "方法論"],
+    author: "王大明",
+    publishedAt: "2026-01-15",
+    content: `## 概述\n\nTRIZ 矛盾分析是創新問題解決的核心工具。本指南將帶您從口語化的工程問題，逐步轉化為標準的 TRIZ 矛盾句。\n\n## 步驟一：識別核心衝突\n\n首先，明確描述當您改善某個參數時，哪個參數會惡化。\n\n### 範例\n- **問題**：增加馬達轉速可以提高效能，但噪音也增加了\n- **改善參數**：9. 速度\n- **惡化參數**：31. 物體產生的有害因素\n\n## 步驟二：查閱矛盾矩陣\n\n根據改善與惡化參數的交叉點，找到建議的發明原則。\n\n## 步驟三：應用發明原則\n\n逐一檢視建議的發明原則，結合具體工程情境，生成候選方案。\n\n## 常見陷阱\n\n1. **過於籠統的問題描述** — 需要具體到可量化的參數\n2. **混淆技術矛盾與物理矛盾** — 兩者需分別處理\n3. **忽略系統層級** — 考慮超系統和子系統的影響`,
+    relatedLinks: [
+      { label: "TRIZ 39 參數對照表", url: "#" },
+      { label: "矛盾矩陣工具", url: "#" },
+    ],
+  },
+  {
+    id: "kb-002",
+    slug: "design-review-checklist",
+    title: "設計審查檢查清單模板",
+    description: "標準化的設計審查流程模板，涵蓋 DR Evidence Matrix 和風險登錄表的填寫規範。",
+    category: "template",
+    tags: ["設計審查", "模板", "品質管理"],
+    author: "陳副總",
+    publishedAt: "2026-02-01",
+    content: `## 設計審查檢查清單\n\n### 審查前準備\n- [ ] 確認所有 CAD 模型已更新至最新版本\n- [ ] 準備模擬分析報告\n- [ ] 整理 BOM 清單和成本估算\n\n### DR Evidence Matrix 填寫規範\n\n| 類別 | 要求 | 填寫說明 |\n|------|------|----------|\n| 結構強度 | 依據規格書標準 | 引用 FEA 報告編號 |\n| 熱管理 | 依據環境規範 | 引用 CFD 模擬結果 |\n| 製造可行性 | 依據產線能力 | 引用工藝評估報告 |\n\n### 風險登錄表填寫規範\n\n每個風險項目必須包含：\n1. 風險描述（具體、可量化）\n2. 失效模式分析\n3. 機率與嚴重度評估\n4. 緩解措施與負責人`,
+    relatedLinks: [
+      { label: "DR EM 範例文件", url: "#" },
+      { label: "風險評估方法論", url: "#" },
+    ],
+  },
+  {
+    id: "kb-003",
+    slug: "motor-noise-reduction-case",
+    title: "案例：高速馬達噪音降低 40% 的設計歷程",
+    description: "記錄從問題識別到方案驗證的完整設計過程，展示如何運用 TRIZ 和系統化方法解決工程問題。",
+    category: "case-study",
+    tags: ["案例", "馬達", "噪音", "TRIZ"],
+    author: "李工程師",
+    publishedAt: "2026-02-10",
+    content: `## 背景\n\n某高速馬達產品在客戶端反饋噪音超標，需要在不降低效能的前提下，將噪音降低至少 40%。\n\n## 問題分析\n\n### TRIZ 矛盾識別\n- **技術矛盾**：提高轉速（效能）↔ 增加噪音（有害因素）\n- **物理矛盾**：馬達需要同時高轉速和低轉速\n\n## 方案探索\n\n透過 TRIZ 矛盾矩陣，識別出以下發明原則：\n1. **原則 #18 機械振動** → 採用主動降噪技術\n2. **原則 #24 中介物** → 加入彈性減振結構\n3. **原則 #35 參數變化** → 可變轉速控制\n\n## 最終方案\n\n採用變頻驅動 + 彈性減振結構的組合方案。\n\n## 驗證結果\n\n- 噪音降低 43%（超過目標）\n- 效能維持在原始水平的 98%\n- 成本增加 12%（在預算範圍內）`,
+    relatedLinks: [
+      { label: "完整測試報告", url: "#" },
+      { label: "相關專利分析", url: "#" },
+    ],
+  },
+  {
+    id: "kb-004",
+    slug: "kt-decision-analysis",
+    title: "KT 決策分析方法論",
+    description: "Kepner-Tregoe 決策分析的完整流程說明，包含 MUST/WANT 分析和風險評估方法。",
+    category: "playbook",
+    tags: ["KT", "決策分析", "方法論"],
+    author: "王大明",
+    publishedAt: "2025-12-20",
+    content: `## KT 決策分析概述\n\nKepner-Tregoe (KT) 決策分析是一種結構化的決策方法，幫助團隊在多個備選方案中做出理性選擇。\n\n## MUST 條件篩選\n\nMUST 條件是不可妥協的硬性要求。任何不滿足 MUST 條件的方案將被直接淘汰。\n\n### 範例 MUST 條件\n- 成本不超過預算上限\n- 符合安全法規\n- 在現有空間內可安裝\n\n## WANT 條件評分\n\nWANT 條件是可以權衡的軟性目標。每個 WANT 條件需要：\n1. 權重（1-10）\n2. 各方案評分（1-10）\n3. 加權分數計算\n\n## 風險評估 (AC)\n\n對通過 MUST 和 WANT 篩選的方案進行風險評估：\n- 識別潛在風險\n- 評估機率和嚴重度\n- 規劃緩解措施`,
+    relatedLinks: [
+      { label: "KT 分析範本下載", url: "#" },
+    ],
+  },
+  {
+    id: "kb-005",
+    slug: "assumption-management-best-practices",
+    title: "假設管理最佳實踐",
+    description: "如何有效地識別、記錄和驗證設計假設，降低專案風險。",
+    category: "playbook",
+    tags: ["假設管理", "風險", "最佳實踐"],
+    author: "林PM",
+    publishedAt: "2026-01-28",
+    content: `## 為什麼假設管理很重要？\n\n在 RD 設計過程中，許多決策是基於假設做出的。如果假設錯誤，可能導致：\n- 設計返工\n- 成本超支\n- 時程延誤\n\n## 假設識別\n\n### 常見假設來源\n1. 材料特性假設\n2. 製造工藝能力假設\n3. 使用環境假設\n4. 供應鏈假設\n\n## 假設記錄\n\n每個假設應包含：\n- 假設內容（具體、可驗證）\n- 依據來源\n- 若錯了最壞後果\n- 最小驗證方法\n- 驗證成本/週期\n\n## 驗證優先級\n\n根據「若錯了最壞後果」和「驗證成本」進行優先級排序，優先驗證高風險、低成本的假設。`,
+    relatedLinks: [
+      { label: "假設台帳範本", url: "#" },
+      { label: "風險矩陣工具", url: "#" },
+    ],
+  },
+];

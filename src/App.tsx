@@ -13,6 +13,7 @@ import SolutionExplorer from "./pages/SolutionExplorer";
 import PreCadReview from "./pages/PreCadReview";
 import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
+import KnowledgeBase from "./pages/KnowledgeBase";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,8 @@ const App = () => (
             <Route path="/projects/:id/pre-cad-review" element={<PreCadReview />} />
             <Route path="/projects/:id/design-review" element={<DesignReview />} />
             <Route path="/projects/:id/decision-record" element={<DecisionRecord />} />
+            <Route path="/knowledge-base" element={<KnowledgeBase />} />
+            <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

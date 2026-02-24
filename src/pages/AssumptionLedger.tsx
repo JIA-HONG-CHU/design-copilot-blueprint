@@ -63,7 +63,11 @@ export default function AssumptionLedger() {
     } else {
       const newAssumption: Assumption = {
         id: `asm-${Date.now()}`,
-        ...data,
+        content: data.content,
+        source: data.source,
+        worstConsequence: data.worstConsequence,
+        minValidation: data.minValidation,
+        validationCost: data.validationCost,
         status: "pending",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

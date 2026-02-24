@@ -260,7 +260,7 @@ export default function TaskDefinition() {
             <KpiInputList
               kpis={criticalKPIs}
               onChange={setCriticalKPIs}
-              errors={(errors._kpiItems as Record<string, string[]>) ?? undefined}
+              errors={(errors._kpiItems as unknown as Record<string, string[]>) ?? undefined}
             />
             {typeof errors.criticalKPIs === "string" && (
               <p className="text-xs text-destructive">{errors.criticalKPIs}</p>

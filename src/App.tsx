@@ -12,6 +12,7 @@ import ContradictionIdentification from "./pages/ContradictionIdentification";
 import SolutionExplorer from "./pages/SolutionExplorer";
 import PreCadReview from "./pages/PreCadReview";
 import DesignReview from "./pages/DesignReview";
+import DecisionRecord from "./pages/DecisionRecord";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

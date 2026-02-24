@@ -10,6 +10,7 @@ import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
 import ContradictionIdentification from "./pages/ContradictionIdentification";
 import SolutionExplorer from "./pages/SolutionExplorer";
+import PreCadReview from "./pages/PreCadReview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
             <Route path="/projects/:id/contradiction-identification" element={<ContradictionIdentification />} />
             <Route path="/projects/:id/solution-explorer" element={<SolutionExplorer />} />
+            <Route path="/projects/:id/pre-cad-review" element={<PreCadReview />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

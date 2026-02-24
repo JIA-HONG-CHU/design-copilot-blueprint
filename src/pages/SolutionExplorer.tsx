@@ -120,7 +120,7 @@ const SolutionExplorer = () => {
   };
 
   const getMustIcon = (passed: boolean | null) => {
-    if (passed === true) return <Check className="h-3.5 w-3.5 text-green-600" />;
+    if (passed === true) return <Check className="h-3.5 w-3.5 text-primary" />;
     if (passed === false) return <X className="h-3.5 w-3.5 text-destructive" />;
     return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
   };

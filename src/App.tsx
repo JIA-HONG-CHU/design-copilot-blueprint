@@ -10,6 +10,7 @@ import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
 import ContradictionIdentification from "./pages/ContradictionIdentification";
 import SolutionExplorer from "./pages/SolutionExplorer";
+import PreCadReview from "./pages/PreCadReview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

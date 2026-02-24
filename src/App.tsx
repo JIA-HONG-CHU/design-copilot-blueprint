@@ -9,6 +9,7 @@ import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
 import ContradictionIdentification from "./pages/ContradictionIdentification";
+import SolutionExplorer from "./pages/SolutionExplorer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

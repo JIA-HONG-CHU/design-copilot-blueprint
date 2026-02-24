@@ -8,6 +8,7 @@ import ProjectList from "./pages/ProjectList";
 import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
+import ContradictionIdentification from "./pages/ContradictionIdentification";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

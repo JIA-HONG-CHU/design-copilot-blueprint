@@ -24,6 +24,7 @@ const App = () => (
             <Route path="/projects" element={<ProjectList />} />
             <Route path="/projects/:id" element={<ProjectDashboard />} />
             <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
+            <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

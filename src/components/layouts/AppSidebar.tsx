@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   FolderKanban, BookOpen, Settings, LayoutDashboard,
-  ClipboardList, Compass, ListChecks, Wand2, Search, Gavel,
+  ClipboardList, Compass, ListChecks, Wand2, Search, Gavel, GraduationCap,
   LogOut, Sun, Moon, Monitor, ChevronDown,
 } from "lucide-react";
 
@@ -30,6 +30,7 @@ const projectSteps = [
   { id: "create", label: "Create", zhLabel: "方案創造", icon: Wand2, route: "create", phase: 2 },
   { id: "review", label: "Review", zhLabel: "設計審查", icon: Search, route: "review", phase: 3 },
   { id: "decide", label: "Decide", zhLabel: "最終決策", icon: Gavel, route: "decide", phase: 3 },
+  { id: "feynman", label: "Feynman", zhLabel: "內化傳達", icon: GraduationCap, route: "feynman", phase: 3 },
 ];
 
 const phaseColors: Record<number, string> = {

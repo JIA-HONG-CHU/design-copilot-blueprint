@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2, Check } from "lucide-react";
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -240,6 +240,28 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId }: CldTabProp
           </div>
         </div>
       </div>
+
+      {/* Confirm breakpoints bar */}
+      {breakpointsCount > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-medium">確認斷路點選擇</p>
+              <p className="text-xs text-muted-foreground">
+                已標記 {breakpointsCount} 個斷路點。確認後將鎖定斷路點並作為後續 TRIZ 求解的輸入。
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                toast.success(`已確認 ${breakpointsCount} 個斷路點，可進行下一步`);
+              }}
+              className="shrink-0"
+            >
+              <Check className="h-4 w-4 mr-1" /> 確認斷路點
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bottom actions */}
       <div className="flex flex-wrap gap-3">

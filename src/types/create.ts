@@ -60,6 +60,7 @@ export interface ScamperVariant {
   action: ScamperAction;
   description: string;
   adopted: boolean;
+  newContradictions?: string[];
 }
 
 // Alternative (concept route)

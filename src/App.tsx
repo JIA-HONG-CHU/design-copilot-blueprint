@@ -19,6 +19,7 @@ import Create from "./pages/Create";
 import CadInProgress from "./pages/CadInProgress";
 import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
+import Feynman from "./pages/Feynman";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="/projects/:id/cad" element={<CadInProgress />} />
                 <Route path="/projects/:id/review" element={<DesignReview />} />
                 <Route path="/projects/:id/decide" element={<DecisionRecord />} />
+                <Route path="/projects/:id/feynman" element={<Feynman />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
                 <Route path="/settings" element={<Settings />} />

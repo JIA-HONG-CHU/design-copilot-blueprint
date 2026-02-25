@@ -582,9 +582,9 @@ export default function DecisionRecord() {
           ))}
         </div>
         {phaseGate3Passed ? (
-          <Button onClick={() => { toast.success("🎉 專案已完成！"); navigate(`/projects/${id}`); }}
+          <Button onClick={() => navigate(`/projects/${id}/feynman`)}
             className="bg-[#10B981] hover:bg-[#059669] text-white text-base px-6 py-2">
-            🏁 Phase Gate 3 通過 → 專案完成 <ArrowRight className="h-4 w-4 ml-1" />
+            Phase Gate 3 通過 → 進入 Feynman 內化 <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         ) : (
           <Tooltip>

@@ -354,12 +354,15 @@ export default function Create() {
                       <p className="text-sm text-muted-foreground text-center py-8">此路徑暫無解法建議</p>
                     ) : (
                       sols.filter((s) => s.path === path).map((sol) => (
-                        <Card key={sol.id} className={sol.status === "adopted" ? "border-l-[3px] border-l-primary" : ""}>
+                         <Card key={sol.id} className={`transition-all ${sol.status === "adopted" ? "border-l-[3px] border-l-primary" : sol.status === "skipped" ? "opacity-50" : ""}`}>
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant="secondary" className="text-[10px]">AI</Badge>
                               {sol.principleNumber && <Badge variant="outline" className="text-[10px] font-mono">#{sol.principleNumber}</Badge>}
                               <span className="text-sm font-medium">{sol.principleName}</span>
+                              {sol.status === "adopted" && (
+                                <Badge className="bg-primary text-primary-foreground text-[10px] ml-auto">🔒 已鎖定</Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed">{sol.suggestion}</p>
                             <div className="flex gap-2 pt-1">
@@ -369,11 +372,13 @@ export default function Create() {
                                 className="text-xs"
                                 onClick={() => setTrizStatus(sol.id, sol.status === "adopted" ? "pending" : "adopted")}
                               >
-                                {sol.status === "adopted" ? "✓ 已採用" : "採用"}
+                                {sol.status === "adopted" ? "✓ 已採用（點擊解鎖）" : "採用"}
                               </Button>
-                              <Button size="sm" variant="ghost" className="text-xs" onClick={() => setTrizStatus(sol.id, "skipped")}>
-                                跳過
-                              </Button>
+                              {sol.status !== "adopted" && (
+                                <Button size="sm" variant="ghost" className="text-xs" onClick={() => setTrizStatus(sol.id, "skipped")}>
+                                  跳過
+                                </Button>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -393,9 +398,29 @@ export default function Create() {
 
   // ── Step 3: Subsystem ──
   function renderSubsystem() {
+    const confirmedCount = subsystems.filter(s => s.confirmed).length;
     return (
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">AI 建議受影響子系統，請勾選確認：</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">AI 建議受影響子系統，請勾選確認：</p>
+          <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>
+        </div>
+
+        {/* AI subsystem summary */}
+        <Card className="border-dashed bg-muted/30">
+          <CardContent className="p-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium">AI 子系統摘要</span>
+              <Badge variant="secondary" className="text-[10px]">AI</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              本專案涉及 {subsystems.length} 個子系統，其中「{subsystems.find(s => s.relatedContradictions.length > 0)?.name}」與最多矛盾相關，建議優先處理。
+              已確認的子系統將作為 SCAMPER 變形的目標範圍。
+            </p>
+          </CardContent>
+        </Card>
+
         {subsystems.map((ss) => (
           <Card
             key={ss.id}
@@ -469,6 +494,17 @@ export default function Create() {
                       >
                         {v.adopted ? "✓ 已採用" : "採用"}
                       </Button>
+                      {/* SCAMPER new contradiction feedback */}
+                      {v.newContradictions && v.newContradictions.length > 0 && (
+                        <div className="mt-2 p-2 rounded-md bg-destructive/5 border border-destructive/20">
+                          <p className="text-[10px] font-medium text-destructive flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> 新矛盾回饋
+                          </p>
+                          {v.newContradictions.map((nc: string, ncIdx: number) => (
+                            <p key={ncIdx} className="text-[10px] text-muted-foreground mt-0.5">{nc}</p>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -476,6 +512,23 @@ export default function Create() {
             </div>
           );
         })}
+
+        {/* SCAMPER confirmation */}
+        {confirmedSubs.length > 0 && scamperVariants.some(v => v.adopted) && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium">確認 SCAMPER 變形結果</p>
+                <p className="text-xs text-muted-foreground">
+                  已採用 {scamperVariants.filter(v => v.adopted).length} 個變形。確認後進入方案整合。
+                </p>
+              </div>
+              <Button onClick={() => { toast.success('SCAMPER 變形結果已確認'); goNext(); }} className="shrink-0">
+                <Check className="h-4 w-4 mr-1" /> 確認並繼續
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[3] ?? []} />
       </div>
     );
@@ -550,6 +603,23 @@ export default function Create() {
             <Badge variant="secondary" className="text-[9px] ml-1.5">AI</Badge>
           </Button>
         </div>
+
+        {/* P3: Spec confirmation */}
+        {alternatives.length > 0 && alternatives.some(a => a.name && a.mechanism && a.mechanism.length >= 20) && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium">確認方案規格</p>
+                <p className="text-xs text-muted-foreground">
+                  {alternatives.filter(a => a.name && a.mechanism).length} 個方案已填寫完整。確認後進入 MUST 快篩。
+                </p>
+              </div>
+              <Button onClick={() => { toast.success('方案規格已確認'); goNext(); }} className="shrink-0">
+                <Check className="h-4 w-4 mr-1" /> 確認方案規格
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[4] ?? []} />
       </div>
     );
@@ -768,6 +838,23 @@ export default function Create() {
             </div>
           </div>
         </div>
+
+        {/* P3: Pre-CAD Gate Confirmation */}
+        {preCadPassedAlts.length > 0 && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium">確認 Pre-CAD 審查結果</p>
+                <p className="text-xs text-muted-foreground">
+                  {preCadPassedAlts.length} 個方案通過 Pre-CAD 五維審查。確認後進入 CAD 繪製階段。
+                </p>
+              </div>
+              <Button onClick={() => toast.success('Pre-CAD 審查結果已確認')} className="shrink-0">
+                <Check className="h-4 w-4 mr-1" /> 確認審查結果
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[6] ?? []} />
       </div>
     );

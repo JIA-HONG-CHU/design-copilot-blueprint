@@ -77,6 +77,45 @@ export type Database = {
         }
         Relationships: []
       }
+      review_attachments: {
+        Row: {
+          assumption_code: string | null
+          content_type: string | null
+          created_at: string
+          description: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          assumption_code?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          assumption_code?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

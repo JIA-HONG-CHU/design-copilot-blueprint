@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,10 +14,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
-  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2
+  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { AttachmentsPanel } from "@/components/review/AttachmentsPanel";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   EvidenceLevel, EvidenceMatrixRow, RiskItem, Experiment, ExperimentStatus, Gate31Item
 } from "@/types/designReview";
@@ -95,6 +97,20 @@ export default function DesignReview() {
   const [expModalOpen, setExpModalOpen] = useState(false);
   const [editingExp, setEditingExp] = useState<Experiment | null>(null);
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [attachments, setAttachments] = useState<any[]>([]);
+
+  // Fetch attachments from DB
+  const fetchAttachments = useCallback(async () => {
+    if (!id) return;
+    const { data, error } = await supabase
+      .from("review_attachments")
+      .select("*")
+      .eq("project_id", id)
+      .order("created_at", { ascending: false });
+    if (!error && data) setAttachments(data);
+  }, [id]);
+
+  useEffect(() => { fetchAttachments(); }, [fetchAttachments]);
 
   // Track assumptions for cross-reference display
   const trackAssumptions = mockTrackAssumptions[id ?? ""] ?? [];
@@ -288,9 +304,9 @@ export default function DesignReview() {
       {/* Data source banner */}
       {renderDataSourceBanner()}
 
-      {/* 3 Tabs */}
+      {/* 4 Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-4">
           <TabsTrigger value="evidence" className="text-xs sm:text-sm">
             <BarChart3 className="h-3.5 w-3.5 mr-1 hidden sm:inline-block" /> 證據矩陣
           </TabsTrigger>
@@ -300,6 +316,10 @@ export default function DesignReview() {
           <TabsTrigger value="experiment" className="text-xs sm:text-sm">
             <Beaker className="h-3.5 w-3.5 mr-1 hidden sm:inline-block" /> 最小實驗
             {hasGap && <AlertTriangle className="h-3 w-3 ml-1 text-[#F59E0B]" />}
+          </TabsTrigger>
+          <TabsTrigger value="attachments" className="text-xs sm:text-sm">
+            <Paperclip className="h-3.5 w-3.5 mr-1 hidden sm:inline-block" /> 附件
+            {attachments.length > 0 && <Badge variant="secondary" className="text-[9px] ml-1">{attachments.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
@@ -576,6 +596,18 @@ export default function DesignReview() {
               AI 建議實驗 <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
             </Button>
           </div>
+        </TabsContent>
+
+        {/* Tab 4: Attachments */}
+        <TabsContent value="attachments" className="space-y-4 mt-4">
+          <p className="text-xs text-muted-foreground">
+            上傳 CAD 圖檔、仿真報告、測試數據等文件作為設計審查的佐證附件。每份文件可加上概略描述。
+          </p>
+          <AttachmentsPanel
+            projectId={id ?? ""}
+            attachments={attachments}
+            onRefresh={fetchAttachments}
+          />
         </TabsContent>
       </Tabs>
 

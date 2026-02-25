@@ -65,6 +65,19 @@ export function getMockNavCards(progress: PhaseProgress): NavCardDef[] {
       lockReason: !gate21 ? "需先完成 Track (Gate 2.1)" : undefined,
     },
     {
+      id: "cad",
+      enName: "CAD",
+      zhName: "CAD 繪製",
+      phase: "Phase 2",
+      icon: "PenTool",
+      route: "cad",
+      subSteps: 1,
+      completedSteps: gate23 ? 1 : 0,
+      requiredGate: "2.3",
+      locked: !gate23,
+      lockReason: !gate23 ? "需先完成 Phase 2 所有 Gate" : undefined,
+    },
+    {
       id: "review",
       enName: "Review",
       zhName: "設計審查",
@@ -75,7 +88,7 @@ export function getMockNavCards(progress: PhaseProgress): NavCardDef[] {
       completedSteps: gate32 ? 1 : 0,
       requiredGate: "2.3",
       locked: !gate23,
-      lockReason: !gate23 ? "需先完成 Phase 2 所有 Gate" : undefined,
+      lockReason: !gate23 ? "需完成 CAD 繪製階段" : undefined,
     },
     {
       id: "decide",

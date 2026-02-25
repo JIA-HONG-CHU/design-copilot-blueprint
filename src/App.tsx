@@ -13,6 +13,7 @@ import TaskDefinition from "./pages/TaskDefinition";
 import Track from "./pages/Track";
 import Explore from "./pages/Explore";
 import Create from "./pages/Create";
+import CadInProgress from "./pages/CadInProgress";
 import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
 import KnowledgeBase from "./pages/KnowledgeBase";
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/projects/:id/explore" element={<Explore />} />
               <Route path="/projects/:id/track" element={<Track />} />
               <Route path="/projects/:id/create" element={<Create />} />
+              <Route path="/projects/:id/cad" element={<CadInProgress />} />
               <Route path="/projects/:id/review" element={<DesignReview />} />
               <Route path="/projects/:id/decide" element={<DecisionRecord />} />
               <Route path="/knowledge-base" element={<KnowledgeBase />} />

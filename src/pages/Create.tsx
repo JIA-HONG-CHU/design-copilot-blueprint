@@ -820,8 +820,8 @@ export default function Create() {
                 ))}
               </div>
               {gate22Items.every((i) => i.passed) && phaseGate2Items.every((i) => i.passed) ? (
-                <Button onClick={() => navigate(`/projects/${id}/review`)} className="w-full sm:w-auto mt-2">
-                  通過 Phase Gate 2 → 進入 Review <ArrowRight className="h-4 w-4 ml-1.5" />
+                <Button onClick={() => navigate(`/projects/${id}/cad`)} className="w-full sm:w-auto mt-2">
+                  通過 Phase Gate 2 → 進入 CAD 繪製 <ArrowRight className="h-4 w-4 ml-1.5" />
                 </Button>
               ) : (
                 <Tooltip>

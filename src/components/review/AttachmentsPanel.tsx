@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Upload, FileText, Trash2, Loader2, Paperclip, X, ExternalLink } from "lucide-react";
+import { Upload, FileText, Trash2, Loader2, Paperclip, X, ExternalLink, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface PendingFile {
@@ -156,6 +156,15 @@ export function AttachmentsPanel({ projectId, attachments, onRefresh }: Attachme
     return data.publicUrl;
   };
 
+  const handleCopyLink = (filePath: string) => {
+    const url = getPublicUrl(filePath);
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success("已複製檔案連結");
+    }).catch(() => {
+      toast.error("複製失敗，請手動複製");
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Existing attachments */}
@@ -190,15 +199,26 @@ export function AttachmentsPanel({ projectId, attachments, onRefresh }: Attachme
                     {new Date(att.created_at).toLocaleString("zh-TW")}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleDelete(att)}
-                  disabled={deleting === att.id}
-                >
-                  {deleting === att.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                </Button>
+                <div className="flex gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                    onClick={() => handleCopyLink(att.file_path)}
+                    title="複製檔案連結"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(att)}
+                    disabled={deleting === att.id}
+                  >
+                    {deleting === att.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

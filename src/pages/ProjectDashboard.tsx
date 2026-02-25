@@ -80,7 +80,7 @@ export default function ProjectDashboard() {
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-sm text-muted-foreground">從 Brief 開始你的設計旅程</p>
-              <Button className="mt-3" size="sm" onClick={() => navigate(`/projects/${id}/task-definition`)}>
+              <Button className="mt-3" size="sm" onClick={() => navigate(`/projects/${id}/brief`)}>
                 開始 Brief
               </Button>
             </CardContent>

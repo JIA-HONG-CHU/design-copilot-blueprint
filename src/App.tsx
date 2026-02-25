@@ -7,13 +7,9 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import ProjectList from "./pages/ProjectList";
 import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
-import AssumptionLedger from "./pages/AssumptionLedger";
-import ContradictionIdentification from "./pages/ContradictionIdentification";
 import Track from "./pages/Track";
-import SolutionExplorer from "./pages/SolutionExplorer";
 import Explore from "./pages/Explore";
 import Create from "./pages/Create";
-import PreCadReview from "./pages/PreCadReview";
 import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
 import KnowledgeBase from "./pages/KnowledgeBase";
@@ -32,18 +28,11 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/projects" element={<ProjectList />} />
             <Route path="/projects/:id" element={<ProjectDashboard />} />
-            <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
             <Route path="/projects/:id/brief" element={<TaskDefinition />} />
-            <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
-            <Route path="/projects/:id/track" element={<Track />} />
-            <Route path="/projects/:id/contradiction-identification" element={<ContradictionIdentification />} />
             <Route path="/projects/:id/explore" element={<Explore />} />
-            <Route path="/projects/:id/solution-explorer" element={<SolutionExplorer />} />
+            <Route path="/projects/:id/track" element={<Track />} />
             <Route path="/projects/:id/create" element={<Create />} />
-            <Route path="/projects/:id/pre-cad-review" element={<PreCadReview />} />
-            <Route path="/projects/:id/design-review" element={<DesignReview />} />
             <Route path="/projects/:id/review" element={<DesignReview />} />
-            <Route path="/projects/:id/decision-record" element={<DecisionRecord />} />
             <Route path="/projects/:id/decide" element={<DecisionRecord />} />
             <Route path="/knowledge-base" element={<KnowledgeBase />} />
             <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />

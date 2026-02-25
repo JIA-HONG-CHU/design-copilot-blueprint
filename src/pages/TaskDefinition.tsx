@@ -334,7 +334,7 @@ export default function TaskDefinition() {
       {/* Section 5: Gate 1.1 Checklist */}
       <GateChecklist
         items={gateItems}
-        onNavigateNext={() => navigate(`/projects/${id}/contradiction-identification`)}
+        onNavigateNext={() => navigate(`/projects/${id}/explore`)}
       />
     </div>
   );

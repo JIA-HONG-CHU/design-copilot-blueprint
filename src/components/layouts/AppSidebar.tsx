@@ -1,8 +1,20 @@
-import { NavLink, useLocation, useParams } from "react-router-dom";
+import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/components/ThemeProvider";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   FolderKanban, BookOpen, Settings, LayoutDashboard,
   ClipboardList, Compass, ListChecks, Wand2, Search, Gavel,
+  LogOut, Sun, Moon, Monitor, ChevronDown,
 } from "lucide-react";
 
 const globalNavItems = [
@@ -35,7 +47,6 @@ const phaseBorderColors: Record<number, string> = {
 function getStepStatus(pathname: string, route: string, projectId: string): "active" | "completed" | "not_started" {
   const fullPath = `/projects/${projectId}/${route}`;
   if (pathname === fullPath || pathname.startsWith(fullPath + "/")) return "active";
-  // In the future this could check actual progress; for now show not_started
   return "not_started";
 }
 
@@ -47,9 +58,24 @@ function StatusDot({ status }: { status: "active" | "completed" | "not_started" 
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { id: projectId } = useParams();
+  const { user, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const isInsideProject = !!projectId && location.pathname.startsWith(`/projects/${projectId}`);
+
+  const initials = user?.user_metadata?.display_name
+    ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
+  const themeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const ThemeIcon = themeIcon;
 
   return (
     <aside className="hidden md:flex md:flex-col md:w-60 border-r border-sidebar-border bg-sidebar shrink-0">
@@ -141,6 +167,44 @@ export function AppSidebar() {
           </>
         )}
       </nav>
+
+      {/* User footer */}
+      <div className="border-t border-sidebar-border p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2.5 w-full rounded-md px-2 py-2 text-sm hover:bg-sidebar-accent transition-colors text-left">
+              <Avatar className="h-7 w-7">
+                <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate text-sidebar-foreground">
+                  {user?.user_metadata?.display_name || user?.email || "使用者"}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {user?.email}
+                </p>
+              </div>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
+              <Settings className="h-3.5 w-3.5 mr-2" /> 設定
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "dark" : "light")}>
+              <ThemeIcon className="h-3.5 w-3.5 mr-2" />
+              {theme === "dark" ? "切換至淺色" : theme === "light" ? "切換至深色" : "切換至淺色"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <LogOut className="h-3.5 w-3.5 mr-2" /> 登出
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </aside>
   );
 }

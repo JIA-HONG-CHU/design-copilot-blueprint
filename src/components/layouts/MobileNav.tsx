@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { NavLink, useLocation, useParams } from "react-router-dom";
+import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import {
   FolderKanban, BookOpen, Settings, LayoutDashboard, Menu,
   ClipboardList, Compass, ListChecks, Wand2, Search, Gavel,
+  LogOut, Sun, Moon, Monitor,
 } from "lucide-react";
 
 const navItems = [
@@ -28,9 +33,24 @@ const phaseColors: Record<number, string> = { 1: "text-[hsl(217,91%,60%)]", 2: "
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { id: projectId } = useParams();
+  const { user, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const isInsideProject = !!projectId && location.pathname.startsWith(`/projects/${projectId}`);
+
+  const initials = user?.user_metadata?.display_name
+    ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+
+  const handleSignOut = async () => {
+    setOpen(false);
+    await signOut();
+    navigate("/auth");
+  };
+
+  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
@@ -44,12 +64,12 @@ export function MobileNav() {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-64 p-0 flex flex-col">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <LayoutDashboard className="h-6 w-6 text-primary" />
             <span className="font-bold text-base">RD Design Copilot</span>
           </div>
-          <nav className="px-3 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const isActive =
                 location.pathname === item.path ||
@@ -106,6 +126,31 @@ export function MobileNav() {
               </>
             )}
           </nav>
+
+          {/* User footer */}
+          <div className="border-t border-border p-3 space-y-2">
+            <div className="flex items-center gap-2.5 px-2">
+              <Avatar className="h-7 w-7">
+                <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{user?.user_metadata?.display_name || user?.email}</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="flex-1 text-xs justify-start"
+                onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); }}>
+                <ThemeIcon className="h-3.5 w-3.5 mr-1.5" />
+                {theme === "dark" ? "淺色" : "深色"}
+              </Button>
+              <Button variant="ghost" size="sm" className="flex-1 text-xs justify-start text-destructive hover:text-destructive"
+                onClick={handleSignOut}>
+                <LogOut className="h-3.5 w-3.5 mr-1.5" /> 登出
+              </Button>
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
     </header>

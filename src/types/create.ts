@@ -40,6 +40,8 @@ export interface Subsystem {
   reason: string;
   relatedContradictions: string[];
   confirmed: boolean;
+  parentId?: string | null;
+  interfaces?: string[];
 }
 
 // SCAMPER

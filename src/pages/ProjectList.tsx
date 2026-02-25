@@ -1,19 +1,17 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ProjectFilters } from "@/components/projects/ProjectFilters";
+import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { mockProjects } from "@/data/mockProjects";
-import type { ProjectStatus } from "@/types/project";
 import { FolderOpen, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function ProjectList() {
-  const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [createOpen, setCreateOpen] = useState(false);
 
-  // Simulate loading / error states — set to false for normal use
   const [isLoading] = useState(false);
   const [isError] = useState(false);
 
@@ -21,14 +19,15 @@ export default function ProjectList() {
     return mockProjects.filter((p) => {
       const matchesSearch =
         !search || p.name.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesPhase =
+        phaseFilter === "all" ||
+        (phaseFilter === "completed" ? p.status === "completed" : p.phase === phaseFilter);
+      return matchesSearch && matchesPhase;
     });
-  }, [search, statusFilter]);
+  }, [search, phaseFilter]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">專案列表</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -36,16 +35,14 @@ export default function ProjectList() {
         </p>
       </div>
 
-      {/* Filters */}
       <ProjectFilters
         search={search}
         onSearchChange={setSearch}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        onCreateProject={() => navigate("/projects/create")}
+        phaseFilter={phaseFilter}
+        onPhaseFilterChange={setPhaseFilter}
+        onCreateProject={() => setCreateOpen(true)}
       />
 
-      {/* Content */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -77,15 +74,15 @@ export default function ProjectList() {
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
           <h2 className="text-lg font-semibold">
-            {search || statusFilter !== "all" ? "找不到符合條件的專案" : "尚無專案"}
+            {search || phaseFilter !== "all" ? "找不到符合條件的專案" : "尚無專案"}
           </h2>
           <p className="text-sm text-muted-foreground mt-1 mb-4">
-            {search || statusFilter !== "all"
+            {search || phaseFilter !== "all"
               ? "嘗試調整搜尋或篩選條件。"
-              : "點擊「新增專案」開始您的第一個概念設計。"}
+              : "建立你的第一個專案，開始概念設計旅程。"}
           </p>
-          {!search && statusFilter === "all" && (
-            <Button onClick={() => navigate("/projects/create")}>新增專案</Button>
+          {!search && phaseFilter === "all" && (
+            <Button onClick={() => setCreateOpen(true)}>新增專案</Button>
           )}
         </div>
       ) : (
@@ -95,6 +92,8 @@ export default function ProjectList() {
           ))}
         </div>
       )}
+
+      <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

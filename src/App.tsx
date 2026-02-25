@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/projects" element={<ProjectList />} />
             <Route path="/projects/:id" element={<ProjectDashboard />} />
             <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
+            <Route path="/projects/:id/brief" element={<TaskDefinition />} />
             <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
             <Route path="/projects/:id/contradiction-identification" element={<ContradictionIdentification />} />
             <Route path="/projects/:id/solution-explorer" element={<SolutionExplorer />} />

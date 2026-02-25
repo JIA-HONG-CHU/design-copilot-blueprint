@@ -71,13 +71,13 @@ export interface Alternative {
   mechanism: string;
   source: AlternativeSource;
   keyAssumptionIds: string[];
-  mustScores: Record<string, 'pass' | 'fail' | 'marginal' | null>; // M1-M5
+  mustScores: Record<string, 'pass' | 'fail' | 'marginal' | null>; // M1-M6
   preCadScores: {
-    space: number | null;
-    cost: number | null;
-    safety: number | null;
+    must: number | null;
     decoupling: number | null;
-    supply: number | null;
+    testability: number | null;
+    failureMech: number | null;
+    mvpCadEffort: number | null;
   };
   overallPass: boolean | null;
 }
@@ -88,14 +88,15 @@ export const MUST_CRITERIA = [
   { id: 'M3', label: 'M3 安全餘裕' },
   { id: 'M4', label: 'M4 解耦' },
   { id: 'M5', label: 'M5 供應' },
+  { id: 'M6', label: 'M6 製造路徑' },
 ];
 
 export const PRECAD_DIMENSIONS = [
-  { key: 'space', label: '空間可行性', labels: ['不可行', '', '可行需調整', '', '完全可行'] },
-  { key: 'cost', label: '成本合理性', labels: ['嚴重超標', '', '可接受', '', '有餘裕'] },
-  { key: 'safety', label: '安全餘裕', labels: ['不達標', '', '達標', '', '大幅超標'] },
+  { key: 'must', label: 'MUST 硬限制', labels: ['不滿足', '', '勉強', '', '全數通過'] },
   { key: 'decoupling', label: '解耦程度', labels: ['高耦合', '', '適度', '', '完全解耦'] },
-  { key: 'supply', label: '供應鏈可行性', labels: ['無供應商', '', '有替代', '', '成熟供應鏈'] },
+  { key: 'testability', label: '可驗證性', labels: ['無法驗證', '', '4週內', '', '1週內'] },
+  { key: 'failureMech', label: '失效機制風險', labels: ['致命風險', '', '有緩解', '', '風險極低'] },
+  { key: 'mvpCadEffort', label: 'MVP CAD 工作量', labels: ['極高', '', '中等', '', '極低'] },
 ] as const;
 
 // Gate

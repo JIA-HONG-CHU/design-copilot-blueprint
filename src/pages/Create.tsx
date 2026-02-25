@@ -30,8 +30,10 @@ import {
   mockScamperVariants, mockAlternatives, mockAntiAnchorWarning
 } from "@/data/mockCreate";
 import { mockTrackAssumptions } from "@/data/mockTrack";
+import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
+import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
 
 const RADAR_COLORS = [
   "hsl(var(--primary))",
@@ -41,16 +43,15 @@ const RADAR_COLORS = [
 ];
 
 const STEPS = [
-  { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "打破思維定勢，探索非慣用技術路線" },
+  { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "AI 產出非典型架構概念，打破路徑依賴" },
   { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法" },
   { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍" },
   { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案" },
   { label: "方案整合", shortLabel: "方案", description: "整合前四步成果，建立完整的概念方案" },
-  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件快速淘汰不可行方案" },
-  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "對存活方案進行多維度評分，決定是否進入 CAD" },
+  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案" },
+  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD" },
 ];
 
-// Mock mission data (would come from Explore/Track in real app)
 const MOCK_MISSION = {
   problemStatement: "設計一款中驅電動自行車傳動系統，在 ≤65dB 噪音下達成 25km/h 極速與 15% 坡度爬坡能力",
   contradictions: [
@@ -62,6 +63,13 @@ const MOCK_MISSION = {
   highRiskCount: 3,
 };
 
+// Mock AI-generated Anti-Anchor routes
+const MOCK_AI_ANTIANCHOR: AntiAnchorRoute[] = [
+  { id: "aar-ai-001", name: "直驅輪轂方案", description: "完全捨棄傳統中驅+傳動系統，改用輪轂馬達直接驅動後輪，消除傳動效率損失與噪音來源。與競品在物理介面上完全不相容。" },
+  { id: "aar-ai-002", name: "磁力耦合無接觸傳動方案", description: "以磁力耦合器取代機械齒輪嚙合，實現非接觸傳動。消除齒輪磨耗噪音，簡化密封設計，但需克服扭矩傳遞效率問題。" },
+  { id: "aar-ai-003", name: "液壓靜態傳動方案", description: "以微型液壓泵-馬達迴路替代機械傳動鏈，實現無段變速。運轉噪音極低但系統重量與成本需評估。屬非對標路線。" },
+];
+
 export default function Create() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -71,6 +79,7 @@ export default function Create() {
 
   // Data
   const [routes, setRoutes] = useState<AntiAnchorRoute[]>([]);
+  const [antiAnchorGenerated, setAntiAnchorGenerated] = useState(false);
   const [trizSolutions, setTrizSolutions] = useState<TrizSolution[]>([]);
   const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
   const [scamperVariants, setScamperVariants] = useState<ScamperVariant[]>([]);
@@ -79,7 +88,6 @@ export default function Create() {
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
 
-  // Assumption lookup for displaying readable names
   const assumptionMap = useMemo(() => {
     const map = new Map<string, { code: string; description: string }>();
     const assumptions = mockTrackAssumptions[id ?? ""] ?? [];
@@ -90,7 +98,9 @@ export default function Create() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (id) {
-        setRoutes(mockAntiAnchorRoutes[id] ?? []);
+        const existing = mockAntiAnchorRoutes[id] ?? [];
+        setRoutes(existing);
+        setAntiAnchorGenerated(existing.length > 0);
         setTrizSolutions(mockTrizSolutions[id] ?? []);
         setSubsystems(mockSubsystems[id] ?? []);
         setScamperVariants(mockScamperVariants[id] ?? []);
@@ -101,9 +111,8 @@ export default function Create() {
     return () => clearTimeout(timer);
   }, [id]);
 
-  // Step statuses
   const stepStatuses: AccordionStepStatus[] = useMemo(() => {
-    const s1 = routes.filter(r => r.name.length >= 3 && r.description.length >= 10).length >= 1 ? "complete" : routes.length > 0 ? "in_progress" : "not_started";
+    const s1 = routes.length >= 3 ? "complete" : routes.length > 0 ? "in_progress" : "not_started";
     const adopted = trizSolutions.filter((t) => t.status === "adopted").length;
     const s2 = adopted > 0 ? "complete" : trizSolutions.length > 0 ? "in_progress" : "not_started";
     const confirmed = subsystems.filter((s) => s.confirmed).length;
@@ -127,7 +136,6 @@ export default function Create() {
     }, 500);
   }, []);
 
-  // Gate checks
   const passedMustAlts = alternatives.filter((a) => !Object.values(a.mustScores).includes("fail") && Object.values(a.mustScores).every((v) => v !== null));
   const preCadPassedAlts = alternatives.filter((a) => a.overallPass === true);
 
@@ -145,13 +153,16 @@ export default function Create() {
   );
 
   // Handlers
-  const addRoute = () => {
-    setRoutes((prev) => [...prev, { id: `aar-${Date.now()}`, name: "", description: "" }]);
-  };
-  const updateRoute = (rid: string, field: "name" | "description", value: string) => {
-    setRoutes((prev) => prev.map((r) => (r.id === rid ? { ...r, [field]: value } : r)));
+  const handleAiGenAntiAnchor = async () => {
+    setAiLoading((p) => ({ ...p, antiAnchor: true }));
+    await new Promise((r) => setTimeout(r, 2000));
+    setRoutes(MOCK_AI_ANTIANCHOR);
+    setAntiAnchorGenerated(true);
+    setAiLoading((p) => ({ ...p, antiAnchor: false }));
+    toast.success("AI 已產出 3 條非典型架構概念");
     autoSave();
   };
+
   const setTrizStatus = (tsId: string, status: TrizActionStatus) => {
     setTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status } : t)));
     autoSave();
@@ -190,8 +201,8 @@ export default function Create() {
   const addManualAlternative = () => {
     const newAlt: Alternative = {
       id: `alt-${Date.now()}`, name: "", mechanism: "", source: "manual",
-      keyAssumptionIds: [], mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null },
-      preCadScores: { space: null, cost: null, safety: null, decoupling: null, supply: null },
+      keyAssumptionIds: [], mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
+      preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
       overallPass: null,
     };
     setAlternatives((prev) => [...prev, newAlt]);
@@ -204,8 +215,8 @@ export default function Create() {
       id: `alt-ai-${Date.now()}`, name: "AI 整合：蜂巢夾層 + 磁力耦合方案",
       mechanism: "AI 整合 TRIZ 分割原理與 SCAMPER 替代建議，採用蜂巢夾層殼體搭配磁力耦合傳動，在減重 35% 的同時維持結構剛度，傳動效率提升至 92%。",
       source: "ai_integrated", keyAssumptionIds: ["ta-001", "ta-003"],
-      mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null },
-      preCadScores: { space: null, cost: null, safety: null, decoupling: null, supply: null },
+      mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
+      preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
       overallPass: null,
     };
     setAlternatives((prev) => [...prev, newAlt]);
@@ -234,7 +245,6 @@ export default function Create() {
     );
   }
 
-  // Render current step content
   const renderStepContent = () => {
     switch (currentStep) {
       case 0: return renderAntiAnchor();
@@ -248,7 +258,7 @@ export default function Create() {
     }
   };
 
-  // ── Step 1: Anti-Anchor ──
+  // ── Step 1: Anti-Anchor (AI Generated) ──
   function renderAntiAnchor() {
     return (
       <div className="space-y-6">
@@ -264,43 +274,50 @@ export default function Create() {
           </Card>
         )}
 
-        <div className="space-y-4">
-          {routes.map((r, i) => (
-            <Card key={r.id} className="overflow-hidden">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
-                </div>
-                <Input
-                  placeholder="路線名稱 ★"
-                  value={r.name}
-                  onChange={(e) => updateRoute(r.id, "name", e.target.value)}
-                  maxLength={50}
-                  className="text-sm font-medium"
-                />
-                <Textarea
-                  placeholder="路線簡述 ★ (至少 10 字元)"
-                  value={r.description}
-                  onChange={(e) => updateRoute(r.id, "description", e.target.value)}
-                  rows={3}
-                  maxLength={300}
-                  className="text-sm leading-relaxed"
-                />
-              </CardContent>
-            </Card>
-          ))}
-          <Button variant="secondary" size="sm" onClick={addRoute} className="text-sm">
-            <Plus className="h-4 w-4 mr-1.5" /> 新增路線
-          </Button>
-        </div>
+        {!antiAnchorGenerated ? (
+          <div className="text-center py-16 space-y-4 bg-muted/30 rounded-xl border border-dashed">
+            <Sparkles className="h-10 w-10 text-muted-foreground mx-auto" />
+            <div>
+              <p className="font-medium">AI 將根據問題描述與矛盾句產出 3 條非典型架構</p>
+              <p className="text-sm text-muted-foreground mt-1">至少 1 條必須與競品在物理介面或核心機制上不相容</p>
+            </div>
+            <Button onClick={handleAiGenAntiAnchor} disabled={aiLoading.antiAnchor} size="lg">
+              {aiLoading.antiAnchor ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              AI 生成非典型架構
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {routes.map((r, i) => (
+              <Card key={r.id} className="overflow-hidden border-l-[3px] border-l-accent">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      <Sparkles className="h-2.5 w-2.5" /> AI
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-medium">{r.name}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{r.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+            <Button variant="outline" size="sm" onClick={handleAiGenAntiAnchor} disabled={aiLoading.antiAnchor} className="text-xs">
+              {aiLoading.antiAnchor ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              重新生成
+            </Button>
+          </div>
+        )}
 
         <Card className="bg-muted/30">
           <CardContent className="p-4 flex items-center gap-3">
-            {routes.filter((r) => r.name.length >= 3 && r.description.length >= 10).length >= 1
-              ? <><CheckCircle className="h-5 w-5 text-primary shrink-0" /><span className="text-sm">Gate 2.2.1: ≥1 非基準路線已建立</span></>
-              : <><XCircle className="h-5 w-5 text-muted-foreground shrink-0" /><span className="text-sm text-muted-foreground">Gate 2.2.1: 需建立至少 1 條非基準路線</span></>}
+            {routes.length >= 3
+              ? <><CheckCircle className="h-5 w-5 text-primary shrink-0" /><span className="text-sm">Gate 2.2.1: ≥3 非典型架構已產出，含至少 1 條非對標路線</span></>
+              : <><XCircle className="h-5 w-5 text-muted-foreground shrink-0" /><span className="text-sm text-muted-foreground">Gate 2.2.1: 需 AI 產出至少 3 條非典型架構概念</span></>}
           </CardContent>
         </Card>
+
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[0] ?? []} />
       </div>
     );
   }
@@ -312,7 +329,6 @@ export default function Create() {
       <div className="space-y-6">
         {contradictionIds.map((cId) => {
           const sols = trizSolutions.filter((t) => t.contradictionId === cId);
-          // Find the contradiction description from mission
           const contradiction = MOCK_MISSION.contradictions.find(c => c.id.toLowerCase().replace('-', '') === cId.replace('-', ''));
           return (
             <div key={cId} className="space-y-4">
@@ -370,6 +386,7 @@ export default function Create() {
             </div>
           );
         })}
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[1] ?? []} />
       </div>
     );
   }
@@ -404,6 +421,7 @@ export default function Create() {
             </CardContent>
           </Card>
         ))}
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[2] ?? []} />
       </div>
     );
   }
@@ -458,6 +476,7 @@ export default function Create() {
             </div>
           );
         })}
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[3] ?? []} />
       </div>
     );
   }
@@ -531,6 +550,7 @@ export default function Create() {
             <Badge variant="secondary" className="text-[9px] ml-1.5">AI</Badge>
           </Button>
         </div>
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[4] ?? []} />
       </div>
     );
   }
@@ -550,7 +570,6 @@ export default function Create() {
 
     return (
       <div className="space-y-6">
-        {/* Summary */}
         <div className="flex flex-wrap gap-3">
           <Badge className="bg-primary/10 text-primary border-0 px-3 py-1">{passedMustAlts.length} 通過</Badge>
           <Badge className="bg-destructive/10 text-destructive border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("fail")).length} 淘汰</Badge>
@@ -564,7 +583,7 @@ export default function Create() {
               <tr className="border-b">
                 <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">方案</th>
                 {MUST_CRITERIA.map((c) => (
-                  <th key={c.id} className="text-center py-3 px-3 text-xs font-medium text-muted-foreground">{c.label}</th>
+                  <th key={c.id} className="text-center py-3 px-2 text-xs font-medium text-muted-foreground">{c.label}</th>
                 ))}
                 <th className="text-center py-3 px-3 text-xs font-medium text-muted-foreground">結果</th>
               </tr>
@@ -574,9 +593,9 @@ export default function Create() {
                 const hasFail = Object.values(alt.mustScores).includes("fail");
                 return (
                   <tr key={alt.id} className={`border-b transition-colors ${hasFail ? "opacity-50" : "hover:bg-muted/30"}`}>
-                    <td className={`py-3 px-3 text-sm max-w-[160px] truncate ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</td>
+                    <td className={`py-3 px-3 text-sm max-w-[140px] truncate ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</td>
                     {MUST_CRITERIA.map((c) => (
-                      <td key={c.id} className="text-center py-3 px-3 cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
+                      <td key={c.id} className="text-center py-3 px-2 cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
                         {mustCell(alt.mustScores[c.id])}
                       </td>
                     ))}
@@ -600,7 +619,7 @@ export default function Create() {
               <Card key={alt.id} className={hasFail ? "opacity-50" : ""}>
                 <CardContent className="p-4 space-y-3">
                   <p className={`text-sm font-medium ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</p>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {MUST_CRITERIA.map((c) => (
                       <div key={c.id} className="text-center cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
                         <p className="text-[10px] text-muted-foreground mb-1">{c.id}</p>
@@ -613,6 +632,7 @@ export default function Create() {
             );
           })}
         </div>
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[5] ?? []} />
       </div>
     );
   }
@@ -631,7 +651,6 @@ export default function Create() {
       );
     }
 
-    // Multi-select for comparison
     const toggleCompare = (altId: string) => {
       setComparedAltIds((prev) => {
         const next = new Set(prev);
@@ -640,13 +659,10 @@ export default function Create() {
       });
     };
 
-    // Ensure at least the first eligible is selected for editing
     const editingAlt = eligible.find((a) => a.id === selectedAltId) ?? eligible[0];
-    // For radar comparison, use checked items or all if none checked
     const comparedAlts = eligible.filter((a) => comparedAltIds.has(a.id));
     const radarAlts = comparedAlts.length > 0 ? comparedAlts : eligible;
 
-    // Build radar data with multiple series
     const radarData = PRECAD_DIMENSIONS.map((d) => {
       const entry: Record<string, any> = { subject: d.label, fullMark: 5 };
       radarAlts.forEach((a) => {
@@ -657,7 +673,6 @@ export default function Create() {
 
     return (
       <div className="space-y-6">
-        {/* Multi-select: checkboxes for comparison + click to edit */}
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">勾選方案加入比較圖，點擊名稱編輯評分</p>
           <div className="space-y-2">
@@ -689,7 +704,6 @@ export default function Create() {
         <Separator />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Scoring for selected alt */}
           <div className="space-y-5">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -719,7 +733,6 @@ export default function Create() {
             </div>
           </div>
 
-          {/* Radar comparison chart */}
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground text-center">
               {comparedAlts.length > 0 ? `比較 ${comparedAlts.length} 個方案` : "全部方案總覽"}
@@ -742,7 +755,6 @@ export default function Create() {
               </RadarChart>
             </ResponsiveContainer>
 
-            {/* Legend */}
             <div className="flex flex-wrap gap-3 justify-center">
               {radarAlts.map((a) => (
                 <div key={a.id} className="flex items-center gap-1.5 text-xs">
@@ -756,18 +768,18 @@ export default function Create() {
             </div>
           </div>
         </div>
+        <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[6] ?? []} />
       </div>
     );
   }
 
-  // ── Gate section (only on step 6 or 7) ──
+  // ── Gate section ──
   function renderGates() {
     if (currentStep < 5) return null;
 
     return (
       <div className="space-y-4 mt-2">
         <Separator />
-        {/* Gate 2.2 */}
         <Card className="border-border">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-3">
@@ -788,7 +800,6 @@ export default function Create() {
           </CardContent>
         </Card>
 
-        {/* Phase Gate 2 */}
         {currentStep === 6 && (
           <Card className="border-2 border-accent/30 bg-accent/5">
             <CardContent className="p-5 space-y-3">
@@ -829,7 +840,6 @@ export default function Create() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard
@@ -842,10 +852,8 @@ export default function Create() {
         )}
       </div>
 
-      {/* Mission Context (sticky) */}
       <MissionContext {...MOCK_MISSION} />
 
-      {/* Page title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           方案創造
@@ -854,7 +862,6 @@ export default function Create() {
         <p className="text-sm text-muted-foreground mt-1">Step 2.2–2.3 · 逐步展開</p>
       </div>
 
-      {/* Stepper */}
       <CreateStepper
         steps={STEPS}
         statuses={stepStatuses}
@@ -862,7 +869,6 @@ export default function Create() {
         onStepClick={setCurrentStep}
       />
 
-      {/* Current step header */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
@@ -875,15 +881,12 @@ export default function Create() {
         </div>
       </div>
 
-      {/* Step content */}
       <div className="min-h-[300px]">
         {renderStepContent()}
       </div>
 
-      {/* Gates (only on MUST/Pre-CAD steps) */}
       {renderGates()}
 
-      {/* Navigation */}
       <div className="flex items-center justify-between pt-4 border-t">
         <Button variant="outline" onClick={goPrev} disabled={currentStep === 0}>
           <ChevronLeft className="h-4 w-4 mr-1" /> 上一步

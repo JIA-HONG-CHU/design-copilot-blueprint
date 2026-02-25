@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import Auth from "./pages/Auth";
 import ProjectList from "./pages/ProjectList";
 import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
@@ -22,25 +25,27 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/projects" replace />} />
-          <Route element={<AppLayout />}>
-            <Route path="/projects" element={<ProjectList />} />
-            <Route path="/projects/:id" element={<ProjectDashboard />} />
-            <Route path="/projects/:id/brief" element={<TaskDefinition />} />
-            <Route path="/projects/:id/explore" element={<Explore />} />
-            <Route path="/projects/:id/track" element={<Track />} />
-            <Route path="/projects/:id/create" element={<Create />} />
-            <Route path="/projects/:id/review" element={<DesignReview />} />
-            <Route path="/projects/:id/decide" element={<DecisionRecord />} />
-            <Route path="/knowledge-base" element={<KnowledgeBase />} />
-            <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
-          </Route>
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={<Navigate to="/projects" replace />} />
+            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+              <Route path="/projects" element={<ProjectList />} />
+              <Route path="/projects/:id" element={<ProjectDashboard />} />
+              <Route path="/projects/:id/brief" element={<TaskDefinition />} />
+              <Route path="/projects/:id/explore" element={<Explore />} />
+              <Route path="/projects/:id/track" element={<Track />} />
+              <Route path="/projects/:id/create" element={<Create />} />
+              <Route path="/projects/:id/review" element={<DesignReview />} />
+              <Route path="/projects/:id/decide" element={<DecisionRecord />} />
+              <Route path="/knowledge-base" element={<KnowledgeBase />} />
+              <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

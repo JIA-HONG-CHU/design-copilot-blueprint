@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   ArrowLeft, Check, Plus, Sparkles, Loader2, AlertTriangle,
-  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft
+  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, Pencil, Trash2
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import {
@@ -22,7 +22,8 @@ import {
 } from "recharts";
 import type {
   AntiAnchorRoute, TrizSolution, Subsystem, ScamperVariant,
-  Alternative, AccordionStepStatus, TrizPath, TrizActionStatus, CreateGateItem
+  Alternative, AccordionStepStatus, TrizPath, TrizActionStatus, CreateGateItem,
+  SubsystemSource
 } from "@/types/create";
 import { MUST_CRITERIA, PRECAD_DIMENSIONS, SCAMPER_LABELS } from "@/types/create";
 import {
@@ -90,6 +91,12 @@ export default function Create() {
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
+  const [showAddSubsystemForm, setShowAddSubsystemForm] = useState(false);
+  const [editingSubsystemId, setEditingSubsystemId] = useState<string | null>(null);
+  const [ssFormName, setSsFormName] = useState("");
+  const [ssFormReason, setSsFormReason] = useState("");
+  const [ssFormContradictions, setSsFormContradictions] = useState<string[]>([]);
+  const [ssFormInterfaces, setSsFormInterfaces] = useState("");
 
   const assumptionMap = useMemo(() => {
     const map = new Map<string, { code: string; description: string }>();
@@ -173,6 +180,52 @@ export default function Create() {
   const toggleSubsystem = (ssId: string) => {
     setSubsystems((prev) => prev.map((s) => (s.id === ssId ? { ...s, confirmed: !s.confirmed } : s)));
     autoSave();
+  };
+  const addSubsystem = () => {
+    if (!ssFormName.trim()) { toast.error("請輸入子系統名稱"); return; }
+    const newSs: Subsystem = {
+      id: `ss-rd-${Date.now()}`, name: ssFormName.trim(), reason: ssFormReason.trim(),
+      relatedContradictions: ssFormContradictions, confirmed: true, source: "rd",
+      interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(s => s.trim()).filter(Boolean) : [],
+    };
+    setSubsystems(prev => [...prev, newSs]);
+    resetSsForm();
+    setShowAddSubsystemForm(false);
+    toast.success("已新增 RD 定義子系統");
+    autoSave();
+  };
+  const startEditSubsystem = (ssId: string) => {
+    const ss = subsystems.find(s => s.id === ssId);
+    if (!ss) return;
+    setEditingSubsystemId(ssId);
+    setSsFormName(ss.name);
+    setSsFormReason(ss.reason);
+    setSsFormContradictions([...ss.relatedContradictions]);
+    setSsFormInterfaces(ss.interfaces?.join(", ") ?? "");
+  };
+  const saveEditSubsystem = () => {
+    if (!editingSubsystemId || !ssFormName.trim()) return;
+    setSubsystems(prev => prev.map(s => {
+      if (s.id !== editingSubsystemId) return s;
+      return {
+        ...s, name: ssFormName.trim(), reason: ssFormReason.trim(),
+        relatedContradictions: ssFormContradictions,
+        interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(x => x.trim()).filter(Boolean) : [],
+        source: s.source === "ai" ? "ai_edited" : s.source,
+      };
+    }));
+    resetSsForm();
+    setEditingSubsystemId(null);
+    toast.success("子系統已更新");
+    autoSave();
+  };
+  const deleteSubsystem = (ssId: string) => {
+    setSubsystems(prev => prev.filter(s => s.id !== ssId));
+    toast.success("已刪除子系統");
+    autoSave();
+  };
+  const resetSsForm = () => {
+    setSsFormName(""); setSsFormReason(""); setSsFormContradictions([]); setSsFormInterfaces("");
   };
   const toggleScamperAdopt = (svId: string) => {
     setScamperVariants((prev) => prev.map((v) => (v.id === svId ? { ...v, adopted: !v.adopted } : v)));
@@ -402,78 +455,137 @@ export default function Create() {
   // ── Step 3: Subsystem ──
   function renderSubsystem() {
     const confirmedCount = subsystems.filter(s => s.confirmed).length;
+    const rdCount = subsystems.filter(s => s.source === "rd").length;
+    const aiCount = subsystems.filter(s => s.source === "ai").length;
+    const aiEditedCount = subsystems.filter(s => s.source === "ai_edited").length;
+
+    const renderSsInlineForm = (isEdit: boolean) => (
+      <Card className="border-primary/30">
+        <CardContent className="p-4 space-y-3">
+          <p className="text-sm font-medium">{isEdit ? "編輯子系統" : "新增 RD 定義子系統"}</p>
+          <Input placeholder="子系統名稱 *" value={ssFormName} onChange={e => setSsFormName(e.target.value)} />
+          <Textarea placeholder="職責 / 原因描述" value={ssFormReason} onChange={e => setSsFormReason(e.target.value)} rows={2} />
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">關聯矛盾</p>
+            <div className="flex flex-wrap gap-2">
+              {MOCK_MISSION.contradictions.map(c => (
+                <label key={c.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <Checkbox
+                    checked={ssFormContradictions.includes(c.id.toLowerCase().replace("-", "-"))}
+                    onCheckedChange={(checked) => {
+                      const cId = c.id.toLowerCase().replace("-", "-");
+                      setSsFormContradictions(prev => checked ? [...prev, cId] : prev.filter(x => x !== cId));
+                    }}
+                  />
+                  <span>{c.id}: {c.description.slice(0, 30)}…</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <Input placeholder="介面描述（逗號分隔，選填）" value={ssFormInterfaces} onChange={e => setSsFormInterfaces(e.target.value)} />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={isEdit ? saveEditSubsystem : addSubsystem}>
+              {isEdit ? "儲存" : "確認新增"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { resetSsForm(); setShowAddSubsystemForm(false); setEditingSubsystemId(null); }}>
+              取消
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">AI 建議受影響子系統，請勾選確認：</p>
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => { resetSsForm(); setShowAddSubsystemForm(true); setEditingSubsystemId(null); }}>
+              <Plus className="h-3.5 w-3.5" /> 新增子系統
+            </Button>
             <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>
-            <div className="flex items-center border rounded-md overflow-hidden">
-              <button
-                onClick={() => setSubsystemView("diagram")}
-                className={`p-1.5 transition-colors ${subsystemView === "diagram" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
-                title="區塊圖"
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setSubsystemView("list")}
-                className={`p-1.5 transition-colors ${subsystemView === "list" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
-                title="列表"
-              >
-                <List className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          </div>
+          <div className="flex items-center border rounded-md overflow-hidden">
+            <button onClick={() => setSubsystemView("diagram")} className={`p-1.5 transition-colors ${subsystemView === "diagram" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`} title="區塊圖">
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => setSubsystemView("list")} className={`p-1.5 transition-colors ${subsystemView === "list" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`} title="列表">
+              <List className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* AI subsystem summary */}
+        {/* Add form */}
+        {showAddSubsystemForm && !editingSubsystemId && renderSsInlineForm(false)}
+
+        {/* Source statistics summary */}
         <Card className="border-dashed bg-muted/30">
           <CardContent className="p-3 space-y-1">
             <div className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">AI 子系統摘要</span>
-              <Badge variant="secondary" className="text-[10px]">AI</Badge>
+              <span className="text-xs font-medium">子系統來源統計</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              本專案涉及 {subsystems.length} 個子系統，其中「{subsystems.find(s => s.relatedContradictions.length > 0)?.name}」與最多矛盾相關，建議優先處理。
-              已確認的子系統將作為 SCAMPER 變形的目標範圍。
+              本專案共 {subsystems.length} 個子系統：
+              {rdCount > 0 && <><Badge variant="outline" className="text-[9px] mx-1 bg-primary/15 text-primary border-primary/30">RD {rdCount}</Badge></>}
+              {aiCount > 0 && <><Badge variant="outline" className="text-[9px] mx-1 bg-muted border-muted-foreground/30">AI {aiCount}</Badge></>}
+              {aiEditedCount > 0 && <><Badge variant="outline" className="text-[9px] mx-1 bg-accent/15 text-accent-foreground border-accent/30">AI+RD {aiEditedCount}</Badge></>}
+              。已確認的子系統將作為 SCAMPER 變形的目標範圍。
             </p>
+            {rdCount === 0 && (
+              <p className="text-xs text-primary mt-1">💡 建議 RD 先定義已知的核心子系統，AI 將補充可能遺漏的部分。</p>
+            )}
           </CardContent>
         </Card>
+
+        {/* Edit form (shown above the diagram/list) */}
+        {editingSubsystemId && renderSsInlineForm(true)}
 
         {subsystemView === "diagram" ? (
           <SubsystemBlockDiagram
             systemName={MOCK_MISSION.problemStatement}
             subsystems={subsystems}
             onToggle={toggleSubsystem}
+            onEdit={startEditSubsystem}
+            onDelete={deleteSubsystem}
           />
         ) : (
-          subsystems.map((ss) => (
-            <Card
-              key={ss.id}
-              className={`transition-all cursor-pointer ${ss.confirmed ? "border-primary/30 bg-primary/[0.03]" : ""}`}
-              onClick={() => toggleSubsystem(ss.id)}
-            >
-              <CardContent className="p-4 flex items-start gap-4">
-                <Checkbox checked={ss.confirmed} onCheckedChange={() => toggleSubsystem(ss.id)} className="mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{ss.name}</span>
-                    <Badge variant="secondary" className="text-[10px]">AI</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{ss.reason}</p>
-                  {ss.relatedContradictions.length > 0 && (
-                    <div className="flex gap-1.5 mt-2">
-                      {ss.relatedContradictions.map((c) => (
-                        <Badge key={c} variant="outline" className="text-[10px] font-mono">{c}</Badge>
-                      ))}
+          subsystems.map((ss) => {
+            const srcCfg: Record<string, { label: string; cls: string }> = {
+              rd: { label: "RD", cls: "bg-primary/15 text-primary border-primary/30" },
+              ai: { label: "AI", cls: "bg-muted border-muted-foreground/30" },
+              ai_edited: { label: "AI+RD", cls: "bg-accent/15 text-accent-foreground border-accent/30" },
+            };
+            const cfg = srcCfg[ss.source] ?? srcCfg.ai;
+            return (
+              <Card
+                key={ss.id}
+                className={`transition-all cursor-pointer ${ss.confirmed ? "border-primary/30 bg-primary/[0.03]" : ""}`}
+                onClick={() => toggleSubsystem(ss.id)}
+              >
+                <CardContent className="p-4 flex items-start gap-4">
+                  <Checkbox checked={ss.confirmed} onCheckedChange={() => toggleSubsystem(ss.id)} className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{ss.name}</span>
+                      <Badge variant="outline" className={`text-[9px] ${cfg.cls}`}>{cfg.label}</Badge>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{ss.reason}</p>
+                    {ss.relatedContradictions.length > 0 && (
+                      <div className="flex gap-1.5 mt-2">
+                        {ss.relatedContradictions.map((c) => (
+                          <Badge key={c} variant="outline" className="text-[10px] font-mono">{c}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); startEditSubsystem(ss.id); }} className="p-1 rounded hover:bg-muted"><Pencil className="h-3 w-3 text-muted-foreground" /></button>
+                    {ss.source === "rd" && <button onClick={(e) => { e.stopPropagation(); deleteSubsystem(ss.id); }} className="p-1 rounded hover:bg-destructive/10"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[2] ?? []} />
       </div>

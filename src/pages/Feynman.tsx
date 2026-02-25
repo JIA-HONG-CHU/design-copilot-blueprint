@@ -1,0 +1,204 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import {
+  ArrowLeft, Sparkles, Loader2, CheckCircle, BookOpen, RefreshCw
+} from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
+
+interface KnowledgeEntry {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  status: 'pending' | 'written' | 'reviewed';
+  createdAt: string;
+}
+
+export default function Feynman() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setEntries([
+        {
+          id: 'ke-001',
+          title: '磁力耦合傳動系統設計要點',
+          summary: '磁力耦合器透過磁場實現非接觸式扭矩傳遞，關鍵參數包括氣隙距離、磁鐵材質（NdFeB vs SmCo）、溫度退磁特性。設計時需確保最大扭矩 > 1.5× 額定扭矩以防滑脫。高溫環境需選用 SmCo 或做散熱設計。',
+          source: '決策記錄 DR-001 + 實驗 Exp-001',
+          status: 'written',
+          createdAt: '2026-02-24T10:00:00Z',
+        },
+        {
+          id: 'ke-002',
+          title: '碳纖維蜂巢夾層結構減重方案',
+          summary: '蜂巢夾層結構可在減重 35% 的同時維持結構剛度。關鍵假設：蜂巢芯材的剪切模量需 ≥ 50MPa。疲勞壽命需通過 10^6 次循環測試驗證。製造成本約為傳統鋁合金的 2.5 倍。',
+          source: '假設 A-003 驗證結果 + TRIZ 分割原理',
+          status: 'written',
+          createdAt: '2026-02-24T10:30:00Z',
+        },
+        {
+          id: 'ke-003',
+          title: 'TRIZ 分割原理在傳動系統的應用模式',
+          summary: '分割原理（Principle #1）應用於傳動系統時，可將單一大齒輪分割為多級小齒輪以降低噪音，或將剛性聯軸器分割為柔性元件以吸收振動。本專案中應用於將機械傳動分割為磁力耦合段 + 機械段的混合架構。',
+          source: 'TRIZ 求解步驟 + 矛盾 EC-001',
+          status: 'pending',
+          createdAt: '2026-02-24T11:00:00Z',
+        },
+      ]);
+      setIsLoading(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [id]);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    await new Promise(r => setTimeout(r, 2000));
+    const newEntry: KnowledgeEntry = {
+      id: `ke-${Date.now()}`,
+      title: '電動自行車噪音控制設計準則',
+      summary: '噪音源分析：齒輪嚙合 > 馬達電磁 > 風切。控制策略：(1) 嚙合噪音可透過斜齒或磁力耦合消除，(2) 電磁噪音可透過 PWM 頻率調整降低，(3) 殼體隔音需 STC ≥ 25dB。目標 ≤65dB@1m 可達成。',
+      source: 'AI 從決策記錄與實驗結果自動生成',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    setEntries(prev => [...prev, newEntry]);
+    setIsGenerating(false);
+    toast.success('AI 已生成新知識條目');
+  };
+
+  const handleMarkReviewed = (entryId: string) => {
+    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: 'reviewed' as const } : e));
+    toast.success('已標記為已審閱');
+  };
+
+  const writtenCount = entries.filter(e => e.status === 'written' || e.status === 'reviewed').length;
+  const reviewedCount = entries.filter(e => e.status === 'reviewed').length;
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 py-8">
+        <Skeleton className="h-8 w-48" />
+        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      {/* Header */}
+      <div className="h-1 w-full rounded-full bg-[#10B981]" />
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
+          <ArrowLeft className="h-4 w-4 mr-1" /> 返回
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Feynman — 內化與傳達
+            <HelpTooltip text="費曼學習法：AI 自動將決策記錄、實驗結果與設計知識轉化為知識庫條目，實現組織學習的自動化。此步驟為全自動（Fully Auto），無需人類介入。" className="ml-2 align-middle" />
+          </h1>
+          <p className="text-sm text-muted-foreground">Phase 3: Converge &gt; Step 3.3（知識回寫自動化）</p>
+        </div>
+      </div>
+
+      <SectionIntro text="AI 自動將本專案的決策記錄、驗證實驗結果、矛盾解法等轉化為可重複使用的知識庫條目。此步驟為全自動，您僅需審閱確認即可。" />
+
+      {/* Stats */}
+      <div className="flex flex-wrap gap-3">
+        <Badge className="bg-primary text-primary-foreground px-3 py-1">{entries.length} 條目</Badge>
+        <Badge variant="secondary" className="px-3 py-1">{writtenCount} 已寫入</Badge>
+        <Badge className="bg-[#28a745] text-white px-3 py-1">{reviewedCount} 已審閱</Badge>
+      </div>
+
+      {/* Auto badge */}
+      <Card className="border-dashed bg-muted/30">
+        <CardContent className="p-3 flex items-center gap-3 text-xs text-muted-foreground">
+          <RefreshCw className="h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-medium text-foreground">自動化等級：Fully Auto</span>
+            <span> — AI 自動從決策記錄與實驗結果提取知識，寫入知識庫。Knowledge Agent 執行。</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Knowledge entries */}
+      <div className="space-y-4">
+        {entries.map((entry, i) => (
+          <Card key={entry.id} className={entry.status === 'reviewed' ? 'border-l-[3px] border-l-[#28a745]' : entry.status === 'written' ? 'border-l-[3px] border-l-primary' : ''}>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="secondary" className="text-[10px]">AI</Badge>
+                <Badge variant="outline" className="text-[10px] font-mono">KE-{String(i + 1).padStart(3, '0')}</Badge>
+                <Badge
+                  className={`text-[10px] text-white ${
+                    entry.status === 'reviewed' ? 'bg-[#28a745]' : entry.status === 'written' ? 'bg-primary' : 'bg-muted-foreground'
+                  }`}
+                >
+                  {entry.status === 'reviewed' ? '已審閱' : entry.status === 'written' ? '已寫入' : '待處理'}
+                </Badge>
+              </div>
+              <h3 className="text-sm font-semibold">{entry.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">來源：{entry.source}</span>
+                <div className="flex gap-2">
+                  {entry.status !== 'reviewed' && (
+                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleMarkReviewed(entry.id)}>
+                      <CheckCircle className="h-3 w-3 mr-1" /> 確認審閱
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => navigate('/knowledge-base')}>
+                    <BookOpen className="h-3 w-3 mr-1" /> 查看知識庫
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Generate more */}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" onClick={handleGenerate} disabled={isGenerating}>
+          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+          AI 生成更多知識條目
+          <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
+        </Button>
+      </div>
+
+      {/* Gate */}
+      <Separator />
+      <Card className="border-2 border-[#10B981] bg-[#ECFDF5]">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <BookOpen className="h-5 w-5 text-[#10B981]" />
+            <h3 className="text-sm font-semibold">Step 3.3 完成檢查</h3>
+            <Badge className={`text-xs text-white ${reviewedCount >= entries.length && entries.length > 0 ? 'bg-[#28a745]' : 'bg-[#dc3545]'}`}>
+              {reviewedCount >= entries.length && entries.length > 0 ? '✅ 完成' : '待完成'}
+            </Badge>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              {entries.length > 0 ? <CheckCircle className="h-4 w-4 text-[#28a745]" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
+              <span>至少 1 條知識條目已生成</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {reviewedCount >= entries.length && entries.length > 0 ? <CheckCircle className="h-4 w-4 text-[#28a745]" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
+              <span>所有條目已審閱 ({reviewedCount}/{entries.length})</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

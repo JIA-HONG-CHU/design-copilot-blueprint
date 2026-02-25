@@ -30,7 +30,7 @@ export const mockSubsystems: Record<string, Subsystem[]> = {
 
 export const mockScamperVariants: Record<string, ScamperVariant[]> = {
   "proj-001": [
-    { id: "sv-001", subsystemId: "ss-001", action: "S", description: "以磁力耦合器替代機械齒輪傳動，消除接觸磨耗與噪音。", adopted: true },
+    { id: "sv-001", subsystemId: "ss-001", action: "S", description: "以磁力耦合器替代機械齒輪傳動，消除接觸磨耗與噪音。", adopted: true, newContradictions: ["替代為磁力耦合後，扭矩傳遞效率在高溫下可能降低（新矛盾：效率 vs 溫度穩定性）"] },
     { id: "sv-002", subsystemId: "ss-001", action: "C", description: "將馬達與減速機整合為一體式模組，減少零件數量與組裝誤差。", adopted: false },
     { id: "sv-003", subsystemId: "ss-001", action: "E", description: "消除中間傳動軸，改用同軸直連結構。", adopted: true },
     { id: "sv-004", subsystemId: "ss-002", action: "S", description: "以拓撲優化結構替代實心殼體，在關鍵應力路徑保留材料。", adopted: false },

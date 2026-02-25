@@ -98,6 +98,19 @@ export default function DesignReview() {
   const [editingExp, setEditingExp] = useState<Experiment | null>(null);
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [blackhatQuestions, setBlackhatQuestions] = useState<string[]>([]);
+
+  const handleAiBlackhat = async () => {
+    setAiLoading(p => ({ ...p, blackhat: true }));
+    await new Promise(r => setTimeout(r, 2000));
+    setBlackhatQuestions([
+      '磁力耦合器在高溫環境下（>80°C）是否存在退磁風險？目前的驗證是否涵蓋極端工況？',
+      '碳纖維蜂巢殼體的疲勞壽命數據是否基於實際測試？靜態 FEA 是否足以代表動態負載？',
+      '傳動效率 92% 的目標是否考慮了磨合期效率衰減？長期效率數據如何驗證？',
+    ]);
+    setAiLoading(p => ({ ...p, blackhat: false }));
+    toast.success('AI 已生成 3 項黑帽質疑');
+  };
 
   // Fetch attachments from DB
   const fetchAttachments = useCallback(async () => {
@@ -300,6 +313,67 @@ export default function DesignReview() {
 
       {/* Purpose intro */}
       <SectionIntro text="RD 完成 CAD 建模後，在此審查設計證據。證據矩陣連結自 Track 假設、風險從高風險假設衍生、實驗從 Track 同步。" />
+
+      {/* AI Black Hat Questioning (P1) */}
+      <Card className="border-destructive/20 bg-destructive/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-destructive" />
+            <span className="text-sm font-semibold">AI 黑帽質疑</span>
+            <Badge variant="secondary" className="text-[10px]">AI</Badge>
+            <HelpTooltip text="AI 自動從設計方案中找出潛在弱點與盲點，模擬黑帽思維進行質疑。" />
+          </div>
+          {aiLoading.blackhat ? (
+            <div className="flex items-center gap-2 py-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">AI 正在分析設計弱點...</span>
+            </div>
+          ) : blackhatQuestions.length > 0 ? (
+            <div className="space-y-2">
+              {blackhatQuestions.map((q, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded-md border bg-background">
+                  <span className="text-destructive text-xs font-bold mt-0.5">Q{i + 1}</span>
+                  <p className="text-sm flex-1">{q}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">尚未生成質疑，請點擊下方按鈕。</p>
+          )}
+          <Button size="sm" variant="outline" onClick={handleAiBlackhat} disabled={aiLoading.blackhat}>
+            {aiLoading.blackhat ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+            AI 黑帽質疑
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* AI Evidence Gap Detection (P1) */}
+      {hasGap && (
+        <Card className="border-accent/20 bg-accent/5">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-accent" />
+              <span className="text-sm font-semibold">AI 證據缺口分析</span>
+              <Badge variant="secondary" className="text-[10px]">AI</Badge>
+            </div>
+            <div className="space-y-1.5">
+              {evidenceRows.filter(r => r.currentLevel === 'E0' || r.currentLevel === 'E1').map(r => (
+                <div key={r.assumptionCode} className="flex items-center gap-2 text-xs p-1.5 rounded bg-background border">
+                  <Badge variant="outline" className="text-[10px]">{r.assumptionCode}</Badge>
+                  <span className="text-muted-foreground flex-1 truncate">{r.summary}</span>
+                  <Badge className="text-[10px] bg-accent text-accent-foreground">{r.currentLevel}</Badge>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              建議：為上述 {gapCount} 項假設規劃最小實驗，提升證據等級至 E2 以上。
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setActiveTab('experiment')}>
+              <Beaker className="h-3 w-3 mr-1" /> 前往規劃實驗
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Data source banner */}
       {renderDataSourceBanner()}

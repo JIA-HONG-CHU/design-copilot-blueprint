@@ -304,6 +304,45 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
         })}
       </div>
 
+      {/* Batch confirm bar */}
+      {answeredCount > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-medium">本輪回答確認</p>
+              <p className="text-xs text-muted-foreground">
+                已回答 {answeredCount} 題，{answeredCategories}/6 類別覆蓋。確認後 AI 將根據回答內容分析假設與矛盾。
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                toast.success(`已確認 ${answeredCount} 題回答，AI 正在分析...`);
+                // Simulate AI auto-tagging after confirmation
+                setTimeout(() => {
+                  const updated = questions.map((q) => {
+                    if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
+                      // Simple heuristic mock: tag some answers
+                      if (q.category === 'assumption' || q.answer.includes('假設') || q.answer.includes('基於')) {
+                        return { ...q, aiSuggestedTag: 'assumption' as const };
+                      }
+                      if (q.category === 'counter' || q.answer.includes('矛盾') || q.answer.includes('不足')) {
+                        return { ...q, aiSuggestedTag: 'contradiction' as const };
+                      }
+                    }
+                    return q;
+                  });
+                  onUpdateQuestions(updated);
+                  toast.info('AI 分析完成，請檢查標記建議');
+                }, 1500);
+              }}
+              className="shrink-0"
+            >
+              <Check className="h-4 w-4 mr-1" /> 確認本輪回答
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Bottom buttons */}
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={handleGenerateMore} disabled={isGenerating}>

@@ -153,6 +153,13 @@ export default function DecisionRecord() {
     toast.success("簽核完成");
   };
 
+  const revertSignature = (idx: number) => {
+    setSignatures(prev => prev.map((s, i) =>
+      i === idx ? { ...s, status: 'pending' as SignatureStatus, signedAt: null } : s
+    ));
+    toast.info("已撤回簽核");
+  };
+
   const signedCount = signatures.filter(s => s.status === 'signed').length;
   const hasSigned = signedCount > 0;
 
@@ -517,6 +524,9 @@ export default function DecisionRecord() {
                       <div className="flex items-center gap-1.5">
                         <Badge className="bg-[#28a745] text-white text-[10px]"><Check className="h-3 w-3 mr-0.5" /> 已簽核</Badge>
                         <span className="text-[10px] text-muted-foreground">{s.signedAt ? new Date(s.signedAt).toLocaleDateString('zh-TW') : ''}</span>
+                        <Button size="sm" variant="ghost" className="text-[10px] h-5 text-muted-foreground hover:text-foreground ml-1" onClick={() => revertSignature(idx)}>
+                          撤回
+                        </Button>
                       </div>
                     ) : (
                       <Button size="sm" variant="outline" className="text-xs h-6" onClick={() => signSignature(idx)}

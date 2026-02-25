@@ -56,6 +56,21 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
     toast.success('已確認 AI 標記');
   };
 
+  const handleRevertTag = (qId: string) => {
+    onUpdateQuestions(
+      questions.map((q) => {
+        if (q.id !== qId) return q;
+        return {
+          ...q,
+          aiTagConfirmed: false,
+          taggedAsAssumption: false,
+          taggedAsContradiction: false,
+        };
+      })
+    );
+    toast.info('已撤回標記，AI 建議已恢復');
+  };
+
   const handleDismissTag = (qId: string) => {
     onUpdateQuestions(
       questions.map((q) => (q.id === qId ? { ...q, aiSuggestedTag: null, aiTagConfirmed: false } : q))
@@ -222,6 +237,14 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                       ✓ 已標記為{tagConfig.label}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">已自動同步至{q.aiSuggestedTag === 'assumption' ? '假設追蹤' : '矛盾識別'}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-muted-foreground hover:text-foreground ml-auto"
+                      onClick={() => handleRevertTag(q.id)}
+                    >
+                      撤回
+                    </Button>
                   </div>
                 )}
               </CardContent>

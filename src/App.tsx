@@ -9,6 +9,7 @@ import ProjectDashboard from "./pages/ProjectDashboard";
 import TaskDefinition from "./pages/TaskDefinition";
 import AssumptionLedger from "./pages/AssumptionLedger";
 import ContradictionIdentification from "./pages/ContradictionIdentification";
+import Track from "./pages/Track";
 import SolutionExplorer from "./pages/SolutionExplorer";
 import Explore from "./pages/Explore";
 import PreCadReview from "./pages/PreCadReview";
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/projects/:id/task-definition" element={<TaskDefinition />} />
             <Route path="/projects/:id/brief" element={<TaskDefinition />} />
             <Route path="/projects/:id/assumption-ledger" element={<AssumptionLedger />} />
+            <Route path="/projects/:id/track" element={<Track />} />
             <Route path="/projects/:id/contradiction-identification" element={<ContradictionIdentification />} />
             <Route path="/projects/:id/explore" element={<Explore />} />
             <Route path="/projects/:id/solution-explorer" element={<SolutionExplorer />} />

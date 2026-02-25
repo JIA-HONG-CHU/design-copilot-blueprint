@@ -42,6 +42,7 @@ const App = () => (
             <Route path="/projects/:id/create" element={<Create />} />
             <Route path="/projects/:id/pre-cad-review" element={<PreCadReview />} />
             <Route path="/projects/:id/design-review" element={<DesignReview />} />
+            <Route path="/projects/:id/review" element={<DesignReview />} />
             <Route path="/projects/:id/decision-record" element={<DecisionRecord />} />
             <Route path="/knowledge-base" element={<KnowledgeBase />} />
             <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />

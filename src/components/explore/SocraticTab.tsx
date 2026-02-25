@@ -71,6 +71,23 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
     toast.info('已撤回標記，AI 建議已恢復');
   };
 
+  const handleSwitchTag = (qId: string) => {
+    onUpdateQuestions(
+      questions.map((q) => {
+        if (q.id !== qId || !q.aiSuggestedTag) return q;
+        const newTag = q.aiSuggestedTag === 'assumption' ? 'contradiction' : 'assumption';
+        return {
+          ...q,
+          aiSuggestedTag: newTag,
+          aiTagConfirmed: true,
+          taggedAsAssumption: newTag === 'assumption',
+          taggedAsContradiction: newTag === 'contradiction',
+        };
+      })
+    );
+    toast.success('已變更標記類型');
+  };
+
   const handleDismissTag = (qId: string) => {
     onUpdateQuestions(
       questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: true, aiTagConfirmed: false } : q))
@@ -246,14 +263,24 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                       ✓ 已標記為{tagConfig.label}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">已自動同步至{q.aiSuggestedTag === 'assumption' ? '假設追蹤' : '矛盾識別'}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-[10px] text-muted-foreground hover:text-foreground ml-auto"
-                      onClick={() => handleRevertTag(q.id)}
-                    >
-                      撤回
-                    </Button>
+                    <div className="flex gap-1 ml-auto shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+                        onClick={() => handleSwitchTag(q.id)}
+                      >
+                        變更為{q.aiSuggestedTag === 'assumption' ? '矛盾' : '假設'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[10px] text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRevertTag(q.id)}
+                      >
+                        撤回
+                      </Button>
+                    </div>
                   </div>
                 )}
 

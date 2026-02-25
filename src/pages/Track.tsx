@@ -69,6 +69,12 @@ export default function Track() {
       updatedAt: now,
     };
     setAssumptions((prev) => [...prev, newA]);
+    // Update the factor's linkedAssumptionId to point to the new assumption
+    setFactors((prev) =>
+      prev.map((f) =>
+        f.id === factor.id ? { ...f, linkedAssumptionId: newA.id } : f
+      )
+    );
   }, [assumptions.length]);
 
   // Gate 2.1 checks
@@ -176,6 +182,7 @@ export default function Track() {
         <TabsContent value="unknown" className="mt-5">
           <UnknownFactors
             factors={factors}
+            assumptions={assumptions}
             onUpdateFactors={setFactors}
             onConvertToAssumption={handleConvertToAssumption}
             projectId={id || ''}

@@ -1,112 +1,124 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KpiInputList } from "@/components/task-definition/KpiInputList";
-import { MultiItemInput } from "@/components/task-definition/MultiItemInput";
-import { mockTaskDefinitions } from "@/data/mockTaskDefinition";
-import { taskDefinitionSchema, type TaskDefinitionFormValues, type TaskDefinitionKPI } from "@/types/taskDefinition";
-import { ArrowLeft, Save, Loader2, AlertCircle, RefreshCw } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { ConstraintsTable } from "@/components/brief/ConstraintsTable";
+import { KpiList } from "@/components/brief/KpiList";
+import { AITaskDefinitionCard } from "@/components/brief/AITaskDefinitionCard";
+import { GateChecklist } from "@/components/brief/GateChecklist";
+import { AISuggestionCard } from "@/components/brief/AISuggestionCard";
+import {
+  mockBriefData,
+  mockMissionSuggestion,
+  mockConstraintSuggestions,
+  mockKpiSuggestions,
+  mockGenerated5W1H,
+} from "@/data/mockTaskDefinition";
+import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
+import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function TaskDefinition() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // Form state
   const [mission, setMission] = useState("");
-  const [hardConstraints, setHardConstraints] = useState<string[]>([]);
-  const [softObjectives, setSoftObjectives] = useState<string[]>([]);
-  const [nonGoals, setNonGoals] = useState<string[]>([]);
-  const [criticalKPIs, setCriticalKPIs] = useState<TaskDefinitionKPI[]>([
-    { id: "kpi-default", name: "", target: "", method: "" },
+  const [constraints, setConstraints] = useState<BriefConstraint[]>([
+    { id: "c-new", constraint_code: "M1", description: "", source: "" },
   ]);
+  const [kpis, setKpis] = useState<BriefKPI[]>([
+    { id: "k-new", kpi_name: "", target_value: "", unit: "", measurement_method: "" },
+  ]);
+  const [taskDef5W1H, setTaskDef5W1H] = useState<TaskDefinition5W1H | null>(null);
 
-  // Validation errors
-  const [errors, setErrors] = useState<Record<string, string | string[]>>({});
+  // AI suggestion state
+  const [showMissionSuggestion, setShowMissionSuggestion] = useState(false);
+  const [showConstraintSuggestions, setShowConstraintSuggestions] = useState(false);
+  const [showKpiSuggestions, setShowKpiSuggestions] = useState(false);
 
-  // Simulate loading mock data
+  // Load mock data
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (id && mockTaskDefinitions[id]) {
-        const data = mockTaskDefinitions[id];
+      if (id && mockBriefData[id]) {
+        const data = mockBriefData[id];
         setMission(data.mission);
-        setHardConstraints(data.hardConstraints);
-        setSoftObjectives(data.softObjectives);
-        setNonGoals(data.nonGoals);
-        setCriticalKPIs(data.criticalKPIs);
+        setConstraints(data.constraints);
+        setKpis(data.kpis);
+        setTaskDef5W1H(data.task_definition_5w1h);
       }
       setIsLoading(false);
-    }, 600);
+    }, 500);
     return () => clearTimeout(timer);
   }, [id]);
 
-  const validate = (): boolean => {
-    const formData: TaskDefinitionFormValues = {
-      mission,
-      hardConstraints,
-      softObjectives,
-      nonGoals,
-      criticalKPIs,
-    };
-
-    const result = taskDefinitionSchema.safeParse(formData);
-    if (result.success) {
-      setErrors({});
-      return true;
+  // Auto-trigger AI mission suggestion when mission >= 10 chars
+  useEffect(() => {
+    if (mission.trim().length >= 10 && !showMissionSuggestion) {
+      const timer = setTimeout(() => setShowMissionSuggestion(true), 1500);
+      return () => clearTimeout(timer);
     }
+  }, [mission]);
 
-    const fieldErrors: Record<string, string | string[]> = {};
-    const kpiErrors: Record<string, string[]> = {};
-
-    for (const issue of result.error.issues) {
-      const path = issue.path;
-      if (path[0] === "criticalKPIs" && typeof path[1] === "number") {
-        const idx = String(path[1]);
-        if (!kpiErrors[idx]) kpiErrors[idx] = [];
-        kpiErrors[idx].push(issue.message);
-      } else if (path[0] === "criticalKPIs") {
-        fieldErrors.criticalKPIs = issue.message;
-      } else if (typeof path[0] === "string" && typeof path[1] === "number") {
-        // Array item error (hardConstraints, softObjectives, nonGoals)
-        const key = path[0];
-        if (!fieldErrors[key]) fieldErrors[key] = [];
-        (fieldErrors[key] as string[]).push(`第 ${path[1] + 1} 項：${issue.message}`);
-      } else {
-        fieldErrors[String(path[0])] = issue.message;
-      }
+  // Auto-trigger 5W1H when mission ready
+  useEffect(() => {
+    if (mission.trim().length >= 10 && !taskDef5W1H) {
+      const timer = setTimeout(() => setTaskDef5W1H(mockGenerated5W1H), 2000);
+      return () => clearTimeout(timer);
     }
+  }, [mission, taskDef5W1H]);
 
-    fieldErrors._kpiItems = kpiErrors as any;
-    setErrors(fieldErrors);
-    return false;
+  // Auto-save simulation
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      setSaveStatus("saving");
+      setTimeout(() => {
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      }, 500);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [mission, constraints, kpis]);
+
+  // Gate 1.1 check
+  const missionReady = mission.trim().length >= 10;
+  const hasConstraint = constraints.some((c) => c.description.trim().length >= 2);
+  const hasKpi = kpis.some(
+    (k) => k.kpi_name.trim() && k.target_value.trim() && k.unit.trim() && k.measurement_method.trim()
+  );
+
+  const gateItems: GateCheckItem[] = useMemo(() => [
+    { label: "Mission 已填寫 (≥ 10 字元)", passed: missionReady },
+    { label: "至少 1 項硬約束", passed: hasConstraint },
+    { label: "至少 1 項 KPI", passed: hasKpi },
+  ], [missionReady, hasConstraint, hasKpi]);
+
+  const handleAdoptMissionSuggestion = () => {
+    setMission(mockMissionSuggestion);
+    setShowMissionSuggestion(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const handleAdoptConstraintSuggestion = (desc: string, source: string) => {
+    const code = `M${constraints.length + 1}`;
+    setConstraints([
+      ...constraints,
+      { id: `c-ai-${Date.now()}`, constraint_code: code, description: desc, source },
+    ]);
+  };
 
-    setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1000));
-    setIsSubmitting(false);
-
-    toast({
-      title: "任務定義已儲存",
-      description: "已成功更新任務定義，即將進入假設台帳。",
-    });
-
-    setTimeout(() => {
-      navigate(`/projects/${id}/assumption-ledger`);
-    }, 800);
+  const handleAdoptKpiSuggestion = (kpi: typeof mockKpiSuggestions[0]) => {
+    setKpis([
+      ...kpis,
+      { id: `k-ai-${Date.now()}`, ...kpi },
+    ]);
   };
 
   if (isLoading) {
@@ -114,14 +126,12 @@ export default function TaskDefinition() {
       <div className="mx-auto max-w-3xl space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
-        <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          ))}
-        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -131,9 +141,7 @@ export default function TaskDefinition() {
       <div className="flex flex-col items-center justify-center py-20 text-center mx-auto max-w-md">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
         <h2 className="text-lg font-semibold">載入失敗</h2>
-        <p className="text-sm text-muted-foreground mt-1 mb-4">
-          無法取得任務定義資料，請稍後再試。
-        </p>
+        <p className="text-sm text-muted-foreground mt-1 mb-4">無法取得任務定義資料。</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           重試
@@ -146,153 +154,188 @@ export default function TaskDefinition() {
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Header */}
       <div className="space-y-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(`/projects/${id}`)}
-          className="text-muted-foreground -ml-2"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          返回專案儀表板
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">任務定義</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            結構化定義專案的需求、約束與目標，為後續決策提供依據。
-          </p>
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/projects/${id}`)}
+            className="text-muted-foreground -ml-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            返回 Dashboard
+          </Button>
+          {/* Save status indicator */}
+          {saveStatus !== "idle" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              {saveStatus === "saving" && "Saving..."}
+              {saveStatus === "saved" && (
+                <>
+                  <Check className="h-3 w-3 text-[hsl(var(--success))]" />
+                  Saved
+                </>
+              )}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-1 rounded-full bg-[hsl(217,91%,60%)]" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Brief — 定義簡報</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Step 1.1 · 結構化定義 Mission、硬約束與 KPI
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Mission */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Mission（核心使命）<span className="text-destructive ml-1">*</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Textarea
-              value={mission}
-              onChange={(e) => setMission(e.target.value)}
-              placeholder="描述專案的核心使命與目標，例如：設計一款適用於城市通勤場景的高效動力傳動系統..."
-              rows={4}
-              maxLength={500}
-              disabled={isSubmitting}
+      {/* Section 1: Mission */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            核心使命 (Mission Statement) <span className="text-destructive">★</span>
+          </CardTitle>
+          <p className="text-xs text-muted-foreground italic">
+            模板：在 [情境] 下，系統必須 [行為]，且 [指標] 不得超標
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={mission}
+            onChange={(e) => setMission(e.target.value)}
+            placeholder="在 [情境] 下，系統必須 [行為]，且 [指標] 不得超標"
+            rows={4}
+            maxLength={500}
+            className={cn(
+              "min-h-[100px]",
+              missionReady && "border-l-[3px] border-l-[hsl(var(--success))]",
+              !mission.trim() && ""
+            )}
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            {!missionReady && mission.trim().length > 0 && (
+              <span className="text-destructive">Mission 需至少 10 個字元</span>
+            )}
+            <span className="ml-auto">{mission.length}/500</span>
+          </div>
+
+          {/* AI Mission Suggestion */}
+          {showMissionSuggestion && (
+            <AISuggestionCard
+              title="改寫建議"
+              content={mockMissionSuggestion}
+              onAdopt={handleAdoptMissionSuggestion}
+              onSkip={() => setShowMissionSuggestion(false)}
             />
-            <div className="flex justify-between">
-              {errors.mission && (
-                <p className="text-xs text-destructive">{errors.mission as string}</p>
-              )}
-              <span className="text-xs text-muted-foreground ml-auto">
-                {mission.length}/500
-              </span>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 2: Hard Constraints */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              硬約束 (Hard Constraints / MUST) <span className="text-destructive">★</span>
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowConstraintSuggestions(true)}
+            >
+              <Sparkles className="h-3 w-3 mr-1" />
+              AI 建議補充
+              <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ConstraintsTable constraints={constraints} onChange={setConstraints} />
+
+          {/* AI constraint suggestions */}
+          {showConstraintSuggestions && (
+            <div className="space-y-2 mt-3">
+              {mockConstraintSuggestions.map((s, i) => (
+                <AISuggestionCard
+                  key={i}
+                  title={`建議約束`}
+                  content={`${s.description} (來源: ${s.source})`}
+                  onAdopt={() => {
+                    handleAdoptConstraintSuggestion(s.description, s.source);
+                  }}
+                  onSkip={() => {}}
+                />
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowConstraintSuggestions(false)}
+                className="text-xs"
+              >
+                關閉建議
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Hard Constraints */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Hard Constraints（硬約束）</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              專案必須遵守的不可妥協限制，如成本上限、法規要求等。按 Enter 或點擊 + 新增。
-            </p>
-            <MultiItemInput
-              items={hardConstraints}
-              onChange={setHardConstraints}
-              placeholder="例：成本 ≤ $150 USD"
-              errors={errors.hardConstraints as string[] | undefined}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Soft Objectives */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Soft Objectives（軟目標）</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              希望達成但可權衡的目標，如效能提升、輕量化等。
-            </p>
-            <MultiItemInput
-              items={softObjectives}
-              onChange={setSoftObjectives}
-              placeholder="例：噪音 < 55dB"
-              errors={errors.softObjectives as string[] | undefined}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Non-Goals */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Non-Goals（非目標）</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              明確定義本版專案不追求的功能或範圍，避免範圍蔓延。
-            </p>
-            <MultiItemInput
-              items={nonGoals}
-              onChange={setNonGoals}
-              placeholder="例：不考慮競速場景"
-              errors={errors.nonGoals as string[] | undefined}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Critical KPIs */}
-        <Card>
-          <CardHeader className="pb-3">
+      {/* Section 3: KPIs */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              三個最不能失敗指標（Critical KPIs）<span className="text-destructive ml-1">*</span>
+              關鍵績效指標 (KPI) <span className="text-destructive">★</span>
             </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-xs text-muted-foreground mb-3">
-              定義專案最關鍵的衡量指標，每個指標需包含名稱、目標值和衡量方式。
-            </p>
-            <KpiInputList
-              kpis={criticalKPIs}
-              onChange={setCriticalKPIs}
-              errors={(errors._kpiItems as unknown as Record<string, string[]>) ?? undefined}
-            />
-            {typeof errors.criticalKPIs === "string" && (
-              <p className="text-xs text-destructive">{errors.criticalKPIs}</p>
-            )}
-          </CardContent>
-        </Card>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowKpiSuggestions(true)}
+            >
+              <Sparkles className="h-3 w-3 mr-1" />
+              AI 建議 KPI
+              <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <KpiList kpis={kpis} onChange={setKpis} />
 
-        {/* Action buttons */}
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(`/projects/${id}`)}
-            disabled={isSubmitting}
-          >
-            取消
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                儲存中...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                確認任務定義
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
+          {/* AI KPI suggestions */}
+          {showKpiSuggestions && (
+            <div className="space-y-2 mt-3">
+              {mockKpiSuggestions.map((s, i) => (
+                <AISuggestionCard
+                  key={i}
+                  title={`建議 KPI: ${s.kpi_name}`}
+                  content={`目標值: ${s.target_value} ${s.unit} · 衡量方式: ${s.measurement_method}`}
+                  onAdopt={() => handleAdoptKpiSuggestion(s)}
+                  onSkip={() => {}}
+                />
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowKpiSuggestions(false)}
+                className="text-xs"
+              >
+                關閉建議
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section 4: AI Task Definition (5W1H) */}
+      <AITaskDefinitionCard
+        data={taskDef5W1H}
+        missionReady={missionReady}
+        onRegenerate={() => setTaskDef5W1H(mockGenerated5W1H)}
+      />
+
+      {/* Section 5: Gate 1.1 Checklist */}
+      <GateChecklist
+        items={gateItems}
+        onNavigateNext={() => navigate(`/projects/${id}/contradiction-identification`)}
+      />
     </div>
   );
 }

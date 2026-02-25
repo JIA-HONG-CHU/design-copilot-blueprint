@@ -9,7 +9,8 @@ export interface SocraticQuestion {
   taggedAsAssumption: boolean;
   taggedAsContradiction: boolean;
   aiSuggestedTag: 'assumption' | 'contradiction' | null; // AI auto-detected tag
-  aiTagConfirmed: boolean; // user confirmed or dismissed
+  aiTagConfirmed: boolean; // user confirmed
+  aiTagDismissed: boolean; // user dismissed the suggestion
 }
 
 export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh: string; color: string }> = {

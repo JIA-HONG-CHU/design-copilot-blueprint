@@ -11,6 +11,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: false,
       aiSuggestedTag: null,
       aiTagConfirmed: false,
+      aiTagDismissed: false,
     },
     {
       id: "q2",
@@ -21,6 +22,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: false,
       aiSuggestedTag: 'assumption',
       aiTagConfirmed: true,
+      aiTagDismissed: false,
     },
     {
       id: "q3",
@@ -31,6 +33,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: false,
       aiSuggestedTag: null,
       aiTagConfirmed: false,
+      aiTagDismissed: false,
     },
     {
       id: "q4",
@@ -41,6 +44,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: true,
       aiSuggestedTag: 'contradiction',
       aiTagConfirmed: true,
+      aiTagDismissed: false,
     },
     {
       id: "q5",
@@ -51,6 +55,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: false,
       aiSuggestedTag: 'assumption',
       aiTagConfirmed: false,
+      aiTagDismissed: false,
     },
     {
       id: "q6",
@@ -61,6 +66,7 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       taggedAsContradiction: false,
       aiSuggestedTag: null,
       aiTagConfirmed: false,
+      aiTagDismissed: false,
     },
   ],
 };

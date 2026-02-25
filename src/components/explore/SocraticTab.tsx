@@ -73,9 +73,16 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
 
   const handleDismissTag = (qId: string) => {
     onUpdateQuestions(
-      questions.map((q) => (q.id === qId ? { ...q, aiSuggestedTag: null, aiTagConfirmed: false } : q))
+      questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: true, aiTagConfirmed: false } : q))
     );
     toast.info('已忽略 AI 建議');
+  };
+
+  const handleRestoreTag = (qId: string) => {
+    onUpdateQuestions(
+      questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: false } : q))
+    );
+    toast.success('已恢復 AI 建議');
   };
 
   const handleGenerateMore = async () => {
@@ -90,6 +97,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
       taggedAsContradiction: false,
       aiSuggestedTag: null,
       aiTagConfirmed: false,
+      aiTagDismissed: false,
     };
     onUpdateQuestions([...questions, newQ]);
     setIsGenerating(false);
@@ -150,8 +158,9 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
         {filteredQuestions.map((q) => {
           const config = CATEGORY_CONFIG[q.category];
           const isAnswered = q.answer && q.answer.trim().length >= 5;
-          const hasPendingSuggestion = q.aiSuggestedTag && !q.aiTagConfirmed;
+          const hasPendingSuggestion = q.aiSuggestedTag && !q.aiTagConfirmed && !q.aiTagDismissed;
           const hasConfirmedTag = q.aiSuggestedTag && q.aiTagConfirmed;
+          const hasDismissedTag = q.aiSuggestedTag && q.aiTagDismissed && !q.aiTagConfirmed;
           const tagConfig = q.aiSuggestedTag ? AI_TAG_LABELS[q.aiSuggestedTag] : null;
 
           return (
@@ -244,6 +253,21 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                       onClick={() => handleRevertTag(q.id)}
                     >
                       撤回
+                    </Button>
+                  </div>
+                )}
+
+                {/* Dismissed tag — recoverable */}
+                {hasDismissedTag && tagConfig && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">AI 曾建議標記為{tagConfig.label}，已忽略</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+                      onClick={() => handleRestoreTag(q.id)}
+                    >
+                      恢復建議
                     </Button>
                   </div>
                 )}

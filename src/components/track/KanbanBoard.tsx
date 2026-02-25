@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Sparkles, Loader2, GripVertical, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
-import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment } from "@/types/track";
+import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
 import { mockExperiments } from "@/data/mockTrack";
 
@@ -29,6 +29,13 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
   const [expandedAi, setExpandedAi] = useState<Set<string>>(new Set());
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
+
+  // Experiment state (local, keyed by assumption id)
+  const [experiments, setExperiments] = useState<Record<string, Experiment[]>>(() => ({ ...mockExperiments }));
+  const [newExpName, setNewExpName] = useState('');
+  const [editingExpId, setEditingExpId] = useState<string | null>(null);
+  const [editExpResult, setEditExpResult] = useState('');
+  const [editExpStatus, setEditExpStatus] = useState<ExperimentStatus>('planned');
 
   // New assumption form
   const [newDesc, setNewDesc] = useState('');
@@ -445,16 +452,17 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
               <div>
                 <span className="text-xs text-muted-foreground">實驗詳情</span>
                 {(() => {
-                  const exps = mockExperiments[selectedCard.id] ?? [];
-                  if (exps.length === 0) {
-                    return <p className="text-sm mt-1 text-muted-foreground italic">尚無實驗記錄</p>;
-                  }
+                  const exps = experiments[selectedCard.id] ?? [];
                   return (
                     <div className="mt-2 space-y-2">
+                      {exps.length === 0 && (
+                        <p className="text-sm text-muted-foreground italic">尚無實驗記錄</p>
+                      )}
                       {exps.map((exp) => {
                         const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status];
+                        const isEditing = editingExpId === exp.id;
                         return (
-                          <div key={exp.id} className="border rounded-lg p-2.5 space-y-1">
+                          <div key={exp.id} className="border rounded-lg p-2.5 space-y-2">
                             <div className="flex items-center gap-2">
                               <FlaskConical className="h-3 w-3 text-muted-foreground" />
                               <span className="text-sm font-medium flex-1">{exp.name}</span>
@@ -462,15 +470,98 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
                                 {statusCfg.label}
                               </Badge>
                             </div>
-                            {exp.result && (
-                              <p className="text-xs text-muted-foreground pl-5">{exp.result}</p>
+                            {isEditing ? (
+                              <div className="space-y-2 pl-5">
+                                <Select value={editExpStatus} onValueChange={(v) => setEditExpStatus(v as ExperimentStatus)}>
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(['planned', 'running', 'completed', 'failed'] as ExperimentStatus[]).map((s) => (
+                                      <SelectItem key={s} value={s} className="text-xs">
+                                        {EXPERIMENT_STATUS_CONFIG[s].label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Textarea
+                                  value={editExpResult}
+                                  onChange={(e) => setEditExpResult(e.target.value)}
+                                  placeholder="實驗結果或備註..."
+                                  rows={2}
+                                  className="text-xs"
+                                />
+                                <div className="flex gap-1.5">
+                                  <Button size="sm" className="h-6 text-[10px]" onClick={() => {
+                                    setExperiments((prev) => ({
+                                      ...prev,
+                                      [selectedCard.id]: (prev[selectedCard.id] ?? []).map((e) =>
+                                        e.id === exp.id ? { ...e, status: editExpStatus, result: editExpResult.trim() || null } : e
+                                      ),
+                                    }));
+                                    setEditingExpId(null);
+                                    toast.success('實驗已更新');
+                                  }}>儲存</Button>
+                                  <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingExpId(null)}>取消</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {exp.result && (
+                                  <p className="text-xs text-muted-foreground pl-5">{exp.result}</p>
+                                )}
+                                <div className="flex items-center justify-between pl-5">
+                                  <p className="text-[10px] text-muted-foreground/60">
+                                    {new Date(exp.createdAt).toLocaleDateString('zh-TW')}
+                                  </p>
+                                  <Button size="sm" variant="ghost" className="h-5 text-[10px] text-muted-foreground" onClick={() => {
+                                    setEditingExpId(exp.id);
+                                    setEditExpStatus(exp.status);
+                                    setEditExpResult(exp.result || '');
+                                  }}>
+                                    編輯
+                                  </Button>
+                                </div>
+                              </>
                             )}
-                            <p className="text-[10px] text-muted-foreground/60 pl-5">
-                              {new Date(exp.createdAt).toLocaleDateString('zh-TW')}
-                            </p>
                           </div>
                         );
                       })}
+
+                      {/* Add new experiment */}
+                      <div className="border border-dashed rounded-lg p-2.5 space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            value={newExpName}
+                            onChange={(e) => setNewExpName(e.target.value)}
+                            placeholder="新增實驗名稱..."
+                            className="h-7 text-xs flex-1"
+                          />
+                          <Button size="sm" className="h-7 text-xs" disabled={newExpName.trim().length < 2} onClick={() => {
+                            const newExp: Experiment = {
+                              id: `exp-${Date.now()}`,
+                              name: newExpName.trim(),
+                              status: 'planned',
+                              result: null,
+                              createdAt: new Date().toISOString(),
+                            };
+                            setExperiments((prev) => ({
+                              ...prev,
+                              [selectedCard.id]: [...(prev[selectedCard.id] ?? []), newExp],
+                            }));
+                            // Update experiment count on assumption
+                            onUpdateAssumptions(
+                              assumptions.map((a) =>
+                                a.id === selectedCard.id ? { ...a, experimentCount: (experiments[selectedCard.id]?.length ?? 0) + 1 } : a
+                              )
+                            );
+                            setNewExpName('');
+                            toast.success('實驗已新增');
+                          }}>
+                            <Plus className="h-3 w-3 mr-0.5" /> 新增
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}

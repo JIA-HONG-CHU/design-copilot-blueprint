@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 
 interface CldTabProps {
   causalLoop: CausalLoop | null;
@@ -138,9 +140,15 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId }: CldTabProp
 
   return (
     <div className="space-y-5">
+      {/* Purpose intro */}
+      <SectionIntro text="因果迴路圖（CLD）呈現設計變量之間的因果關係。正回饋 (+) 表示同向變化，負回饋 (-) 表示反向變化。找出迴路中的「斷路點」——即最值得優先突破的瓶頸變量——可以有效打破惡性循環。" />
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">因果迴路圖 (Causal Loop Diagram)</h2>
-        <Badge className="bg-[#3B82F6] text-white text-xs">{breakpointsCount} 斷路點</Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge className="bg-[#3B82F6] text-white text-xs">{breakpointsCount} 斷路點</Badge>
+          <HelpTooltip text="「斷路點」是因果迴路中最具槓桿效應的節點。在此處介入改變，可以打破整個迴路的負面循環，是設計創新的最佳切入點。" />
+        </div>
       </div>
 
       {/* Canvas */}

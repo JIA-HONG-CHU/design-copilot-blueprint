@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Check, Pencil, Trash2, Plus, Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Check, Pencil, Trash2, Plus, Sparkles, Loader2, AlertTriangle, Undo2 } from "lucide-react";
 import { trizParameters } from "@/data/trizParameters";
 import type { ExploreContradiction, ContradictionType } from "@/types/explore";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 
 interface ContradictionTabProps {
   contradictions: ExploreContradiction[];
@@ -26,6 +28,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [newType, setNewType] = useState<ContradictionType>('TC');
+  const [revertConfirmId, setRevertConfirmId] = useState<string | null>(null);
 
   const tcCount = contradictions.filter((c) => c.type === 'TC').length;
   const pcCount = contradictions.filter((c) => c.type === 'PC').length;
@@ -42,6 +45,14 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       contradictions.map((c) => (c.id === id ? { ...c, status: 'confirmed' as const, updatedAt: new Date().toISOString() } : c))
     );
     toast.success('矛盾已確認');
+  };
+
+  const handleRevertToDraft = (id: string) => {
+    onUpdateContradictions(
+      contradictions.map((c) => (c.id === id ? { ...c, status: 'draft' as const, updatedAt: new Date().toISOString() } : c))
+    );
+    setRevertConfirmId(null);
+    toast.info('已恢復為草稿狀態');
   };
 
   const handleStartEdit = (c: ExploreContradiction) => {
@@ -90,7 +101,6 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const handleAiReidentify = async () => {
     setIsAiLoading(true);
     await new Promise((r) => setTimeout(r, 2000));
-    // Mock: add a new AI-identified contradiction
     const now = new Date().toISOString();
     const newC: ExploreContradiction = {
       id: `ec-ai-${Date.now()}`,
@@ -125,9 +135,15 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
   return (
     <div className="space-y-5">
+      {/* Purpose intro */}
+      <SectionIntro text="根據問答結果，AI 會自動識別設計中的技術矛盾 (TC) 與物理矛盾 (PC)。TC 表示改善一個參數會惡化另一個參數；PC 表示同一物件需要同時具備矛盾的屬性。確認矛盾後仍可撤回修改。" />
+
       {/* Header + stats */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">矛盾識別 — 技術矛盾 (TC) 與物理矛盾 (PC)</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">矛盾識別 — 技術矛盾 (TC) 與物理矛盾 (PC)</h2>
+          <HelpTooltip text="TC（技術矛盾）：改善參數 A 會惡化參數 B，可用 TRIZ 矛盾矩陣解法。PC（物理矛盾）：同一物件需要同時滿足相反屬性，可用分離原理解法。" />
+        </div>
         <div className="flex flex-wrap gap-2">
           <Badge className="bg-[#3B82F6] text-white text-xs">TC: {tcCount}</Badge>
           <Badge className="bg-[#F59E0B] text-white text-xs">PC: {pcCount}</Badge>
@@ -269,19 +285,30 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                     <p className="text-sm">{c.description}</p>
 
                     {/* Actions */}
-                    {!isConfirmed && (
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleConfirm(c.id)}>
-                          <Check className="h-3 w-3 mr-1" /> 確認 ★
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleStartEdit(c)}>
-                          <Pencil className="h-3 w-3 mr-1" /> 編輯
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(c.id)}>
-                          <Trash2 className="h-3 w-3 mr-1" /> 刪除
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      {!isConfirmed ? (
+                        <>
+                          <Button size="sm" onClick={() => handleConfirm(c.id)}>
+                            <Check className="h-3 w-3 mr-1" /> 確認 ★
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleStartEdit(c)}>
+                            <Pencil className="h-3 w-3 mr-1" /> 編輯
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirmId(c.id)}>
+                            <Trash2 className="h-3 w-3 mr-1" /> 刪除
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => setRevertConfirmId(c.id)}>
+                            <Undo2 className="h-3 w-3 mr-1" /> 撤回確認
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleStartEdit(c)}>
+                            <Pencil className="h-3 w-3 mr-1" /> 編輯
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -326,6 +353,23 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           </div>
           <DialogFooter>
             <Button onClick={handleAddManual}>建立</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revert confirmation */}
+      <Dialog open={!!revertConfirmId} onOpenChange={() => setRevertConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Undo2 className="h-5 w-5 text-muted-foreground" />
+              確定要撤回確認？
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">此矛盾將恢復為草稿狀態，您可以重新編輯後再次確認。</p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRevertConfirmId(null)}>取消</Button>
+            <Button variant="outline" onClick={() => revertConfirmId && handleRevertToDraft(revertConfirmId)}>撤回確認</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

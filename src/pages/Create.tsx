@@ -17,6 +17,8 @@ import {
   ArrowLeft, Check, Plus, Sparkles, Loader2, AlertTriangle,
   ArrowRight, Flag, CheckCircle, XCircle, ChevronRight
 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
 } from "recharts";
@@ -217,11 +219,17 @@ export default function Create() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-1 rounded-full bg-[#F59E0B]" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Create — 方案創造</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Create — 方案創造
+              <HelpTooltip text="此階段透過 7 個子步驟（Anti-Anchor → TRIZ → 子系統 → SCAMPER → 方案整合 → MUST 快篩 → Pre-CAD 評分）系統性地產生並篩選設計方案。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">Step 2.2–2.3 · 7 個子步驟漸進展開</p>
           </div>
         </div>
       </div>
+
+      {/* Purpose intro */}
+      <SectionIntro text="依序展開每個步驟：先透過 Anti-Anchor 打破思維定勢，再用 TRIZ 矛盾解法、子系統分解、SCAMPER 變異產生多元方案，最後以 MUST 快篩和 Pre-CAD 評分收斂至最優方案。" />
 
       {/* Progress bar */}
       <div className="flex items-center justify-between px-2">

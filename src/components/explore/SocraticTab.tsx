@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Sparkles, Pin, Loader2 } from "lucide-react";
 import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];
@@ -72,6 +74,9 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
 
   return (
     <div className="space-y-5">
+      {/* Purpose intro */}
+      <SectionIntro text="AI 會根據您的 Brief 自動生成 6 類蘇格拉底式問題，引導您深入思考設計背後的假設與盲點。回答問題後，可將重要發現標記為「假設」或「矛盾」，這些標記將自動帶入後續的矛盾識別與假設追蹤流程。" />
+
       {/* Progress */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -149,7 +154,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                 </div>
 
                 {/* Tag buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Button
                     variant={q.taggedAsAssumption ? 'default' : 'ghost'}
                     size="sm"
@@ -159,6 +164,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                     <Pin className="h-3 w-3 mr-1" />
                     {q.taggedAsAssumption ? '已標記為假設' : '標記為假設'}
                   </Button>
+                  <HelpTooltip text="將此問答標記為「假設」後，它會自動出現在 Track（假設追蹤）的 Kanban 看板中，方便後續驗證與管理。" />
                   <Button
                     variant={q.taggedAsContradiction ? 'destructive' : 'ghost'}
                     size="sm"
@@ -168,6 +174,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                     <Pin className="h-3 w-3 mr-1" />
                     {q.taggedAsContradiction ? '已標記為矛盾' : '標記為矛盾'}
                   </Button>
+                  <HelpTooltip text="將此問答標記為「矛盾」後，它會自動加入矛盾識別清單，供您進一步分析為技術矛盾 (TC) 或物理矛盾 (PC)。" />
                 </div>
               </CardContent>
             </Card>

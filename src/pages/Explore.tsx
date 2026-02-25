@@ -11,6 +11,7 @@ import { ExploreGates } from "@/components/explore/ExploreGates";
 import { mockSocraticQuestions, mockExploreContradictions, mockCausalLoop } from "@/data/mockExplore";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 
 type TabKey = 'socratic' | 'contradictions' | 'cld';
 
@@ -121,7 +122,10 @@ export default function Explore() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-1 rounded-full bg-[#3B82F6]" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Explore — 問題探索</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Explore — 問題探索
+              <HelpTooltip text="此階段透過蘇格拉底式問答深入探索問題空間，識別設計中的矛盾，並建立因果迴路圖來視覺化變量關係。完成後即可進入下一階段。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Step 1.2–1.3 · 索克拉底問答 → 矛盾識別 → 因果迴路圖
             </p>

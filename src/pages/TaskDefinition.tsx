@@ -20,6 +20,8 @@ import {
 import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
 import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 
 export default function TaskDefinition() {
   const { id } = useParams<{ id: string }>();
@@ -180,13 +182,19 @@ export default function TaskDefinition() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-1 rounded-full bg-[hsl(217,91%,60%)]" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Brief — 定義簡報</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Brief — 定義簡報
+              <HelpTooltip text="Brief 是整個設計流程的起點。在此定義專案的核心使命、硬約束和 KPI，AI 會自動生成 5W1H 分析。完成 Gate 1.1 後即可進入問題探索階段。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Step 1.1 · 結構化定義 Mission、硬約束與 KPI
             </p>
           </div>
         </div>
       </div>
+
+      {/* Purpose intro */}
+      <SectionIntro text="請依序填寫核心使命、硬約束與 KPI。AI 會根據您的輸入自動建議改寫、補充約束與指標。所有標記 ★ 的欄位為 Gate 1.1 通過的必要條件。" />
 
       {/* Section 1: Mission */}
       <Card>

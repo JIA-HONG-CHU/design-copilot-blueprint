@@ -61,6 +61,24 @@ export const UNKNOWN_STATUS_CONFIG: Record<UnknownStatus, { label: string; color
   dismissed: { label: '已排除', color: '#dc3545' },
 };
 
+// Experiment
+export type ExperimentStatus = 'planned' | 'running' | 'completed' | 'failed';
+
+export interface Experiment {
+  id: string;
+  name: string;
+  status: ExperimentStatus;
+  result: string | null;
+  createdAt: string;
+}
+
+export const EXPERIMENT_STATUS_CONFIG: Record<ExperimentStatus, { label: string; color: string }> = {
+  planned: { label: '已規劃', color: '#6c757d' },
+  running: { label: '進行中', color: '#F59E0B' },
+  completed: { label: '完成', color: '#28a745' },
+  failed: { label: '失敗', color: '#dc3545' },
+};
+
 // Gate check
 export interface TrackGateItem {
   label: string;

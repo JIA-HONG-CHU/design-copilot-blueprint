@@ -13,12 +13,13 @@ import { IMPACT_CONFIG, UNKNOWN_STATUS_CONFIG } from "@/types/track";
 
 interface UnknownFactorsProps {
   factors: UnknownFactor[];
+  assumptions: TrackAssumption[];
   onUpdateFactors: (factors: UnknownFactor[]) => void;
   onConvertToAssumption: (factor: UnknownFactor) => void;
   projectId: string;
 }
 
-export function UnknownFactors({ factors, onUpdateFactors, onConvertToAssumption, projectId }: UnknownFactorsProps) {
+export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConvertToAssumption, projectId }: UnknownFactorsProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{ desc: string; impact: ImpactLevel; reason: string }[]>([]);
@@ -199,11 +200,14 @@ export function UnknownFactors({ factors, onUpdateFactors, onConvertToAssumption
                     <p className="text-xs text-muted-foreground">{f.note}</p>
                   )}
 
-                  {f.linkedAssumptionId && (
-                    <Badge variant="outline" className="text-[10px]">
-                      關聯: {f.linkedAssumptionId}
-                    </Badge>
-                  )}
+                  {f.linkedAssumptionId && (() => {
+                    const linked = assumptions.find(a => a.id === f.linkedAssumptionId);
+                    return (
+                      <Badge variant="outline" className="text-[10px]">
+                        關聯假設: {linked ? linked.assumptionCode : f.linkedAssumptionId}
+                      </Badge>
+                    );
+                  })()}
 
                   {f.status === 'open' && (
                     <div className="flex gap-2 pt-1">

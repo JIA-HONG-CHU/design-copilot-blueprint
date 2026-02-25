@@ -10,8 +10,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Sparkles, Loader2, GripVertical, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
-import type { TrackAssumption, VerificationStatus, RiskLevel } from "@/types/track";
-import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS } from "@/types/track";
+import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment } from "@/types/track";
+import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
+import { mockExperiments } from "@/data/mockTrack";
 
 interface KanbanBoardProps {
   assumptions: TrackAssumption[];
@@ -172,6 +173,9 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
             )}
             {a.source === 'ai_suggest' && (
               <Badge variant="secondary" className="text-[10px]">AI</Badge>
+            )}
+            {a.source === 'unknown_convert' && (
+              <Badge variant="secondary" className="text-[10px] bg-[#F59E0B]/15 text-[#D97706]">來自 U</Badge>
             )}
           </div>
 
@@ -439,8 +443,37 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
               </div>
 
               <div>
-                <span className="text-xs text-muted-foreground">關聯實驗</span>
-                <p className="text-sm mt-1">{selectedCard.experimentCount} 個實驗</p>
+                <span className="text-xs text-muted-foreground">實驗詳情</span>
+                {(() => {
+                  const exps = mockExperiments[selectedCard.id] ?? [];
+                  if (exps.length === 0) {
+                    return <p className="text-sm mt-1 text-muted-foreground italic">尚無實驗記錄</p>;
+                  }
+                  return (
+                    <div className="mt-2 space-y-2">
+                      {exps.map((exp) => {
+                        const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status];
+                        return (
+                          <div key={exp.id} className="border rounded-lg p-2.5 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <FlaskConical className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm font-medium flex-1">{exp.name}</span>
+                              <Badge className="text-[10px] text-white" style={{ backgroundColor: statusCfg.color }}>
+                                {statusCfg.label}
+                              </Badge>
+                            </div>
+                            {exp.result && (
+                              <p className="text-xs text-muted-foreground pl-5">{exp.result}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground/60 pl-5">
+                              {new Date(exp.createdAt).toLocaleDateString('zh-TW')}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {selectedCard.aiChallenge && (

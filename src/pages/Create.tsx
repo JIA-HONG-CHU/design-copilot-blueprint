@@ -34,6 +34,8 @@ import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+import { SubsystemBlockDiagram } from "@/components/create/SubsystemBlockDiagram";
+import { LayoutGrid, List } from "lucide-react";
 
 const RADAR_COLORS = [
   "hsl(var(--primary))",
@@ -87,6 +89,7 @@ export default function Create() {
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
 
   const assumptionMap = useMemo(() => {
     const map = new Map<string, { code: string; description: string }>();
@@ -403,7 +406,25 @@ export default function Create() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">AI 建議受影響子系統，請勾選確認：</p>
-          <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>
+            <div className="flex items-center border rounded-md overflow-hidden">
+              <button
+                onClick={() => setSubsystemView("diagram")}
+                className={`p-1.5 transition-colors ${subsystemView === "diagram" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
+                title="區塊圖"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setSubsystemView("list")}
+                className={`p-1.5 transition-colors ${subsystemView === "list" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
+                title="列表"
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* AI subsystem summary */}
@@ -421,31 +442,39 @@ export default function Create() {
           </CardContent>
         </Card>
 
-        {subsystems.map((ss) => (
-          <Card
-            key={ss.id}
-            className={`transition-all cursor-pointer ${ss.confirmed ? "border-primary/30 bg-primary/[0.03]" : ""}`}
-            onClick={() => toggleSubsystem(ss.id)}
-          >
-            <CardContent className="p-4 flex items-start gap-4">
-              <Checkbox checked={ss.confirmed} onCheckedChange={() => toggleSubsystem(ss.id)} className="mt-0.5" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{ss.name}</span>
-                  <Badge variant="secondary" className="text-[10px]">AI</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{ss.reason}</p>
-                {ss.relatedContradictions.length > 0 && (
-                  <div className="flex gap-1.5 mt-2">
-                    {ss.relatedContradictions.map((c) => (
-                      <Badge key={c} variant="outline" className="text-[10px] font-mono">{c}</Badge>
-                    ))}
+        {subsystemView === "diagram" ? (
+          <SubsystemBlockDiagram
+            systemName={MOCK_MISSION.problemStatement}
+            subsystems={subsystems}
+            onToggle={toggleSubsystem}
+          />
+        ) : (
+          subsystems.map((ss) => (
+            <Card
+              key={ss.id}
+              className={`transition-all cursor-pointer ${ss.confirmed ? "border-primary/30 bg-primary/[0.03]" : ""}`}
+              onClick={() => toggleSubsystem(ss.id)}
+            >
+              <CardContent className="p-4 flex items-start gap-4">
+                <Checkbox checked={ss.confirmed} onCheckedChange={() => toggleSubsystem(ss.id)} className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{ss.name}</span>
+                    <Badge variant="secondary" className="text-[10px]">AI</Badge>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{ss.reason}</p>
+                  {ss.relatedContradictions.length > 0 && (
+                    <div className="flex gap-1.5 mt-2">
+                      {ss.relatedContradictions.map((c) => (
+                        <Badge key={c} variant="outline" className="text-[10px] font-mono">{c}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[2] ?? []} />
       </div>
     );

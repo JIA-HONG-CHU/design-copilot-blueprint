@@ -34,6 +34,8 @@ export interface TrizSolution {
 }
 
 // Subsystem
+export type SubsystemSource = 'rd' | 'ai' | 'ai_edited';
+
 export interface Subsystem {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface Subsystem {
   confirmed: boolean;
   parentId?: string | null;
   interfaces?: string[];
+  source: SubsystemSource;
 }
 
 // SCAMPER

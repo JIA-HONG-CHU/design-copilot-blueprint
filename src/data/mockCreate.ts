@@ -21,10 +21,10 @@ export const mockTrizSolutions: Record<string, TrizSolution[]> = {
 
 export const mockSubsystems: Record<string, Subsystem[]> = {
   "proj-001": [
-    { id: "ss-001", name: "動力傳動模組", reason: "與馬達轉速、傳動效率直接相關", relatedContradictions: ["ec-001"], confirmed: true, interfaces: ["馬達安裝座介面", "熱傳導介面"] },
-    { id: "ss-002", name: "殼體結構模組", reason: "與材料強度、重量直接相關", relatedContradictions: ["ec-002"], confirmed: true, interfaces: ["馬達安裝座介面", "密封面介面"] },
-    { id: "ss-003", name: "散熱模組", reason: "馬達轉速提高將增加散熱需求", relatedContradictions: ["ec-001"], confirmed: false, interfaces: ["熱傳導介面"] },
-    { id: "ss-004", name: "密封模組", reason: "IP55 防護等級涉及密封設計", relatedContradictions: [], confirmed: false, interfaces: ["密封面介面"] },
+    { id: "ss-001", name: "動力傳動模組", reason: "與馬達轉速、傳動效率直接相關", relatedContradictions: ["ec-001"], confirmed: true, interfaces: ["馬達安裝座介面", "熱傳導介面"], source: "ai" },
+    { id: "ss-002", name: "殼體結構模組", reason: "與材料強度、重量直接相關", relatedContradictions: ["ec-002"], confirmed: true, interfaces: ["馬達安裝座介面", "密封面介面"], source: "ai" },
+    { id: "ss-003", name: "散熱模組", reason: "馬達轉速提高將增加散熱需求", relatedContradictions: ["ec-001"], confirmed: false, interfaces: ["熱傳導介面"], source: "ai" },
+    { id: "ss-004", name: "密封模組", reason: "IP55 防護等級涉及密封設計", relatedContradictions: [], confirmed: false, interfaces: ["密封面介面"], source: "ai" },
   ],
 };
 

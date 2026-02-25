@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, DragEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<TrackAssumption | null>(null);
   const [expandedAi, setExpandedAi] = useState<Set<string>>(new Set());
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
 
   // New assumption form
   const [newDesc, setNewDesc] = useState('');
@@ -108,15 +110,53 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
     });
   };
 
+  const handleDragStart = (e: DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverColumn(null);
+  };
+
+  const handleColumnDragOver = (e: DragEvent, status: VerificationStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(status);
+  };
+
+  const handleColumnDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleColumnDrop = (e: DragEvent, status: VerificationStatus) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) {
+      const assumption = assumptions.find((a) => a.id === id);
+      if (assumption && assumption.verificationStatus !== status) {
+        handleMoveCard(id, status);
+      }
+    }
+    setDraggedId(null);
+    setDragOverColumn(null);
+  };
+
   const renderCard = (a: TrackAssumption) => {
     const riskConfig = a.riskLevel ? RISK_LEVEL_CONFIG[a.riskLevel] : null;
     const hasNoRisk = !a.riskLevel;
     const highRiskNoExp = (a.riskLevel === 'H' || a.riskLevel === 'H*') && a.experimentCount === 0;
+    const isDragging = draggedId === a.id;
 
     return (
       <Card
         key={a.id}
-        className={`cursor-pointer transition-shadow hover:shadow-md ${hasNoRisk ? 'border-destructive border-2' : ''}`}
+        draggable
+        onDragStart={(e) => handleDragStart(e, a.id)}
+        onDragEnd={handleDragEnd}
+        className={`cursor-grab active:cursor-grabbing transition-all hover:shadow-md ${hasNoRisk ? 'border-destructive border-2' : ''} ${isDragging ? 'opacity-40 scale-95' : ''}`}
         onClick={() => setSelectedCard(a)}
       >
         <CardContent className="p-3 space-y-2">
@@ -197,6 +237,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
   const renderColumn = (status: VerificationStatus) => {
     const config = VERIFICATION_STATUS_CONFIG[status];
     const cards = getColumnAssumptions(status);
+    const isOver = dragOverColumn === status;
 
     return (
       <div key={status} className="flex-1 min-w-[220px]">
@@ -207,9 +248,14 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
             <Badge variant="secondary" className="text-[10px]">{cards.length}</Badge>
           </div>
         </div>
-        <div className="border border-t-0 rounded-b-lg min-h-[200px] p-2 space-y-2 bg-background">
+        <div
+          className={`border border-t-0 rounded-b-lg min-h-[200px] p-2 space-y-2 transition-colors ${isOver ? 'bg-primary/5 border-primary/30' : 'bg-background'}`}
+          onDragOver={(e) => handleColumnDragOver(e, status)}
+          onDragLeave={handleColumnDragLeave}
+          onDrop={(e) => handleColumnDrop(e, status)}
+        >
           {cards.length === 0 ? (
-            <div className="border-2 border-dashed rounded-lg py-8 text-center">
+            <div className={`border-2 border-dashed rounded-lg py-8 text-center transition-colors ${isOver ? 'border-primary/40 bg-primary/5' : ''}`}>
               <p className="text-xs text-muted-foreground">拖拉假設至此</p>
             </div>
           ) : (

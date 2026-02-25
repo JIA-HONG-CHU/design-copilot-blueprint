@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
-  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3
+  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -23,19 +22,82 @@ import type {
   EvidenceLevel, EvidenceMatrixRow, RiskItem, Experiment, ExperimentStatus, Gate31Item
 } from "@/types/designReview";
 import { EVIDENCE_LEVELS, getRiskScore, getRiskLevel, getRiskColor, EXP_STATUS_COLOR } from "@/types/designReview";
-import { mockEvidenceMatrix, mockRisks, mockExperiments } from "@/data/mockDesignReview";
+import { mockTrackAssumptions, mockExperiments as mockTrackExperiments } from "@/data/mockTrack";
+import { RISK_LEVEL_CONFIG } from "@/types/track";
+
+// Build evidence matrix from Track assumptions instead of independent mock
+function buildEvidenceFromTrack(projectId: string): EvidenceMatrixRow[] {
+  const assumptions = mockTrackAssumptions[projectId] ?? [];
+  return assumptions.map((a) => {
+    // Map verification status to evidence level
+    let currentLevel: EvidenceLevel = "E0";
+    if (a.verificationStatus === "verified") currentLevel = "E3";
+    else if (a.verificationStatus === "verifying") currentLevel = "E1";
+    else if (a.verificationStatus === "negated") currentLevel = "E2"; // had experiments but negated
+    // unverified stays E0
+
+    return {
+      assumptionCode: a.assumptionCode,
+      summary: a.description,
+      currentLevel,
+      experiments: [], // will be populated from Track experiments
+    };
+  });
+}
+
+// Build risk items from Track assumptions with H/H* risk
+function buildRisksFromTrack(projectId: string): RiskItem[] {
+  const assumptions = mockTrackAssumptions[projectId] ?? [];
+  const highRisk = assumptions.filter((a) => a.riskLevel === "H" || a.riskLevel === "H*");
+  return highRisk.map((a, i) => ({
+    id: `R-${String(i + 1).padStart(3, "0")}`,
+    description: a.description,
+    failureMode: a.riskLevel === "H*" ? "結構/安全性失效" : "性能未達標",
+    probability: a.riskLevel === "H*" ? 4 : 3,
+    severity: a.riskLevel === "H*" ? 5 : 4,
+    mitigation: a.verificationStatus === "verified" ? "已驗證通過" : "",
+  }));
+}
+
+// Build experiments from Track experiment data
+function buildExperimentsFromTrack(projectId: string): Experiment[] {
+  const assumptions = mockTrackAssumptions[projectId] ?? [];
+  const exps: Experiment[] = [];
+
+  assumptions.forEach((a) => {
+    const trackExps = mockTrackExperiments[a.id] ?? [];
+    trackExps.forEach((exp: any) => {
+      exps.push({
+        id: exp.id,
+        name: exp.name,
+        linkedAssumptions: [a.assumptionCode],
+        evidenceLevel: exp.status === "completed" ? "E3" : exp.status === "running" ? "E2" : "E1",
+        method: "",
+        successCriteria: "",
+        status: exp.status === "completed" ? "Done" : exp.status === "running" ? "Running" : "Plan",
+        result: exp.result ?? "",
+      });
+    });
+  });
+
+  return exps;
+}
 
 export default function DesignReview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<string>("evidence");
-  const [evidenceRows, setEvidenceRows] = useState<EvidenceMatrixRow[]>(mockEvidenceMatrix[id ?? ""] ?? []);
-  const [risks, setRisks] = useState<RiskItem[]>(mockRisks[id ?? ""] ?? []);
-  const [experiments, setExperiments] = useState<Experiment[]>(mockExperiments[id ?? ""] ?? []);
+  // Initialize from Track data instead of independent mock
+  const [evidenceRows, setEvidenceRows] = useState<EvidenceMatrixRow[]>(() => buildEvidenceFromTrack(id ?? ""));
+  const [risks, setRisks] = useState<RiskItem[]>(() => buildRisksFromTrack(id ?? ""));
+  const [experiments, setExperiments] = useState<Experiment[]>(() => buildExperimentsFromTrack(id ?? ""));
   const [expModalOpen, setExpModalOpen] = useState(false);
   const [editingExp, setEditingExp] = useState<Experiment | null>(null);
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+
+  // Track assumptions for cross-reference display
+  const trackAssumptions = mockTrackAssumptions[id ?? ""] ?? [];
 
   // --- Evidence Matrix helpers ---
   const gapCount = useMemo(() => evidenceRows.filter(r => r.currentLevel === 'E0' || r.currentLevel === 'E1').length, [evidenceRows]);
@@ -82,7 +144,6 @@ export default function DesignReview() {
       if (exists) return prev.map(e => e.id === editingExp.id ? editingExp : e);
       return [...prev, editingExp];
     });
-    // Update evidence matrix if done
     if (editingExp.status === 'Done') {
       setEvidenceRows(prev => prev.map(row => {
         if (editingExp.linkedAssumptions.includes(row.assumptionCode)) {
@@ -96,8 +157,6 @@ export default function DesignReview() {
     setEditingExp(null);
     toast.success("實驗已儲存");
   };
-
-  const completedExpCount = experiments.filter(e => e.status === 'Done').length;
 
   // --- Gate 3.1 ---
   const gate31Items: Gate31Item[] = useMemo(() => [
@@ -188,10 +247,26 @@ export default function DesignReview() {
     );
   };
 
+  // Data source info banner
+  const renderDataSourceBanner = () => (
+    <Card className="bg-muted/30 border-dashed">
+      <CardContent className="p-3 flex items-center gap-3 text-xs text-muted-foreground">
+        <Link2 className="h-4 w-4 shrink-0" />
+        <div>
+          <span className="font-medium text-foreground">資料來源：</span>
+          <span> 證據矩陣自動連結自 Track 假設追蹤（{trackAssumptions.length} 項假設），風險從 H/H* 假設衍生（{risks.length} 項），實驗從 Track 實驗同步。</span>
+          <Button variant="link" size="sm" className="text-xs h-auto p-0 ml-2" onClick={() => navigate(`/projects/${id}/track`)}>
+            前往 Track →
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       {/* Phase header */}
-      <div className="h-1 w-full rounded-full bg-[#10B981]" />
+      <div className="h-1 w-full rounded-full bg-primary" />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
@@ -200,15 +275,18 @@ export default function DesignReview() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Review — 設計審查
-              <HelpTooltip text="此階段審查設計方案的證據強度、風險等級與實驗計畫。證據矩陣追蹤假設驗證進度，風險登錄管理失效模式，最小實驗驗證關鍵假設。" className="ml-2 align-middle" />
+              <HelpTooltip text="此階段審查 CAD 完成後的設計方案。證據矩陣來自 Track 假設追蹤，風險登錄從高風險假設衍生，最小實驗驗證關鍵假設。" className="ml-2 align-middle" />
             </h1>
-            <p className="text-sm text-muted-foreground">Phase 3: Converge &gt; Step 3.1</p>
+            <p className="text-sm text-muted-foreground">Phase 3: Converge &gt; Step 3.1（CAD 完成後）</p>
           </div>
         </div>
       </div>
 
       {/* Purpose intro */}
-      <SectionIntro text="透過證據矩陣評估每項假設的驗證程度（E0-E4），在風險登錄中記錄潛在失效模式並規劃緩解措施，有證據缺口時設計最小實驗來補強。" />
+      <SectionIntro text="RD 完成 CAD 建模後，在此審查設計證據。證據矩陣連結自 Track 假設、風險從高風險假設衍生、實驗從 Track 同步。" />
+
+      {/* Data source banner */}
+      {renderDataSourceBanner()}
 
       {/* 3 Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -234,44 +312,70 @@ export default function DesignReview() {
             </CardContent></Card>
           ) : (
             <>
+              {/* Track source badges */}
+              <div className="flex flex-wrap gap-2">
+                {trackAssumptions.slice(0, 4).map((a) => (
+                  <Badge key={a.id} variant="outline" className="text-[10px] gap-1">
+                    {a.assumptionCode}
+                    <span className="text-muted-foreground">
+                      {a.riskLevel && <span style={{ color: RISK_LEVEL_CONFIG[a.riskLevel]?.color }}> {a.riskLevel}</span>}
+                    </span>
+                  </Badge>
+                ))}
+                {trackAssumptions.length > 4 && (
+                  <Badge variant="outline" className="text-[10px]">+{trackAssumptions.length - 4} 更多</Badge>
+                )}
+              </div>
+
               {/* Desktop heatmap table */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground w-[200px]">假設</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground w-[200px]">假設 (來自 Track)</th>
                       {EVIDENCE_LEVELS.map(l => (
                         <th key={l.value} className="text-center py-2 px-2 text-xs font-medium text-muted-foreground w-16">{l.value}<br/><span className="text-[10px]">{l.label}</span></th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {evidenceRows.map(row => (
-                      <tr key={row.assumptionCode} className="border-b hover:bg-muted/30">
-                        <td className="py-2 px-3">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-xs"><span className="font-medium">{row.assumptionCode}</span> {row.summary.length > 40 ? row.summary.slice(0, 40) + '...' : row.summary}</span>
-                            </TooltipTrigger>
-                            <TooltipContent><p className="max-w-xs text-xs">{row.summary}</p></TooltipContent>
-                          </Tooltip>
-                        </td>
-                        {EVIDENCE_LEVELS.map((l, li) => {
-                          const isCurrent = l.value === row.currentLevel;
-                          const hasExp = row.experiments.some(e => e.level === l.value);
-                          return (
-                            <td key={l.value} className="text-center py-2 px-2">
-                              {isCurrent ? (
-                                <div className="w-6 h-6 rounded-full mx-auto" style={{ backgroundColor: l.color }} 
-                                  title={`${l.value} ${l.label}`} />
-                              ) : hasExp ? (
-                                <div className="w-3 h-3 rounded-full mx-auto border-2" style={{ borderColor: l.color }} />
-                              ) : null}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                    {evidenceRows.map(row => {
+                      const trackA = trackAssumptions.find(a => a.assumptionCode === row.assumptionCode);
+                      return (
+                        <tr key={row.assumptionCode} className="border-b hover:bg-muted/30">
+                          <td className="py-2 px-3">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs">
+                                  <span className="font-medium">{row.assumptionCode}</span>
+                                  {trackA?.riskLevel && (
+                                    <Badge variant="outline" className="text-[8px] ml-1 py-0" style={{ borderColor: RISK_LEVEL_CONFIG[trackA.riskLevel]?.color }}>
+                                      {trackA.riskLevel}
+                                    </Badge>
+                                  )}
+                                  {" "}{row.summary.length > 30 ? row.summary.slice(0, 30) + '...' : row.summary}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent><p className="max-w-xs text-xs">{row.summary}</p></TooltipContent>
+                            </Tooltip>
+                          </td>
+                          {EVIDENCE_LEVELS.map((l) => {
+                            const isCurrent = l.value === row.currentLevel;
+                            const hasExp = row.experiments.some(e => e.level === l.value);
+                            return (
+                              <td key={l.value} className="text-center py-2 px-2">
+                                {isCurrent ? (
+                                  <div className="w-6 h-6 rounded-full mx-auto" style={{ backgroundColor: l.color }}
+                                    title={`${l.value} ${l.label}`} />
+                                ) : hasExp ? (
+                                  <div className="w-3 h-3 rounded-full mx-auto border-2" style={{ borderColor: l.color }} />
+                                ) : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -290,7 +394,7 @@ export default function DesignReview() {
                         <p className="text-xs text-muted-foreground">{row.summary}</p>
                         <div className="flex gap-0.5">
                           {EVIDENCE_LEVELS.map((l, i) => (
-                            <div key={l.value} className="flex-1 h-2 rounded-sm" style={{ backgroundColor: i <= li ? l.color : '#e5e7eb' }} />
+                            <div key={l.value} className="flex-1 h-2 rounded-sm" style={{ backgroundColor: i <= li ? l.color : 'hsl(var(--muted))' }} />
                           ))}
                         </div>
                       </CardContent>
@@ -300,11 +404,11 @@ export default function DesignReview() {
               </div>
 
               {/* Gap summary */}
-              <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${hasGap ? 'bg-[#FFF7ED] border border-[#fd7e14]/30' : 'bg-[#D1FAE5] border border-[#28a745]/30'}`}>
+              <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${hasGap ? 'bg-accent/10 border border-accent/30' : 'bg-primary/10 border border-primary/30'}`}>
                 {hasGap ? (
-                  <><AlertTriangle className="h-4 w-4 text-[#fd7e14] shrink-0" /><span>{gapCount} 項假設仍處於 E0/E1，存在證據缺口</span></>
+                  <><AlertTriangle className="h-4 w-4 text-accent shrink-0" /><span>{gapCount} 項假設仍處於 E0/E1，存在證據缺口</span></>
                 ) : (
-                  <><CheckCircle className="h-4 w-4 text-[#28a745] shrink-0" /><span>所有假設已有充足證據 ✅</span></>
+                  <><CheckCircle className="h-4 w-4 text-primary shrink-0" /><span>所有假設已有充足證據 ✅</span></>
                 )}
               </div>
             </>
@@ -313,6 +417,11 @@ export default function DesignReview() {
 
         {/* Tab 2: Risk Register */}
         <TabsContent value="risk" className="space-y-4 mt-4">
+          {/* Source note */}
+          <p className="text-xs text-muted-foreground">
+            風險來源：Track 假設中風險等級為 H/H* 的假設自動帶入，可手動新增或 AI 識別。
+          </p>
+
           {/* P x S matrix */}
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="shrink-0">
@@ -341,7 +450,7 @@ export default function DesignReview() {
                     const color = getRiskColor(level);
                     const needsMitigation = (level === 'H' || level === 'H*') && !r.mitigation.trim();
                     return (
-                      <tr key={r.id} className={`border-b ${needsMitigation ? 'bg-[#FEE2E2]/50' : ''}`}>
+                      <tr key={r.id} className={`border-b ${needsMitigation ? 'bg-destructive/5' : ''}`}>
                         <td className="py-1.5 px-2 text-xs font-medium">{r.id}</td>
                         <td className="py-1.5 px-2"><Input value={r.description} onChange={e => updateRisk(r.id, 'description', e.target.value)} className="text-xs h-7" /></td>
                         <td className="py-1.5 px-2"><Input value={r.failureMode} onChange={e => updateRisk(r.id, 'failureMode', e.target.value)} className="text-xs h-7" /></td>
@@ -377,7 +486,7 @@ export default function DesignReview() {
               const color = getRiskColor(level);
               const needsMitigation = (level === 'H' || level === 'H*') && !r.mitigation.trim();
               return (
-                <Card key={r.id} className={needsMitigation ? 'border-[#dc3545]/40' : ''}>
+                <Card key={r.id} className={needsMitigation ? 'border-destructive/40' : ''}>
                   <CardContent className="p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">{r.id}</span>
@@ -419,6 +528,11 @@ export default function DesignReview() {
 
         {/* Tab 3: Minimum Experiments */}
         <TabsContent value="experiment" className="space-y-4 mt-4">
+          {/* Source note */}
+          <p className="text-xs text-muted-foreground">
+            實驗資料來源：Track 假設追蹤中已建立的實驗自動同步至此，可在此新增額外實驗。
+          </p>
+
           {experiments.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">
               尚無實驗，查看證據矩陣確認缺口後規劃實驗
@@ -426,7 +540,7 @@ export default function DesignReview() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {experiments.map(exp => (
-                <Card key={exp.id} className={`${exp.status === 'Done' ? 'border-l-[3px] border-l-[#10B981]' : ''}`}>
+                <Card key={exp.id} className={`${exp.status === 'Done' ? 'border-l-[3px] border-l-primary' : ''}`}>
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-muted-foreground">{exp.id}</span>
@@ -444,7 +558,7 @@ export default function DesignReview() {
                     {exp.method && <p className="text-xs text-muted-foreground">方法: {exp.method}</p>}
                     {exp.successCriteria && <p className="text-xs text-muted-foreground">成功標準: {exp.successCriteria}</p>}
                     {exp.status === 'Done' && exp.result && (
-                      <p className="text-xs bg-[#D1FAE5]/50 p-2 rounded">結果: {exp.result}</p>
+                      <p className="text-xs bg-primary/5 p-2 rounded">結果: {exp.result}</p>
                     )}
                     <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => { setEditingExp({...exp}); setExpModalOpen(true); }}>
                       編輯
@@ -467,35 +581,37 @@ export default function DesignReview() {
 
       {/* Gate 3.1 */}
       <Separator />
-      <div className="rounded-lg border-2 border-[#10B981] bg-[#ECFDF5] p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <Flag className="h-5 w-5 text-[#10B981] shrink-0" />
-          <h3 className="text-sm font-semibold">Gate 3.1 — 設計審查完整性檢查</h3>
-          <Badge className={`text-xs text-white ${gate31Passed ? 'bg-[#28a745]' : 'bg-[#dc3545]'}`}>
-            {gate31Passed ? 'Gate 3.1 Passed' : 'Gate 3.1 未通過'}
-          </Badge>
-        </div>
-        <div className="space-y-2">
-          {gate31Items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              {item.passed ? <CheckCircle className="h-4 w-4 text-[#28a745] shrink-0" /> : <XCircle className="h-4 w-4 text-destructive shrink-0" />}
-              <span className={item.passed ? '' : 'text-muted-foreground'}>{item.label}</span>
-            </div>
-          ))}
-        </div>
-        {gate31Passed ? (
-          <Button onClick={() => navigate(`/projects/${id}/decide`)} className="bg-[#10B981] hover:bg-[#059669] text-white">
-            通過 → 進入 Decide <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block"><Button disabled className="opacity-50">進入 Decide → <ArrowRight className="h-4 w-4 ml-1" /></Button></span>
-            </TooltipTrigger>
-            <TooltipContent><p>請完成上方所有檢查項目</p></TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+      <Card className="border-2 border-primary/30 bg-primary/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Flag className="h-5 w-5 text-primary shrink-0" />
+            <h3 className="text-sm font-semibold">Gate 3.1 — 設計審查完整性檢查</h3>
+            <Badge className={gate31Passed ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground"}>
+              {gate31Passed ? 'Gate 3.1 Passed' : 'Gate 3.1 未通過'}
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {gate31Items.map((item, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                {item.passed ? <CheckCircle className="h-4 w-4 text-primary shrink-0" /> : <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                <span className={item.passed ? '' : 'text-muted-foreground'}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          {gate31Passed ? (
+            <Button onClick={() => navigate(`/projects/${id}/decide`)}>
+              通過 → 進入 Decide <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block"><Button disabled className="opacity-50">進入 Decide → <ArrowRight className="h-4 w-4 ml-1" /></Button></span>
+              </TooltipTrigger>
+              <TooltipContent><p>請完成上方所有檢查項目</p></TooltipContent>
+            </Tooltip>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Experiment Modal */}
       <Dialog open={expModalOpen} onOpenChange={o => { if (!o) { setExpModalOpen(false); setEditingExp(null); } }}>

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AssumptionEditor } from "@/components/assumption/AssumptionEditor";
 import { mockAssumptions } from "@/data/mockAssumptions";
 import { ASSUMPTION_STATUS_LABELS, type Assumption, type AssumptionStatus, type AssumptionFormValues } from "@/types/assumption";
-import { ArrowLeft, Plus, Pencil, AlertCircle, RefreshCw, FileQuestion } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, AlertCircle, RefreshCw, FileQuestion, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const statusVariantMap: Record<AssumptionStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -84,6 +84,11 @@ export default function AssumptionLedger() {
       )
     );
     toast({ title: "狀態已更新" });
+  };
+
+  const handleDelete = (assumptionId: string) => {
+    setAssumptions((prev) => prev.filter((a) => a.id !== assumptionId));
+    toast({ title: "假設已刪除" });
   };
 
   if (isLoading) {
@@ -186,9 +191,14 @@ export default function AssumptionLedger() {
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(asm)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(asm)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(asm.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -210,9 +220,14 @@ export default function AssumptionLedger() {
                         {ASSUMPTION_STATUS_LABELS[asm.status]}
                       </Badge>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={(e) => { e.stopPropagation(); openEdit(asm); }}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={(e) => { e.stopPropagation(); openEdit(asm); }}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(asm.id); }}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-sm font-medium line-clamp-2">{asm.content}</p>
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">

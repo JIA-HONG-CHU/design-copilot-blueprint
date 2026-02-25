@@ -29,8 +29,16 @@ import {
   mockAntiAnchorRoutes, mockTrizSolutions, mockSubsystems,
   mockScamperVariants, mockAlternatives, mockAntiAnchorWarning
 } from "@/data/mockCreate";
+import { mockTrackAssumptions } from "@/data/mockTrack";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
+
+const RADAR_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--destructive))",
+  "hsl(var(--accent))",
+  "#10B981",
+];
 
 const STEPS = [
   { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "打破思維定勢，探索非慣用技術路線" },
@@ -68,7 +76,16 @@ export default function Create() {
   const [scamperVariants, setScamperVariants] = useState<ScamperVariant[]>([]);
   const [alternatives, setAlternatives] = useState<Alternative[]>([]);
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
+  const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+
+  // Assumption lookup for displaying readable names
+  const assumptionMap = useMemo(() => {
+    const map = new Map<string, { code: string; description: string }>();
+    const assumptions = mockTrackAssumptions[id ?? ""] ?? [];
+    assumptions.forEach((a) => map.set(a.id, { code: a.assumptionCode, description: a.description }));
+    return map;
+  }, [id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -482,11 +499,21 @@ export default function Create() {
                   }}
                 />
                 {alt.keyAssumptionIds.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="space-y-1.5">
                     <span className="text-xs text-muted-foreground">關聯假設:</span>
-                    {alt.keyAssumptionIds.map((aid) => (
-                      <Badge key={aid} variant="outline" className="text-[10px] font-mono">{aid}</Badge>
-                    ))}
+                    {alt.keyAssumptionIds.map((aid) => {
+                      const assumption = assumptionMap.get(aid);
+                      return (
+                        <div key={aid} className="flex items-start gap-2 text-xs bg-muted/30 rounded-md p-2">
+                          <Badge variant="outline" className="text-[10px] font-mono shrink-0">
+                            {assumption?.code ?? aid}
+                          </Badge>
+                          <span className="text-muted-foreground line-clamp-1">
+                            {assumption?.description ?? "（假設未找到）"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -604,38 +631,79 @@ export default function Create() {
       );
     }
 
-    const current = eligible.find((a) => a.id === selectedAltId) ?? eligible[0];
+    // Multi-select for comparison
+    const toggleCompare = (altId: string) => {
+      setComparedAltIds((prev) => {
+        const next = new Set(prev);
+        next.has(altId) ? next.delete(altId) : next.add(altId);
+        return next;
+      });
+    };
+
+    // Ensure at least the first eligible is selected for editing
+    const editingAlt = eligible.find((a) => a.id === selectedAltId) ?? eligible[0];
+    // For radar comparison, use checked items or all if none checked
+    const comparedAlts = eligible.filter((a) => comparedAltIds.has(a.id));
+    const radarAlts = comparedAlts.length > 0 ? comparedAlts : eligible;
+
+    // Build radar data with multiple series
+    const radarData = PRECAD_DIMENSIONS.map((d) => {
+      const entry: Record<string, any> = { subject: d.label, fullMark: 5 };
+      radarAlts.forEach((a) => {
+        entry[a.id] = a.preCadScores[d.key as keyof typeof a.preCadScores] ?? 0;
+      });
+      return entry;
+    });
 
     return (
       <div className="space-y-6">
-        {/* Alt selector */}
-        <div className="flex flex-wrap gap-2">
-          {eligible.map((a) => (
-            <Button
-              key={a.id}
-              size="sm"
-              variant={current.id === a.id ? "default" : "outline"}
-              className="text-xs"
-              onClick={() => setSelectedAltId(a.id)}
-            >
-              {a.name || "(未命名)"}
-              {a.overallPass === true && <Check className="h-3 w-3 ml-1.5" />}
-            </Button>
-          ))}
+        {/* Multi-select: checkboxes for comparison + click to edit */}
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">勾選方案加入比較圖，點擊名稱編輯評分</p>
+          <div className="space-y-2">
+            {eligible.map((a, i) => (
+              <div
+                key={a.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${editingAlt.id === a.id ? "border-primary bg-primary/[0.03]" : "hover:bg-muted/30"}`}
+                onClick={() => setSelectedAltId(a.id)}
+              >
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={comparedAltIds.has(a.id)}
+                    onCheckedChange={() => toggleCompare(a.id)}
+                  />
+                </div>
+                <div
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: RADAR_COLORS[i % RADAR_COLORS.length] }}
+                />
+                <span className="text-sm font-medium flex-1 truncate">{a.name || "(未命名)"}</span>
+                {a.overallPass === true && <Badge className="bg-primary text-primary-foreground text-[10px]">通過</Badge>}
+                {a.overallPass === false && <Badge variant="destructive" className="text-[10px]">不通過</Badge>}
+                {a.overallPass === null && <Badge variant="secondary" className="text-[10px]">待評</Badge>}
+              </div>
+            ))}
+          </div>
         </div>
 
+        <Separator />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Scoring */}
+          {/* Scoring for selected alt */}
           <div className="space-y-5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="text-sm font-semibold">評分：{editingAlt.name || "(未命名)"}</span>
+            </div>
             {PRECAD_DIMENSIONS.map((dim) => {
-              const val = current.preCadScores[dim.key as keyof typeof current.preCadScores] ?? 1;
+              const val = editingAlt.preCadScores[dim.key as keyof typeof editingAlt.preCadScores] ?? 1;
               return (
                 <div key={dim.key} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">{dim.label}</span>
                     <Badge variant={val >= 3 ? "default" : "destructive"} className="text-xs">{val}/5</Badge>
                   </div>
-                  <Slider min={1} max={5} step={1} value={[val]} onValueChange={([v]) => updatePreCadScore(current.id, dim.key, v)} />
+                  <Slider min={1} max={5} step={1} value={[val]} onValueChange={([v]) => updatePreCadScore(editingAlt.id, dim.key, v)} />
                   <div className="flex justify-between text-[10px] text-muted-foreground">
                     <span>{dim.labels[0]}</span><span>{dim.labels[2]}</span><span>{dim.labels[4]}</span>
                   </div>
@@ -643,30 +711,49 @@ export default function Create() {
               );
             })}
             <div className="pt-3">
-              {current.overallPass === true
+              {editingAlt.overallPass === true
                 ? <Badge className="bg-primary text-primary-foreground px-3 py-1">✅ 通過 — 可進入 CAD</Badge>
-                : current.overallPass === false
+                : editingAlt.overallPass === false
                 ? <Badge variant="destructive" className="px-3 py-1">❌ 不通過 — 有維度 &lt; 3</Badge>
                 : <Badge variant="secondary" className="px-3 py-1">待完成評分</Badge>}
             </div>
           </div>
 
-          {/* Radar */}
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={280}>
-              <RadarChart
-                data={PRECAD_DIMENSIONS.map((d) => ({
-                  subject: d.label,
-                  value: current.preCadScores[d.key as keyof typeof current.preCadScores] ?? 0,
-                  fullMark: 5,
-                }))}
-              >
+          {/* Radar comparison chart */}
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground text-center">
+              {comparedAlts.length > 0 ? `比較 ${comparedAlts.length} 個方案` : "全部方案總覽"}
+            </p>
+            <ResponsiveContainer width="100%" height={300}>
+              <RadarChart data={radarData}>
                 <PolarGrid strokeDasharray="3 3" />
                 <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
                 <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fontSize: 10 }} />
-                <Radar name="評分" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} />
+                {radarAlts.map((a, i) => (
+                  <Radar
+                    key={a.id}
+                    name={a.name || "(未命名)"}
+                    dataKey={a.id}
+                    stroke={RADAR_COLORS[eligible.indexOf(a) % RADAR_COLORS.length]}
+                    fill={RADAR_COLORS[eligible.indexOf(a) % RADAR_COLORS.length]}
+                    fillOpacity={0.1}
+                  />
+                ))}
               </RadarChart>
             </ResponsiveContainer>
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 justify-center">
+              {radarAlts.map((a) => (
+                <div key={a.id} className="flex items-center gap-1.5 text-xs">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: RADAR_COLORS[eligible.indexOf(a) % RADAR_COLORS.length] }}
+                  />
+                  <span className="text-muted-foreground">{a.name || "(未命名)"}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

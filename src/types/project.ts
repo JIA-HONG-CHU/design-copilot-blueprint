@@ -1,5 +1,27 @@
 export type ProjectStatus = "in_progress" | "completed" | "archived";
 
+export type StepStatus = "passed" | "in_progress" | "not_started";
+
+export interface PhaseProgress {
+  "1.1": StepStatus;
+  "1.2": StepStatus;
+  "1.3": StepStatus;
+  "2.1": StepStatus;
+  "2.2": StepStatus;
+  "2.3": StepStatus;
+  "3.2": StepStatus;
+  "3.3": StepStatus;
+}
+
+export interface QuickStats {
+  contradictions_count: number;
+  assumptions_count: number;
+  alternatives_count: number;
+  risks_count: number;
+  experiments_count: number;
+  evidence_items_count: number;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -14,6 +36,10 @@ export interface Project {
   hardConstraints?: string;
   softObjectives?: string;
   criticalKPIs?: CriticalKPI[];
+  phase_progress: PhaseProgress;
+  quick_stats: QuickStats;
+  gates_passed: number;
+  gates_total: number;
 }
 
 export interface CriticalKPI {
@@ -48,3 +74,18 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   completed: "已完成",
   archived: "已封存",
 };
+
+// 6+1 navigation card definition
+export interface NavCardDef {
+  id: string;
+  enName: string;
+  zhName: string;
+  phase: "Phase 1" | "Phase 2" | "Phase 3";
+  icon: string;
+  route: string; // relative to /projects/:id/
+  subSteps: number; // total sub-steps
+  completedSteps: number;
+  requiredGate?: string; // gate that must be passed to unlock
+  locked: boolean;
+  lockReason?: string;
+}

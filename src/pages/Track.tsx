@@ -178,7 +178,7 @@ export default function Track() {
       {/* Gate */}
       <TrackGate
         items={gateItems}
-        onNavigateNext={() => navigate(`/projects/${id}/solution-explorer`)}
+        onNavigateNext={() => navigate(`/projects/${id}/create`)}
       />
     </div>
   );

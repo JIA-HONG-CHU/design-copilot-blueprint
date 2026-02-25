@@ -476,7 +476,7 @@ export default function DesignReview() {
           ))}
         </div>
         {gate31Passed ? (
-          <Button onClick={() => navigate(`/projects/${id}/decision-record`)} className="bg-[#10B981] hover:bg-[#059669] text-white">
+          <Button onClick={() => navigate(`/projects/${id}/decide`)} className="bg-[#10B981] hover:bg-[#059669] text-white">
             通過 → 進入 Decide <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         ) : (

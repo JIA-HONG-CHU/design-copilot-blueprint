@@ -182,7 +182,7 @@ export default function Explore() {
       <ExploreGates
         gate12Items={gate12Items}
         phaseGate1Items={phaseGate1Items}
-        onNavigateNext={() => navigate(`/projects/${id}/assumption-ledger`)}
+        onNavigateNext={() => navigate(`/projects/${id}/track`)}
       />
     </div>
   );

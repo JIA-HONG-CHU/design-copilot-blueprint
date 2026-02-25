@@ -636,7 +636,7 @@ export default function Create() {
             ))}
           </div>
           {gate22Items.every(i => i.passed) && phaseGate2Items.every(i => i.passed) ? (
-            <Button onClick={() => navigate(`/projects/${id}/design-review`)} className="w-full sm:w-auto bg-[#28a745] hover:bg-[#218838] text-white">
+            <Button onClick={() => navigate(`/projects/${id}/review`)} className="w-full sm:w-auto bg-[#28a745] hover:bg-[#218838] text-white">
               通過 Phase Gate 2 → 進入 Review <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (

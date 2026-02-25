@@ -264,6 +264,11 @@ export default function Create() {
     setAlternatives((prev) => [...prev, newAlt]);
     toast.success("已新增空白方案");
   };
+  const deleteAlternative = (altId: string) => {
+    setAlternatives(prev => prev.filter(a => a.id !== altId));
+    toast.success("方案已刪除");
+    autoSave();
+  };
   const handleAiGenAlts = async () => {
     setAiLoading((p) => ({ ...p, alts: true }));
     await new Promise((r) => setTimeout(r, 2000));
@@ -688,9 +693,14 @@ export default function Create() {
           alternatives.map((alt, i) => (
             <Card key={alt.id}>
               <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs font-mono">方案 {i + 1}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">{alt.source}</Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs font-mono">方案 {i + 1}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{alt.source}</Badge>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteAlternative(alt.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
                 <Input
                   className="text-sm font-medium"

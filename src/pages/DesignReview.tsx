@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
-  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip
+  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -147,6 +147,11 @@ export default function DesignReview() {
     setRisks(prev => prev.map(r => r.id === rId ? { ...r, [field]: value } : r));
   };
 
+  const deleteRisk = (rId: string) => {
+    setRisks(prev => prev.filter(r => r.id !== rId));
+    toast.success("風險已刪除");
+  };
+
   const highRisksWithoutMitigation = useMemo(() =>
     risks.filter(r => {
       const level = getRiskLevel(getRiskScore(r));
@@ -185,6 +190,11 @@ export default function DesignReview() {
     setExpModalOpen(false);
     setEditingExp(null);
     toast.success("實驗已儲存");
+  };
+
+  const deleteExperiment = (expId: string) => {
+    setExperiments(prev => prev.filter(e => e.id !== expId));
+    toast.success("實驗已刪除");
   };
 
   // --- Gate 3.1 ---
@@ -535,6 +545,7 @@ export default function DesignReview() {
                     <th className="text-center py-2 px-2 text-xs text-muted-foreground">S ★</th>
                     <th className="text-center py-2 px-2 text-xs text-muted-foreground">RPN</th>
                     <th className="text-left py-2 px-2 text-xs text-muted-foreground">緩解措施</th>
+                    <th className="text-center py-2 px-2 text-xs text-muted-foreground w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,6 +575,11 @@ export default function DesignReview() {
                           <Badge style={{ backgroundColor: color, color: '#fff' }} className="text-[10px]">{score} ({level})</Badge>
                         </td>
                         <td className="py-1.5 px-2"><Input value={r.mitigation} onChange={e => updateRisk(r.id, 'mitigation', e.target.value)} className="text-xs h-7" placeholder={needsMitigation ? '⚠ 需填寫' : ''} /></td>
+                        <td className="py-1.5 px-2 text-center">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => deleteRisk(r.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -599,6 +615,9 @@ export default function DesignReview() {
                       </Select>
                     </div>
                     <Input value={r.mitigation} onChange={e => updateRisk(r.id, 'mitigation', e.target.value)} className="text-xs h-7" placeholder={needsMitigation ? '⚠ 緩解措施 (必要)' : '緩解措施'} />
+                    <Button variant="ghost" size="sm" className="text-xs h-6 text-destructive" onClick={() => deleteRisk(r.id)}>
+                      <Trash2 className="h-3 w-3 mr-1" /> 刪除
+                    </Button>
                   </CardContent>
                 </Card>
               );
@@ -654,9 +673,14 @@ export default function DesignReview() {
                     {exp.status === 'Done' && exp.result && (
                       <p className="text-xs bg-primary/5 p-2 rounded">結果: {exp.result}</p>
                     )}
-                    <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => { setEditingExp({...exp}); setExpModalOpen(true); }}>
-                      編輯
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => { setEditingExp({...exp}); setExpModalOpen(true); }}>
+                        編輯
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-xs h-6 text-destructive" onClick={() => deleteExperiment(exp.id)}>
+                        <Trash2 className="h-3 w-3 mr-1" /> 刪除
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

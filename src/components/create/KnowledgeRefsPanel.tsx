@@ -46,7 +46,7 @@ export function KnowledgeRefsPanel({ refs }: KnowledgeRefsPanelProps) {
               <p className="text-[11px] text-muted-foreground leading-relaxed">{ref.summary}</p>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground">{ref.source}</span>
-                {ref.url && (
+                {ref.url ? (
                   <a
                     href={ref.url}
                     target="_blank"
@@ -56,6 +56,16 @@ export function KnowledgeRefsPanel({ refs }: KnowledgeRefsPanelProps) {
                   >
                     <ExternalLink className="h-2.5 w-2.5" /> 來源
                   </a>
+                ) : ref.type === "rag" ? (
+                  <a
+                    href="/knowledge-base"
+                    className="text-[10px] text-primary flex items-center gap-0.5 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <BookOpen className="h-2.5 w-2.5" /> 知識庫
+                  </a>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/60 italic">無外部連結</span>
                 )}
               </div>
             </CardContent>

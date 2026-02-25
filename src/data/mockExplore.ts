@@ -9,6 +9,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: "傳動效率 ≥ 85%，以台架測試量測。",
       taggedAsAssumption: false,
       taggedAsContradiction: false,
+      aiSuggestedTag: null,
+      aiTagConfirmed: false,
     },
     {
       id: "q2",
@@ -17,6 +19,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: "基於供應商規格書 Model X-350，額定功率 350W，重量 2.1kg。",
       taggedAsAssumption: true,
       taggedAsContradiction: false,
+      aiSuggestedTag: 'assumption',
+      aiTagConfirmed: true,
     },
     {
       id: "q3",
@@ -25,6 +29,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: null,
       taggedAsAssumption: false,
       taggedAsContradiction: false,
+      aiSuggestedTag: null,
+      aiTagConfirmed: false,
     },
     {
       id: "q4",
@@ -33,6 +39,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: "直驅馬達扭矩不足以滿足爬坡需求，需要減速機構。",
       taggedAsAssumption: false,
       taggedAsContradiction: true,
+      aiSuggestedTag: 'contradiction',
+      aiTagConfirmed: true,
     },
     {
       id: "q5",
@@ -41,6 +49,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: null,
       taggedAsAssumption: false,
       taggedAsContradiction: false,
+      aiSuggestedTag: 'assumption',
+      aiTagConfirmed: false,
     },
     {
       id: "q6",
@@ -49,6 +59,8 @@ export const mockSocraticQuestions: Record<string, SocraticQuestion[]> = {
       answer: "數值模擬 + 台架測試，預計 3 週。",
       taggedAsAssumption: false,
       taggedAsContradiction: false,
+      aiSuggestedTag: null,
+      aiTagConfirmed: false,
     },
   ],
 };

@@ -3,10 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Sparkles, Pin, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Check, X, Lightbulb } from "lucide-react";
 import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -19,6 +18,11 @@ interface SocraticTabProps {
 }
 
 const CATEGORY_FILTERS: (QuestionCategory | 'all')[] = ['all', 'clarification', 'assumption', 'consequence', 'counter', 'origin', 'action'];
+
+const AI_TAG_LABELS = {
+  assumption: { label: '假設', color: '#8B5CF6', description: 'AI 偵測到此回答包含未驗證的假設，建議納入假設追蹤。' },
+  contradiction: { label: '矛盾', color: '#EC4899', description: 'AI 偵測到此回答涉及設計矛盾，建議納入矛盾識別。' },
+};
 
 export function SocraticTab({ questions, onUpdateQuestions, projectId }: SocraticTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<QuestionCategory | 'all'>('all');
@@ -37,11 +41,26 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
     onUpdateQuestions(questions.map((q) => (q.id === qId ? { ...q, answer: value } : q)));
   };
 
-  const handleTag = (qId: string, field: 'taggedAsAssumption' | 'taggedAsContradiction') => {
+  const handleConfirmTag = (qId: string) => {
     onUpdateQuestions(
-      questions.map((q) => (q.id === qId ? { ...q, [field]: !q[field] } : q))
+      questions.map((q) => {
+        if (q.id !== qId || !q.aiSuggestedTag) return q;
+        return {
+          ...q,
+          aiTagConfirmed: true,
+          taggedAsAssumption: q.aiSuggestedTag === 'assumption',
+          taggedAsContradiction: q.aiSuggestedTag === 'contradiction',
+        };
+      })
     );
-    toast.success(field === 'taggedAsAssumption' ? '已標記為假設' : '已標記為矛盾');
+    toast.success('已確認 AI 標記');
+  };
+
+  const handleDismissTag = (qId: string) => {
+    onUpdateQuestions(
+      questions.map((q) => (q.id === qId ? { ...q, aiSuggestedTag: null, aiTagConfirmed: false } : q))
+    );
+    toast.info('已忽略 AI 建議');
   };
 
   const handleGenerateMore = async () => {
@@ -54,6 +73,8 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
       answer: null,
       taggedAsAssumption: false,
       taggedAsContradiction: false,
+      aiSuggestedTag: null,
+      aiTagConfirmed: false,
     };
     onUpdateQuestions([...questions, newQ]);
     setIsGenerating(false);
@@ -75,7 +96,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
   return (
     <div className="space-y-5">
       {/* Purpose intro */}
-      <SectionIntro text="AI 會根據您的 Brief 自動生成 6 類蘇格拉底式問題，引導您深入思考設計背後的假設與盲點。回答問題後，可將重要發現標記為「假設」或「矛盾」，這些標記將自動帶入後續的矛盾識別與假設追蹤流程。" />
+      <SectionIntro text="AI 會根據您的 Brief 自動生成 6 類蘇格拉底式問題，引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
       {/* Progress */}
       <div className="space-y-2">
@@ -114,6 +135,10 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
         {filteredQuestions.map((q) => {
           const config = CATEGORY_CONFIG[q.category];
           const isAnswered = q.answer && q.answer.trim().length >= 5;
+          const hasPendingSuggestion = q.aiSuggestedTag && !q.aiTagConfirmed;
+          const hasConfirmedTag = q.aiSuggestedTag && q.aiTagConfirmed;
+          const tagConfig = q.aiSuggestedTag ? AI_TAG_LABELS[q.aiSuggestedTag] : null;
+
           return (
             <Card
               key={q.id}
@@ -153,29 +178,52 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                   )}
                 </div>
 
-                {/* Tag buttons */}
-                <div className="flex gap-2 items-center">
-                  <Button
-                    variant={q.taggedAsAssumption ? 'default' : 'ghost'}
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => handleTag(q.id, 'taggedAsAssumption')}
+                {/* AI auto-detected tag — pending confirmation */}
+                {hasPendingSuggestion && tagConfig && (
+                  <div
+                    className="flex items-center gap-3 rounded-lg border px-3 py-2.5 animate-in fade-in slide-in-from-top-1"
+                    style={{ borderColor: `${tagConfig.color}40`, backgroundColor: `${tagConfig.color}08` }}
                   >
-                    <Pin className="h-3 w-3 mr-1" />
-                    {q.taggedAsAssumption ? '已標記為假設' : '標記為假設'}
-                  </Button>
-                  <HelpTooltip text="將此問答標記為「假設」後，它會自動出現在 Track（假設追蹤）的 Kanban 看板中，方便後續驗證與管理。" />
-                  <Button
-                    variant={q.taggedAsContradiction ? 'destructive' : 'ghost'}
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => handleTag(q.id, 'taggedAsContradiction')}
-                  >
-                    <Pin className="h-3 w-3 mr-1" />
-                    {q.taggedAsContradiction ? '已標記為矛盾' : '標記為矛盾'}
-                  </Button>
-                  <HelpTooltip text="將此問答標記為「矛盾」後，它會自動加入矛盾識別清單，供您進一步分析為技術矛盾 (TC) 或物理矛盾 (PC)。" />
-                </div>
+                    <Lightbulb className="h-4 w-4 shrink-0" style={{ color: tagConfig.color }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Badge className="text-[10px] text-white" style={{ backgroundColor: tagConfig.color }}>
+                          AI 建議
+                        </Badge>
+                        <span className="text-xs font-medium">可能是{tagConfig.label}</span>
+                        <HelpTooltip text={tagConfig.description} />
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs text-white"
+                        style={{ backgroundColor: tagConfig.color }}
+                        onClick={() => handleConfirmTag(q.id)}
+                      >
+                        <Check className="h-3 w-3 mr-1" /> 確認
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => handleDismissTag(q.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmed tag badge */}
+                {hasConfirmedTag && tagConfig && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="text-[10px] text-white" style={{ backgroundColor: tagConfig.color }}>
+                      ✓ 已標記為{tagConfig.label}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">已自動同步至{q.aiSuggestedTag === 'assumption' ? '假設追蹤' : '矛盾識別'}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

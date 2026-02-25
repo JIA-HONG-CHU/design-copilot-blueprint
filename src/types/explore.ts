@@ -8,6 +8,8 @@ export interface SocraticQuestion {
   answer: string | null;
   taggedAsAssumption: boolean;
   taggedAsContradiction: boolean;
+  aiSuggestedTag: 'assumption' | 'contradiction' | null; // AI auto-detected tag
+  aiTagConfirmed: boolean; // user confirmed or dismissed
 }
 
 export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh: string; color: string }> = {

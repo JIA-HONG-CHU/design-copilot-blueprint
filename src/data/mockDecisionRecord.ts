@@ -1,39 +1,33 @@
-import { DecisionRecord } from "@/types/decisionRecord";
+import type { WantCriterion, WantScore, KtDecision, Signature } from '@/types/decisionRecord';
 
-export const mockDecisionRecord: DecisionRecord = {
-  id: "dr-001",
-  projectId: "proj-001",
-  statement: "採用可變轉速控制系統作為主路線方案，碳纖維複合結構作為備援方案",
-  decider: "王大明",
-  deciderRole: "RD 主管",
-  date: "2026-02-23",
-  primarySolution: "可變轉速控制系統",
-  backupSolution: "碳纖維複合結構替代方案",
-  mustResults: [
-    { solutionName: "可變轉速控制系統", passed: true, reason: "所有 MUST 條件均通過" },
-    { solutionName: "碳纖維複合結構替代方案", passed: false, reason: "成本超出預算上限" },
-  ],
-  wantResults: [
-    { solutionName: "可變轉速控制系統", criteria: "效能提升", weight: 10, score: 8, weightedScore: 80, evidenceLink: "模擬報告 R-001" },
-    { solutionName: "可變轉速控制系統", criteria: "噪音降低", weight: 8, score: 7, weightedScore: 56, evidenceLink: "測試報告 T-003" },
-    { solutionName: "可變轉速控制系統", criteria: "製造成本", weight: 9, score: 6, weightedScore: 54, evidenceLink: "BOM 估算 B-002" },
-    { solutionName: "碳纖維複合結構替代方案", criteria: "效能提升", weight: 10, score: 7, weightedScore: 70, evidenceLink: "FEA 報告 F-001" },
-    { solutionName: "碳纖維複合結構替代方案", criteria: "噪音降低", weight: 8, score: 9, weightedScore: 72, evidenceLink: "測試報告 T-005" },
-    { solutionName: "碳纖維複合結構替代方案", criteria: "製造成本", weight: 9, score: 3, weightedScore: 27, evidenceLink: "供應商報價 Q-001" },
-  ],
-  risks: [
-    { id: "rk1", description: "變頻器散熱問題導致系統過熱", level: "medium", mitigation: "增加散熱片面積或加裝風扇" },
-    { id: "rk2", description: "EMI 干擾影響感測器精度", level: "low", mitigation: "加裝 EMI 濾波器" },
-    { id: "rk3", description: "供應商交期不穩定", level: "high", mitigation: "備選供應商評估與合約保障" },
-  ],
-  actionItems: [
-    { id: "a1", task: "完成變頻器散熱模擬分析", owner: "李工程師", dueDate: "2026-03-05", completed: false },
-    { id: "a2", task: "訂購 MR 流體阻尼器原型", owner: "張工程師", dueDate: "2026-03-10", completed: false },
-    { id: "a3", task: "供應商合約談判", owner: "陳採購", dueDate: "2026-03-15", completed: false },
-    { id: "a4", task: "更新專案時程表", owner: "林PM", dueDate: "2026-03-01", completed: true },
-  ],
-  signOffs: [
-    { role: "決策者", name: "王大明", signed: false, signedAt: null },
-    { role: "審核者", name: "陳副總", signed: false, signedAt: null },
-  ],
+// Alternatives that passed Review (from Create mock data)
+export const mockDecideAlternatives = [
+  { id: 'alt-001', name: '磁力耦合 + 可變轉速方案' },
+  { id: 'alt-002', name: '同軸直連 + 漸變壁厚方案' },
+];
+
+export const mockWantCriteria: WantCriterion[] = [
+  { id: 'w1', name: 'W1 性能餘裕', weight: 10, description: '方案是否滿足或超越效能需求', anchors: { score10: '完全滿足+20%餘裕', score6: '剛好滿足', score2: '不足需妥協' } },
+  { id: 'w2', name: 'W2 製造可行', weight: 8, description: '現有產線的製造可行性', anchors: { score10: '現有製程可做', score6: '需小幅改造', score2: '需全新製程' } },
+  { id: 'w3', name: 'W3 成本競爭', weight: 7, description: '成本是否在目標範圍', anchors: { score10: '低於目標成本', score6: '接近目標', score2: '超出30%+' } },
+  { id: 'w4', name: 'W4 可靠性', weight: 8, description: 'MTBF 等可靠性指標', anchors: { score10: 'MTBF>10萬小時', score6: 'MTBF 5-10萬小時', score2: 'MTBF<5萬小時' } },
+  { id: 'w5', name: 'W5 開發時程', weight: 6, description: '開發時程風險', anchors: { score10: '提前完成', score6: '準時', score2: '延遲>2個月' } },
+  { id: 'w6', name: 'W6 擴展性', weight: 5, description: '模組化與擴展能力', anchors: { score10: '完全獨立模組化', score6: '部分耦合', score2: '高度耦合' } },
+];
+
+export const mockWantScores: WantScore[] = [
+  { alternativeId: 'alt-001', alternativeName: '磁力耦合 + 可變轉速方案', scores: { w1: 8, w2: 7, w3: 6, w4: 7, w5: 6, w6: 8 }, weightedTotal: 0 },
+  { alternativeId: 'alt-002', alternativeName: '同軸直連 + 漸變壁厚方案', scores: { w1: 6, w2: 9, w3: 8, w4: 6, w5: 8, w6: 5 }, weightedTotal: 0 },
+];
+
+export const mockKtDecision: KtDecision = {
+  selectedAlternativeId: '',
+  selectedAlternativeName: '',
+  rationale: '',
+  riskAcceptance: '',
+  actionItems: [],
+  decisionDate: new Date().toISOString().split('T')[0],
+  status: 'draft',
 };
+
+export const mockSignatures: Signature[] = [];

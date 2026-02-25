@@ -17,6 +17,8 @@ import {
   CheckCircle, XCircle, Flag, FileDown, FileJson, FileText,
   Trophy, Trash2, AlertTriangle
 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList
 } from "recharts";
@@ -212,12 +214,18 @@ export default function DecisionRecord() {
             <ArrowLeft className="h-4 w-4 mr-1" /> 返回
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Decide — 最終決策</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Decide — 最終決策
+              <HelpTooltip text="此階段使用 WANT 加權評分選出最優方案，透過 KT 決策分析記錄決策理由與行動計畫，最後匯出報告並完成簽核。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground">Phase 3: Converge &gt; Step 3.2-3.3</p>
           </div>
         </div>
         {statusBadge(decision.status)}
       </div>
+
+      {/* Purpose intro */}
+      <SectionIntro text="先在 WANT 評分中為各方案打分（1-10 分 × 權重），系統自動排名；再於 KT 決策記錄中選定方案、填寫理由與行動計畫；最後匯出報告並完成團隊簽核。確認後仍可撤回修改。" />
 
       {/* 3 Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -17,6 +17,8 @@ import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
   CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3
 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 import type {
   EvidenceLevel, EvidenceMatrixRow, RiskItem, Experiment, ExperimentStatus, Gate31Item
 } from "@/types/designReview";
@@ -196,11 +198,17 @@ export default function DesignReview() {
             <ArrowLeft className="h-4 w-4 mr-1" /> 返回
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Review — 設計審查</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Review — 設計審查
+              <HelpTooltip text="此階段審查設計方案的證據強度、風險等級與實驗計畫。證據矩陣追蹤假設驗證進度，風險登錄管理失效模式，最小實驗驗證關鍵假設。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground">Phase 3: Converge &gt; Step 3.1</p>
           </div>
         </div>
       </div>
+
+      {/* Purpose intro */}
+      <SectionIntro text="透過證據矩陣評估每項假設的驗證程度（E0-E4），在風險登錄中記錄潛在失效模式並規劃緩解措施，有證據缺口時設計最小實驗來補強。" />
 
       {/* 3 Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

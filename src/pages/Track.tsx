@@ -10,6 +10,8 @@ import { TrackGate } from "@/components/track/TrackGate";
 import { mockTrackAssumptions, mockUnknownFactors } from "@/data/mockTrack";
 import type { TrackAssumption, UnknownFactor, TrackGateItem } from "@/types/track";
 import { ArrowLeft, Check } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { SectionIntro } from "@/components/ui/section-intro";
 
 type TabKey = 'kanban' | 'unknown';
 
@@ -126,13 +128,19 @@ export default function Track() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-1 rounded-full bg-[#F59E0B]" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Track — 假設追蹤</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Track — 假設追蹤
+              <HelpTooltip text="此階段管理所有設計假設，透過 Kanban 看板追蹤驗證進度。高風險假設必須有實驗計畫，通過 Gate 2.1 後進入方案創造。" className="ml-2 align-middle" />
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Step 2.1 · 假設 Kanban + 未知集合 U
             </p>
           </div>
         </div>
       </div>
+
+      {/* Purpose intro */}
+      <SectionIntro text="將設計假設拖曳到對應的驗證階段（未驗證 → 驗證中 → 已驗證/已推翻）。「未知集合 U」收集尚未歸類的不確定因素，可一鍵轉為假設進行追蹤。" />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>

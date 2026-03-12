@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Project, PhaseProgress, StepStatus } from "@/types/project";
+import type { Project, PhaseProgress } from "@/types/project";
 import { PROJECT_STATUS_LABELS } from "@/types/project";
 import { Calendar, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,15 +24,15 @@ const PHASE_STEPS: { phase: 1 | 2 | 3; keys: (keyof PhaseProgress)[] }[] = [
 ];
 
 const phaseColors: Record<number, string> = {
-  1: "bg-[hsl(217,91%,60%)]",   // blue
-  2: "bg-[hsl(38,92%,50%)]",    // orange
-  3: "bg-[hsl(160,64%,43%)]",   // green
+  1: "bg-phase-1",
+  2: "bg-phase-2",
+  3: "bg-phase-3",
 };
 
 const phaseColorsMuted: Record<number, string> = {
-  1: "bg-[hsl(217,91%,60%/0.2)]",
-  2: "bg-[hsl(38,92%,50%/0.2)]",
-  3: "bg-[hsl(160,64%,43%/0.2)]",
+  1: "bg-phase-1/20",
+  2: "bg-phase-2/20",
+  3: "bg-phase-3/20",
 };
 
 function getPhaseSegmentFill(keys: (keyof PhaseProgress)[], progress: PhaseProgress): number {
@@ -51,7 +51,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
   return (
     <Card
-      className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
+      className="cursor-pointer transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 overflow-hidden group"
       onClick={() => navigate(`/projects/${project.id}`)}
     >
       {/* Phase color band top */}
@@ -71,7 +71,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base font-bold leading-snug line-clamp-2">
+          <CardTitle className="text-base font-bold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
             {project.name}
           </CardTitle>
           <Badge variant={statusVariantMap[project.status]} className="shrink-0 text-xs">

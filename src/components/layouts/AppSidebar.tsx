@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
-import logoDelta from "@/assets/logo-delta.svg";
+import logoImg from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";
@@ -76,7 +76,7 @@ export function AppSidebar() {
     <aside className="hidden md:flex md:flex-col md:w-60 border-r border-sidebar-border bg-sidebar shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
-        <img src={logoDelta} alt="Delta Electronics" className="h-7 w-auto object-contain" />
+        <img src={logoImg} alt="RD Design Copilot" className="h-8 w-8 rounded-lg" />
         <span className="font-semibold text-sm text-sidebar-foreground tracking-tight">
           RD Design Copilot
         </span>

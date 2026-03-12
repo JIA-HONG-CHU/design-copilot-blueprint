@@ -14,6 +14,9 @@ interface ProjectFiltersProps {
   onSearchChange: (value: string) => void;
   phaseFilter: string;
   onPhaseFilterChange: (value: string) => void;
+  creatorFilter: string;
+  onCreatorFilterChange: (value: string) => void;
+  creators: string[];
   onCreateProject: () => void;
 }
 
@@ -22,6 +25,9 @@ export function ProjectFilters({
   onSearchChange,
   phaseFilter,
   onPhaseFilterChange,
+  creatorFilter,
+  onCreatorFilterChange,
+  creators,
   onCreateProject,
 }: ProjectFiltersProps) {
   return (
@@ -30,26 +36,34 @@ export function ProjectFilters({
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="搜尋專案..."
+            placeholder="搜尋專案名稱或描述..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-9"
-            maxLength={100}
+            maxLength={50}
           />
         </div>
-        <Select
-          value={phaseFilter}
-          onValueChange={onPhaseFilterChange}
-        >
-          <SelectTrigger className="w-full sm:w-[160px]">
+        <Select value={phaseFilter} onValueChange={onPhaseFilterChange}>
+          <SelectTrigger className="w-full sm:w-[150px]">
             <SelectValue placeholder="所有階段" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="all">全部階段</SelectItem>
             <SelectItem value="Phase I">Phase 1</SelectItem>
             <SelectItem value="Phase II">Phase 2</SelectItem>
             <SelectItem value="Phase III">Phase 3</SelectItem>
             <SelectItem value="completed">已完成</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={creatorFilter} onValueChange={onCreatorFilterChange}>
+          <SelectTrigger className="w-full sm:w-[140px]">
+            <SelectValue placeholder="所有創建者" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">所有創建者</SelectItem>
+            {creators.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

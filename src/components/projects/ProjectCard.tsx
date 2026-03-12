@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import type { Project, PhaseProgress } from "@/types/project";
 import { PROJECT_STATUS_LABELS } from "@/types/project";
 import { Calendar, User } from "lucide-react";
@@ -69,7 +70,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         })}
       </div>
 
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base font-bold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
             {project.name}
@@ -83,6 +84,15 @@ export function ProjectCard({ project }: ProjectCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Progress bar */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">進度</span>
+            <span className="font-medium">{project.progress}%</span>
+          </div>
+          <Progress value={project.progress} className="h-1.5" />
+        </div>
+
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <User className="h-3 w-3" />

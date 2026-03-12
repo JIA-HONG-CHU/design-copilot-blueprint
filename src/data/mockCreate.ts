@@ -30,9 +30,14 @@ export const mockSubsystems: Record<string, Subsystem[]> = {
 
 export const mockScamperVariants: Record<string, ScamperVariant[]> = {
   "proj-001": [
-    { id: "sv-001", subsystemId: "ss-001", action: "S", description: "以磁力耦合器替代機械齒輪傳動，消除接觸磨耗與噪音。", adopted: true, newContradictions: ["替代為磁力耦合後，扭矩傳遞效率在高溫下可能降低（新矛盾：效率 vs 溫度穩定性）"] },
+    { id: "sv-001", subsystemId: "ss-001", action: "S", description: "以磁力耦合器替代機械齒輪傳動，消除接觸磨耗與噪音。", adopted: true, newContradictions: [
+      { id: "snc-001", description: "替代為磁力耦合後，扭矩傳遞效率在高溫下可能降低（效率 vs 溫度穩定性）", severity: "major", fedBack: false },
+    ] },
     { id: "sv-002", subsystemId: "ss-001", action: "C", description: "將馬達與減速機整合為一體式模組，減少零件數量與組裝誤差。", adopted: false },
-    { id: "sv-003", subsystemId: "ss-001", action: "E", description: "消除中間傳動軸，改用同軸直連結構。", adopted: true },
+    { id: "sv-003", subsystemId: "ss-001", action: "E", description: "消除中間傳動軸，改用同軸直連結構。", adopted: true, newContradictions: [
+      { id: "snc-002", description: "同軸直連移除緩衝機構，瞬間衝擊負載直接傳至馬達軸承", severity: "fatal", fedBack: false },
+      { id: "snc-003", description: "組裝公差要求從 0.1mm 提升至 0.03mm，製造成本微增", severity: "minor", fedBack: false },
+    ] },
     { id: "sv-004", subsystemId: "ss-002", action: "S", description: "以拓撲優化結構替代實心殼體，在關鍵應力路徑保留材料。", adopted: false },
     { id: "sv-005", subsystemId: "ss-002", action: "M", description: "將殼體壁厚從均勻改為漸變設計，高應力區加厚、低應力區減薄。", adopted: true },
     { id: "sv-006", subsystemId: "ss-002", action: "A", description: "借鑑航太蜂巢結構，以蜂巢夾層提升剛度重量比。", adopted: false },

@@ -59,13 +59,20 @@ export const SCAMPER_LABELS: Record<ScamperAction, { en: string; zh: string }> =
   R: { en: 'Rearrange', zh: '重排' },
 };
 
+export interface ScamperNewContradiction {
+  id: string;
+  description: string;
+  severity: 'fatal' | 'major' | 'minor';
+  fedBack: boolean;  // 是否已回饋至收斂圖
+}
+
 export interface ScamperVariant {
   id: string;
   subsystemId: string;
   action: ScamperAction;
   description: string;
   adopted: boolean;
-  newContradictions?: string[];
+  newContradictions?: ScamperNewContradiction[];
 }
 
 // Interface Contract — 6 Dimensions (E2E Spec)

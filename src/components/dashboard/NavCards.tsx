@@ -13,9 +13,9 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 const phaseTopColor: Record<string, string> = {
-  "Phase 1": "bg-[hsl(217,91%,60%)]",
-  "Phase 2": "bg-[hsl(38,92%,50%)]",
-  "Phase 3": "bg-[hsl(160,64%,43%)]",
+  "Phase 1": "bg-phase-1",
+  "Phase 2": "bg-phase-2",
+  "Phase 3": "bg-phase-3",
 };
 
 interface NavCardsProps {

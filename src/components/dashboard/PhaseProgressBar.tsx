@@ -30,15 +30,15 @@ const PHASE_LABELS: Record<number, string> = {
 };
 
 const phaseLineColor: Record<number, string> = {
-  1: "bg-[hsl(217,91%,60%)]",
-  2: "bg-[hsl(38,92%,50%)]",
-  3: "bg-[hsl(160,64%,43%)]",
+  1: "bg-phase-1",
+  2: "bg-phase-2",
+  3: "bg-phase-3",
 };
 
 const phaseTextColor: Record<number, string> = {
-  1: "text-[hsl(217,91%,60%)]",
-  2: "text-[hsl(38,92%,50%)]",
-  3: "text-[hsl(160,64%,43%)]",
+  1: "text-phase-1",
+  2: "text-phase-2",
+  3: "text-phase-3",
 };
 
 const statusLabels: Record<StepStatus, string> = {

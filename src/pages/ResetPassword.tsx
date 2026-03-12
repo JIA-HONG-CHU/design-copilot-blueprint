@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import logoImg from "@/assets/logo.png";
+import logoDelta from "@/assets/logo-delta.svg";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <img src={logoImg} alt="RD Design Copilot" className="h-12 w-12 rounded-2xl mx-auto shadow-card" />
+          <img src={logoDelta} alt="Delta Electronics" className="h-12 w-auto mx-auto object-contain" />
           <h1 className="text-2xl font-bold tracking-tight">重設密碼</h1>
           <p className="text-sm text-muted-foreground">請輸入新的密碼</p>
         </div>

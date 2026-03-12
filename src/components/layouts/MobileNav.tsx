@@ -1,5 +1,5 @@
 import { useState } from "react";
-import logoImg from "@/assets/logo.png";
+import logoDelta from "@/assets/logo-delta.svg";
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,7 +56,7 @@ export function MobileNav() {
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden bg-card">
       <div className="flex items-center gap-2.5">
-        <img src={logoImg} alt="RD Design Copilot" className="h-7 w-7 rounded-md" />
+        <img src={logoDelta} alt="Delta Electronics" className="h-6 w-auto object-contain" />
         <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
       </div>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -67,7 +67,7 @@ export function MobileNav() {
         </SheetTrigger>
         <SheetContent side="left" className="w-72 p-0 flex flex-col">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border">
-            <img src={logoImg} alt="RD Design Copilot" className="h-8 w-8 rounded-lg" />
+            <img src={logoDelta} alt="Delta Electronics" className="h-7 w-auto object-contain" />
             <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

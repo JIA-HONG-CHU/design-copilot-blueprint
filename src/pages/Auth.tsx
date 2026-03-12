@@ -1,5 +1,6 @@
 import { useState } from "react";
-import logoImg from "@/assets/logo.png";
+import logoDelta from "@/assets/logo-delta.svg";
+import logoYoutube from "@/assets/logo-youtube.jpg";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -56,9 +57,12 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
-        <div className="text-center space-y-3">
-          <img src={logoImg} alt="RD Design Copilot" className="h-14 w-14 rounded-2xl mx-auto shadow-card" />
+        {/* Logos */}
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center gap-4">
+            <img src={logoDelta} alt="Delta Electronics" className="h-14 w-auto object-contain" />
+            <img src={logoYoutube} alt="Partner" className="h-12 w-12 rounded-xl shadow-card object-contain" />
+          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">RD Design Copilot</h1>
             <p className="text-sm text-muted-foreground mt-1">

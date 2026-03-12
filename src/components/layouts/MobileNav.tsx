@@ -56,9 +56,7 @@ export function MobileNav() {
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden bg-card">
       <div className="flex items-center gap-2.5">
-        <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-          <span className="text-primary-foreground font-bold text-[10px]">RD</span>
-        </div>
+        <img src={logoImg} alt="RD Design Copilot" className="h-7 w-7 rounded-md" />
         <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
       </div>
       <Sheet open={open} onOpenChange={setOpen}>

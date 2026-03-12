@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +9,34 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { ArrowLeft, Check, X, AlertTriangle, ClipboardCheck, Loader2, Eye } from "lucide-react";
-import { mockSolutions } from "@/data/mockSolutions";
+import { ArrowLeft, Check, X, AlertTriangle, ClipboardCheck, Loader2, Eye, ShieldCheck, ShieldAlert } from "lucide-react";
+import { mockSolutions, mockConvergenceNodes } from "@/data/mockSolutions";
 import { Solution } from "@/types/solution";
 import { ReviewDimension, SolutionReview } from "@/types/preCadReview";
+import { ContradictionSeverity } from "@/types/contradiction";
+
+// Mock constraint feasibility data
+const mockConstraintFeasibility = [
+  { id: "cf-1", label: "成本 ≤ 預算上限 ($50,000)", status: "verified" as const },
+  { id: "cf-2", label: "符合 IEC 61672 噪音標準 ≤ 70dB", status: "verified" as const },
+  { id: "cf-3", label: "尺寸 ≤ 400×300×200mm", status: "questionable" as const },
+  { id: "cf-4", label: "工作溫度範圍 -20°C ~ 60°C", status: "verified" as const },
+  { id: "cf-5", label: "MTBF ≥ 10,000 小時", status: "questionable" as const },
+];
+
+const feasibilityStatusConfig = {
+  verified: { label: "已驗證", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
+  questionable: { label: "存疑", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
+  infeasible: { label: "不可行", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+};
+
+const severityBadgeClass: Record<ContradictionSeverity, string> = {
+  fatal: "bg-destructive text-destructive-foreground",
+  major: "bg-orange-500 text-white",
+  minor: "bg-muted text-muted-foreground",
+};
 
 const REVIEW_DIMENSIONS: Omit<ReviewDimension, "rating" | "summary">[] = [
   { id: "space", label: "空間約束", description: "方案是否符合現有空間與尺寸限制" },
@@ -30,10 +53,30 @@ const PreCadReview = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // Only show solutions that passed all MUST criteria (or have at least some passes)
   const candidates = mockSolutions.filter(
     (s) => s.projectId === id && s.mustCriteria.some((m) => m.passed === true)
   );
+
+  // Compute confidence score from convergence nodes
+  const { confidenceScore, fatalResolved, fatalTotal, majorResolved, majorTotal, minorResolved, minorTotal } = useMemo(() => {
+    const contradictionNodes = mockConvergenceNodes.filter((n) => n.type === "contradiction");
+    const fatal = contradictionNodes.filter((n) => n.severity === "fatal");
+    const major = contradictionNodes.filter((n) => n.severity === "major");
+    const minor = contradictionNodes.filter((n) => n.severity === "minor");
+    const fatalR = fatal.filter((n) => n.resolved).length;
+    const majorR = major.filter((n) => n.resolved).length;
+    const totalFM = fatal.length + major.length;
+    const resolvedFM = fatalR + majorR;
+    const score = totalFM > 0 ? (resolvedFM / totalFM) * 100 : 100;
+    return {
+      confidenceScore: Math.round(score * 10) / 10,
+      fatalResolved: fatalR, fatalTotal: fatal.length,
+      majorResolved: majorR, majorTotal: major.length,
+      minorResolved: minor.filter((n) => n.resolved).length, minorTotal: minor.length,
+    };
+  }, []);
+
+  const gatePassed = confidenceScore === 100;
 
   const [reviews, setReviews] = useState<Record<string, SolutionReview>>(() => {
     const init: Record<string, SolutionReview> = {};
@@ -82,9 +125,13 @@ const PreCadReview = () => {
   };
 
   const allReviewed = candidates.every((c) => reviews[c.id]?.reviewed);
-  const canApprove = selectedIds.length >= 3 && selectedIds.length <= 5 && allReviewed;
+  const canApprove = selectedIds.length >= 3 && selectedIds.length <= 5 && allReviewed && gatePassed;
 
   const handleApprove = async () => {
+    if (!gatePassed) {
+      toast.error("Gate P 門檻未達標：所有 Fatal 和 Major 矛盾必須 100% 收斂");
+      return;
+    }
     if (!canApprove) {
       if (selectedIds.length < 3) toast.error("請至少選擇 3 條候選方案");
       else if (selectedIds.length > 5) toast.error("最多選擇 5 條候選方案");
@@ -115,6 +162,9 @@ const PreCadReview = () => {
 
   const reviewingCandidate = candidates.find((c) => c.id === reviewingSolutionId);
 
+  const scoreColor = confidenceScore >= 100 ? "text-emerald-600" : confidenceScore >= 50 ? "text-amber-600" : "text-destructive";
+  const progressColor = confidenceScore >= 100 ? "bg-emerald-500" : confidenceScore >= 50 ? "bg-amber-500" : "bg-destructive";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,11 +176,101 @@ const PreCadReview = () => {
           <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: '"Noto Sans TC", "Helvetica Neue", Arial, sans-serif' }}>
             Pre-CAD 審查
           </h1>
-          <p className="text-sm text-muted-foreground">評估候選方案，選擇 3-5 條進入 CAD 階段</p>
+          <p className="text-sm text-muted-foreground">評估候選方案，確認 Gate P 門檻後選擇 3-5 條進入 CAD 階段</p>
         </div>
       </div>
 
-      {/* Candidate list */}
+      {/* Section 1: Pre-CAD Confidence Score Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Confidence Score */}
+        <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Pre-CAD Confidence Score</p>
+            <div className={`text-3xl font-bold ${scoreColor}`}>{confidenceScore.toFixed(1)}%</div>
+            <div className="relative">
+              <Progress value={confidenceScore} className="h-2" />
+              <div className={`absolute inset-0 h-2 rounded-full ${progressColor}`} style={{ width: `${Math.min(confidenceScore, 100)}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              公式: converged(Fatal+Major) / total(Fatal+Major)
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Gate P Threshold */}
+        <Card className={`rounded-lg ${gatePassed ? "border-emerald-300 dark:border-emerald-700" : "border-destructive/30"}`} style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Gate P 門檻</p>
+            <div className="flex items-center gap-2">
+              {gatePassed ? (
+                <>
+                  <ShieldCheck className="h-6 w-6 text-emerald-600" />
+                  <span className="text-lg font-semibold text-emerald-600">達標</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-6 w-6 text-destructive" />
+                  <span className="text-lg font-semibold text-destructive">未達標</span>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              要求：Fatal+Major 矛盾 Confidence = 100%
+            </p>
+            {!gatePassed && (
+              <p className="text-xs text-destructive">
+                尚有未收斂的 Fatal/Major 矛盾，無法批准審查
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Convergence Summary */}
+        <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">收斂圖摘要</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <Badge className={`text-xs ${severityBadgeClass.fatal}`}>Fatal</Badge>
+                <span className={fatalResolved === fatalTotal ? "text-emerald-600" : "text-destructive"}>
+                  {fatalResolved}/{fatalTotal} 已解決
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <Badge className={`text-xs ${severityBadgeClass.major}`}>Major</Badge>
+                <span className={majorResolved === majorTotal ? "text-emerald-600" : "text-destructive"}>
+                  {majorResolved}/{majorTotal} 已解決
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <Badge className={`text-xs ${severityBadgeClass.minor}`}>Minor</Badge>
+                <span className="text-muted-foreground">
+                  {minorResolved}/{minorTotal} 已解決
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Constraint Feasibility */}
+        <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">約束可行性驗證</p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {mockConstraintFeasibility.map((cf) => (
+                <div key={cf.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="line-clamp-1 flex-1">{cf.label}</span>
+                  <Badge variant="outline" className={`text-xs shrink-0 ${feasibilityStatusConfig[cf.status].color}`}>
+                    {feasibilityStatusConfig[cf.status].label}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section 2: Candidate list */}
       <div>
         <h2 className="text-lg font-semibold mb-3">候選方案 ({candidates.length})</h2>
         {candidates.length === 0 ? (
@@ -199,7 +339,7 @@ const PreCadReview = () => {
         )}
       </div>
 
-      {/* Conclusion & approval */}
+      {/* Section 4: Conclusion & approval */}
       {candidates.length > 0 && (
         <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
           <CardHeader className="pb-3">
@@ -234,13 +374,21 @@ const PreCadReview = () => {
                 rows={3}
               />
             </div>
-            <Button onClick={handleApprove} disabled={!canApprove || isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              批准審查
-            </Button>
-            {!allReviewed && (
-              <p className="text-xs text-muted-foreground">* 需完成所有方案的審查後才能批准</p>
-            )}
+            <div className="flex items-center gap-3">
+              <Button onClick={handleApprove} disabled={!canApprove || isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                批准審查
+              </Button>
+              {!gatePassed && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Gate P 門檻未達標，無法批准
+                </p>
+              )}
+              {gatePassed && !allReviewed && (
+                <p className="text-xs text-muted-foreground">* 需完成所有方案的審查後才能批准</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

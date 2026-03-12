@@ -76,6 +76,3 @@ function SeverityRow({ label, count, total, className }: { label: string; count:
   );
 }
 
-function cn(...classes: (string | undefined | false)[]) {
-  return classes.filter(Boolean).join(" ");
-}

@@ -21,6 +21,7 @@ export const mockContradictions: Contradiction[] = [
     worseningParam: 1,
     engineeringStatement: "當增加材料厚度以提升強度時，移動物體的重量也隨之增加，影響了整體效能。",
     physicalContradiction: "",
+    severity: "fatal",
     createdAt: "2026-02-21T14:00:00Z",
     updatedAt: "2026-02-21T14:00:00Z",
   },

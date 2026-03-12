@@ -39,7 +39,7 @@ export function NavCards({ cards }: NavCardsProps) {
               "overflow-hidden transition-all relative",
               card.locked
                 ? "opacity-50 cursor-not-allowed"
-                : "cursor-pointer hover:shadow-md hover:-translate-y-0.5"
+                : "cursor-pointer hover:shadow-card-hover hover:-translate-y-0.5"
             )}
             onClick={() => {
               if (!card.locked) navigate(`/projects/${id}/${card.route}`);

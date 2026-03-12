@@ -9,6 +9,7 @@ export const mockContradictions: Contradiction[] = [
     worseningParam: 31,
     engineeringStatement: "當提高馬達轉速（速度）以增加效能時，物體產生的有害因素（噪音與振動）也隨之惡化。",
     physicalContradiction: "馬達需要同時高轉速（高效能）和低轉速（低噪音）。",
+    severity: "major",
     createdAt: "2026-02-20T10:00:00Z",
     updatedAt: "2026-02-20T10:00:00Z",
   },

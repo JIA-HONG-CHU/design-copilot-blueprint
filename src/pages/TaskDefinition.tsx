@@ -464,6 +464,3 @@ export default function TaskDefinition() {
     </div>
   );
 }
-
-// Import for the button icon
-import { ShieldCheck } from "lucide-react";

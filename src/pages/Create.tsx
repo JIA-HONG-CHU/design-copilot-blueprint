@@ -37,10 +37,15 @@ import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
 import { SubsystemBlockDiagram } from "@/components/create/SubsystemBlockDiagram";
 import { LayoutGrid, List } from "lucide-react";
-import HealthMonitor from "@/components/solution/HealthMonitor";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
-import { mockConvergenceNodes, mockConvergenceEdges } from "@/data/mockSolutions";
-import { useContradictionScan } from "@/hooks/useContradictionScan";
+import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
+import { ConvergenceDashboard } from "@/components/create/ConvergenceDashboard";
+import { BranchExplorationPanel } from "@/components/create/BranchExplorationPanel";
+import { HumanReviewPanel } from "@/components/create/HumanReviewPanel";
+import { ArchitectureHaltOverlay } from "@/components/create/ArchitectureHaltOverlay";
+import { MultiSolutionAdoptionPanel } from "@/components/create/MultiSolutionAdoptionPanel";
+import { mockAdoptionState } from "@/data/mockConceptRoutes";
+import type { ConceptRoute } from "@/types/conceptRoute";
 
 const RADAR_COLORS = [
   "hsl(var(--primary))",
@@ -94,7 +99,9 @@ export default function Create() {
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
-  const { scanResult, isScanning, runScan } = useContradictionScan();
+  const convergenceLoop = useConvergenceLoop();
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
   const [showAddSubsystemForm, setShowAddSubsystemForm] = useState(false);
   const [editingSubsystemId, setEditingSubsystemId] = useState<string | null>(null);
@@ -128,8 +135,7 @@ export default function Create() {
 
   const stepStatuses: AccordionStepStatus[] = useMemo(() => {
     const s1 = routes.length >= 3 ? "complete" : routes.length > 0 ? "in_progress" : "not_started";
-    const adopted = trizSolutions.filter((t) => t.status === "adopted").length;
-    const s2 = adopted > 0 ? "complete" : trizSolutions.length > 0 ? "in_progress" : "not_started";
+    const s2 = convergenceLoop.state.status === "converged" ? "complete" : convergenceLoop.state.status !== "idle" ? "in_progress" : "not_started";
     const confirmed = subsystems.filter((s) => s.confirmed).length;
     const s3 = confirmed > 0 ? "complete" : subsystems.length > 0 ? "in_progress" : "not_started";
     const adoptedSc = scamperVariants.filter((v) => v.adopted).length;
@@ -141,7 +147,7 @@ export default function Create() {
     const allScored = passedMust.length > 0 && passedMust.every((a) => Object.values(a.preCadScores).every((v) => v !== null));
     const s7 = allScored ? "complete" : passedMust.some((a) => Object.values(a.preCadScores).some((v) => v !== null)) ? "in_progress" : "not_started";
     return [s1, s2, s3, s4, s5, s6, s7];
-  }, [routes, trizSolutions, subsystems, scamperVariants, alternatives]);
+  }, [routes, convergenceLoop.state.status, subsystems, scamperVariants, alternatives]);
 
   const autoSave = useCallback(() => {
     setSaveStatus("saving");
@@ -316,7 +322,7 @@ export default function Create() {
   const renderStepContent = () => {
     switch (currentStep) {
       case 0: return renderAntiAnchor();
-      case 1: return renderTriz();
+      case 1: return renderTrizConvergence();
       case 2: return renderSubsystem();
       case 3: return renderScamper();
       case 4: return renderAlternatives();
@@ -390,83 +396,81 @@ export default function Create() {
     );
   }
 
-  // ── Step 2: TRIZ ──
-  function renderTriz() {
-    const contradictionIds = Array.from(new Set(trizSolutions.map((t) => t.contradictionId)));
+  // ── Step 2: TRIZ Convergence (AI Autonomous) ──
+  function renderTrizConvergence() {
+    const { state, startExploration, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
+
     return (
-      <div className="space-y-6">
-        {contradictionIds.map((cId) => {
-          const sols = trizSolutions.filter((t) => t.contradictionId === cId);
-          const contradiction = MOCK_MISSION.contradictions.find(c => c.id.toLowerCase().replace('-', '') === cId.replace('-', ''));
-          return (
-            <div key={cId} className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="h-6 w-6 rounded-full bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-xs font-semibold text-destructive">⚡</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">矛盾 {cId}</p>
-                  {contradiction && <p className="text-xs text-muted-foreground mt-0.5">{contradiction.description}</p>}
-                </div>
+      <div className="space-y-5">
+        {/* Safety valve: architecture halt overlay */}
+        {(state.health === 'critical' || state.health === 'circular') && (
+          <ArchitectureHaltOverlay
+            health={state.health}
+            onGoBack={() => navigate(`/projects/${id}/task-definition`)}
+            onForceContinue={forceContinue}
+          />
+        )}
+
+        {/* Idle state: launch exploration */}
+        {state.status === 'idle' && (
+          <Card className="border-dashed border-2 border-primary/30">
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-primary" />
               </div>
+              <div>
+                <h3 className="text-lg font-semibold">AI 矛盾收斂探索</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                  AI 將自動對每條矛盾進行深度探索（TC / PC / SF 三路徑），
+                  掃描二次矛盾並分級（Fatal / Major / Minor），
+                  持續迴圈直到所有 Fatal 和 Major 矛盾完全收斂。
+                </p>
+              </div>
+              <Button onClick={startExploration} size="lg" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                啟動 AI 矛盾收斂探索
+                <Badge variant="secondary" className="text-[10px] ml-1">Fully Auto</Badge>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
-              <Tabs defaultValue="TC">
-                <TabsList className="h-9 bg-muted/50">
-                  <TabsTrigger value="TC" className="text-xs">矩陣查表 (TC)</TabsTrigger>
-                  <TabsTrigger value="PC" className="text-xs">分離原理 (PC)</TabsTrigger>
-                  <TabsTrigger value="SF" className="text-xs">76 標準解 (SF)</TabsTrigger>
-                </TabsList>
-                {(["TC", "PC", "SF"] as TrizPath[]).map((path) => (
-                  <TabsContent key={path} value={path} className="space-y-3 mt-4">
-                    {sols.filter((s) => s.path === path).length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">此路徑暫無解法建議</p>
-                    ) : (
-                      sols.filter((s) => s.path === path).map((sol) => (
-                         <Card key={sol.id} className={`transition-all ${sol.status === "adopted" ? "border-l-[3px] border-l-primary" : sol.status === "skipped" ? "opacity-50" : ""}`}>
-                          <CardContent className="p-4 space-y-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="secondary" className="text-[10px]">AI</Badge>
-                              {sol.principleNumber && <Badge variant="outline" className="text-[10px] font-mono">#{sol.principleNumber}</Badge>}
-                              <span className="text-sm font-medium">{sol.principleName}</span>
-                              {sol.status === "adopted" && (
-                                <Badge className="bg-primary text-primary-foreground text-[10px] ml-auto">🔒 已鎖定</Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground leading-relaxed">{sol.suggestion}</p>
-                            <div className="flex gap-2 pt-1">
-                              <Button
-                                size="sm"
-                                variant={sol.status === "adopted" ? "default" : "outline"}
-                                className="text-xs"
-                                onClick={() => setTrizStatus(sol.id, sol.status === "adopted" ? "pending" : "adopted")}
-                              >
-                                {sol.status === "adopted" ? "✓ 已採用（點擊解鎖）" : "採用"}
-                              </Button>
-                              {sol.status !== "adopted" && (
-                                <Button size="sm" variant="ghost" className="text-xs" onClick={() => setTrizStatus(sol.id, "skipped")}>
-                                  跳過
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
-                    )}
-                  </TabsContent>
-                ))}
-              </Tabs>
-              <Separator />
-            </div>
-          );
-        })}
-        {/* Architecture Health Monitor (WBS 2.2.2) */}
-        <HealthMonitor
-          nodeCount={scanResult.nodeCount || mockConvergenceNodes.filter(n => n.type === 'contradiction').length}
-          hasCircular={scanResult.hasCircular}
-        />
+        {/* Exploring / Converged: show dashboard + graph + branches */}
+        {state.status !== 'idle' && (
+          <>
+            <ConvergenceDashboard state={state} />
 
-        {/* Contradiction Convergence Graph (WBS 2.2.4) */}
-        <ConvergenceGraph nodes={mockConvergenceNodes} edges={mockConvergenceEdges} />
+            <ConvergenceGraph
+              nodes={state.graph.nodes}
+              edges={state.graph.edges}
+            />
+
+            <BranchExplorationPanel branches={state.branches} />
+          </>
+        )}
+
+        {/* Converged: human review → multi-solution adoption */}
+        {state.status === 'converged' && (
+          <>
+            <HumanReviewPanel
+              branches={state.branches}
+              riskRegister={state.riskRegister}
+              onConfirm={() => setReviewConfirmed(true)}
+              onRetry={retryBranch}
+              onConfirmSeverity={confirmSeverity}
+            />
+
+            {reviewConfirmed && (
+              <MultiSolutionAdoptionPanel
+                adoptionState={mockAdoptionState}
+                onConfirm={(routes) => {
+                  setConceptRoutes(routes);
+                  goNext();
+                }}
+              />
+            )}
+          </>
+        )}
 
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[1] ?? []} />
       </div>

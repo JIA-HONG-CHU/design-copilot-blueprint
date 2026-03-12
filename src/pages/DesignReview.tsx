@@ -100,6 +100,19 @@ export default function DesignReview() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [blackhatQuestions, setBlackhatQuestions] = useState<string[]>([]);
 
+  // Solution disposition & conclusion state
+  const [dispositions, setDispositions] = useState<Record<string, string>>({});
+  const [reviewConclusion, setReviewConclusion] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get candidate solutions (from mockSolutions that passed Pre-CAD)
+  const candidateSolutions = useMemo(() => {
+    const { mockSolutions } = require("@/data/mockSolutions");
+    return (mockSolutions as any[]).filter(
+      (s: any) => s.projectId === id && s.mustCriteria?.some((m: any) => m.passed === true)
+    );
+  }, [id]);
+
   const handleAiBlackhat = async () => {
     setAiLoading(p => ({ ...p, blackhat: true }));
     await new Promise(r => setTimeout(r, 2000));

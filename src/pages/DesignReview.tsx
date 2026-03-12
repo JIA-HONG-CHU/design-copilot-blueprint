@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
-  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2
+  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2, ClipboardCheck
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -99,6 +99,19 @@ export default function DesignReview() {
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [attachments, setAttachments] = useState<any[]>([]);
   const [blackhatQuestions, setBlackhatQuestions] = useState<string[]>([]);
+
+  // Solution disposition & conclusion state
+  const [dispositions, setDispositions] = useState<Record<string, string>>({});
+  const [reviewConclusion, setReviewConclusion] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get candidate solutions (from mockSolutions that passed Pre-CAD)
+  const candidateSolutions = useMemo(() => {
+    const { mockSolutions } = require("@/data/mockSolutions");
+    return (mockSolutions as any[]).filter(
+      (s: any) => s.projectId === id && s.mustCriteria?.some((m: any) => m.passed === true)
+    );
+  }, [id]);
 
   const handleAiBlackhat = async () => {
     setAiLoading(p => ({ ...p, blackhat: true }));
@@ -323,6 +336,53 @@ export default function DesignReview() {
 
       {/* Purpose intro */}
       <SectionIntro text="RD 完成 CAD 建模後，在此審查設計證據。證據矩陣連結自 Track 假設、風險從高風險假設衍生、實驗從 Track 同步。" />
+
+      {/* Section 1: Candidate Solutions List */}
+      <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="text-sm font-semibold">審查方案列表</h3>
+            <Badge variant="outline" className="text-xs">{candidateSolutions.length} 方案</Badge>
+          </div>
+          {candidateSolutions.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">沒有審查方案，請先完成 Pre-CAD 審查。</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {candidateSolutions.map((sol: any) => (
+                <div key={sol.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium line-clamp-1">{sol.name}</p>
+                    <div className="flex gap-1 shrink-0">
+                      {sol.mustCriteria?.map((m: any) => (
+                        <span key={m.id}>
+                          {m.passed === true ? <CheckCircle className="h-3 w-3 text-primary" /> : m.passed === false ? <XCircle className="h-3 w-3 text-destructive" /> : <span className="text-muted-foreground text-xs">—</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{sol.description}</p>
+                  <div className="space-y-1">
+                    <Label className="text-xs">方案去向</Label>
+                    <Select
+                      value={dispositions[sol.id] || ""}
+                      onValueChange={(v) => setDispositions((prev) => ({ ...prev, [sol.id]: v }))}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="選擇去向" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="approve">✅ 批准</SelectItem>
+                        <SelectItem value="revise">🔄 修訂</SelectItem>
+                        <SelectItem value="eliminate">❌ 淘汰</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* AI Black Hat Questioning (P1) */}
       <Card className="border-destructive/20 bg-destructive/5">
@@ -708,6 +768,74 @@ export default function DesignReview() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Conclusion & Decision Section */}
+      <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-semibold">審查結論與決策</h3>
+          </div>
+
+          {/* Disposition summary */}
+          {candidateSolutions.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">方案去向摘要：</p>
+              <div className="flex flex-wrap gap-1.5">
+                {candidateSolutions.map((sol: any) => {
+                  const d = dispositions[sol.id];
+                  return (
+                    <Badge
+                      key={sol.id}
+                      variant={d === "approve" ? "default" : d === "eliminate" ? "destructive" : "secondary"}
+                      className="text-xs"
+                    >
+                      {sol.name?.slice(0, 15)}: {d === "approve" ? "批准" : d === "revise" ? "修訂" : d === "eliminate" ? "淘汰" : "未決定"}
+                    </Badge>
+                  );
+                })}
+              </div>
+              {candidateSolutions.some((s: any) => !dispositions[s.id]) && (
+                <p className="text-xs text-destructive">⚠ 尚有方案未選擇去向</p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">審查結論備註（選填）</Label>
+            <Textarea
+              value={reviewConclusion}
+              onChange={(e) => setReviewConclusion(e.target.value)}
+              placeholder="記錄審查會議的關鍵討論和決策原因..."
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+
+          <Button
+            onClick={async () => {
+              const allDecided = candidateSolutions.every((s: any) => dispositions[s.id]);
+              if (!allDecided) {
+                toast.error("請為所有方案選擇去向");
+                return;
+              }
+              if (!gate31Passed) {
+                toast.error("Gate 3.1 未通過，無法批准審查");
+                return;
+              }
+              setIsSubmitting(true);
+              await new Promise((r) => setTimeout(r, 1500));
+              setIsSubmitting(false);
+              toast.success("設計審查已批准，專案推進至下一階段");
+              navigate(`/projects/${id}`);
+            }}
+            disabled={isSubmitting || !gate31Passed || candidateSolutions.some((s: any) => !dispositions[s.id])}
+          >
+            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            批准審查
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Gate 3.1 */}
       <Separator />

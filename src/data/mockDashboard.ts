@@ -1,4 +1,37 @@
-import type { Project, ProjectHistoryItem, ProjectStage } from "@/types/project";
+import type { Project, ProjectHistoryItem, ProjectStage, CriticalKPI } from "@/types/project";
+
+export interface PreCadScore {
+  score: number; // 0-100
+  fatalResolved: number;
+  fatalTotal: number;
+  majorResolved: number;
+  majorTotal: number;
+}
+
+export interface ContradictionConvergence {
+  totalNodes: number;
+  fatalCount: number;
+  majorCount: number;
+  minorCount: number;
+  hasCircularDependency: boolean;
+  healthWarning: boolean; // true if nodes > 5 or circular
+}
+
+export const mockPreCadScores: Record<string, PreCadScore> = {
+  "proj-001": { score: 65, fatalResolved: 1, fatalTotal: 2, majorResolved: 2, majorTotal: 3 },
+  "proj-002": { score: 88, fatalResolved: 3, fatalTotal: 3, majorResolved: 4, majorTotal: 5 },
+  "proj-003": { score: 100, fatalResolved: 2, fatalTotal: 2, majorResolved: 3, majorTotal: 3 },
+  "proj-004": { score: 25, fatalResolved: 0, fatalTotal: 1, majorResolved: 0, majorTotal: 2 },
+  "proj-006": { score: 58, fatalResolved: 1, fatalTotal: 2, majorResolved: 1, majorTotal: 2 },
+};
+
+export const mockConvergence: Record<string, ContradictionConvergence> = {
+  "proj-001": { totalNodes: 3, fatalCount: 1, majorCount: 1, minorCount: 1, hasCircularDependency: false, healthWarning: false },
+  "proj-002": { totalNodes: 6, fatalCount: 0, majorCount: 2, minorCount: 4, hasCircularDependency: false, healthWarning: true },
+  "proj-003": { totalNodes: 4, fatalCount: 0, majorCount: 0, minorCount: 4, hasCircularDependency: false, healthWarning: false },
+  "proj-004": { totalNodes: 1, fatalCount: 1, majorCount: 0, minorCount: 0, hasCircularDependency: false, healthWarning: false },
+  "proj-006": { totalNodes: 7, fatalCount: 1, majorCount: 1, minorCount: 0, hasCircularDependency: true, healthWarning: true },
+};
 
 export const mockProjectDetails: Record<string, Partial<Project>> = {
   "proj-001": {
@@ -73,66 +106,16 @@ export const mockProjectHistory: Record<string, ProjectHistoryItem[]> = {
 };
 
 export function getMockProjectStages(projectId: string): ProjectStage[] {
-  // For proj-001 (Phase II, 45% progress)
   const isAdvanced = projectId === "proj-002" || projectId === "proj-003" || projectId === "proj-005";
   const isEarly = projectId === "proj-004";
 
   return [
-    {
-      id: "task-definition",
-      label: "任務定義",
-      path: "task-definition",
-      phase: "Phase I",
-      status: "completed",
-      icon: "ClipboardList",
-    },
-    {
-      id: "assumption-ledger",
-      label: "假設台帳",
-      path: "assumption-ledger",
-      phase: "Phase I",
-      status: isEarly ? "in_progress" : "completed",
-      icon: "FileQuestion",
-    },
-    {
-      id: "contradiction-identification",
-      label: "矛盾識別",
-      path: "contradiction-identification",
-      phase: "Phase I",
-      status: isEarly ? "not_started" : "completed",
-      icon: "GitBranch",
-    },
-    {
-      id: "solution-explorer",
-      label: "方案探索",
-      path: "solution-explorer",
-      phase: "Phase II",
-      status: isEarly ? "not_started" : isAdvanced ? "completed" : "in_progress",
-      icon: "Lightbulb",
-    },
-    {
-      id: "pre-cad-review",
-      label: "Pre-CAD 審查",
-      path: "pre-cad-review",
-      phase: "Phase II",
-      status: isAdvanced ? "completed" : "not_started",
-      icon: "FileCheck",
-    },
-    {
-      id: "design-review",
-      label: "設計審查",
-      path: "design-review",
-      phase: "Phase III",
-      status: isAdvanced ? "in_progress" : "not_started",
-      icon: "Search",
-    },
-    {
-      id: "decision-record",
-      label: "決策記錄",
-      path: "decision-record",
-      phase: "Phase III",
-      status: "not_started",
-      icon: "FileSignature",
-    },
+    { id: "task-definition", label: "任務定義", path: "task-definition", phase: "Phase I", status: "completed", icon: "ClipboardList" },
+    { id: "assumption-ledger", label: "假設台帳", path: "assumption-ledger", phase: "Phase I", status: isEarly ? "in_progress" : "completed", icon: "FileQuestion" },
+    { id: "contradiction-identification", label: "矛盾識別", path: "contradiction-identification", phase: "Phase I", status: isEarly ? "not_started" : "completed", icon: "GitBranch" },
+    { id: "solution-explorer", label: "方案探索", path: "solution-explorer", phase: "Phase II", status: isEarly ? "not_started" : isAdvanced ? "completed" : "in_progress", icon: "Lightbulb" },
+    { id: "pre-cad-review", label: "Pre-CAD 審查", path: "pre-cad-review", phase: "Phase II", status: isAdvanced ? "completed" : "not_started", icon: "FileCheck" },
+    { id: "design-review", label: "設計審查", path: "design-review", phase: "Phase III", status: isAdvanced ? "in_progress" : "not_started", icon: "Search" },
+    { id: "decision-record", label: "決策記錄", path: "decision-record", phase: "Phase III", status: "not_started", icon: "FileSignature" },
   ];
 }

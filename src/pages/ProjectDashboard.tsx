@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { mockProjects } from "@/data/mockProjects";
-import { mockProjectDetails, mockProjectHistory } from "@/data/mockDashboard";
+import { mockProjectDetails, mockProjectHistory, mockPreCadScores, mockConvergence } from "@/data/mockDashboard";
 import { getMockNavCards } from "@/data/mockNavCards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,10 @@ import { QuickStatsGrid } from "@/components/dashboard/QuickStatsGrid";
 import { GateDonut } from "@/components/dashboard/GateDonut";
 import { NavCards } from "@/components/dashboard/NavCards";
 import { ProjectTimeline } from "@/components/dashboard/ProjectTimeline";
+import { KpiCards } from "@/components/dashboard/KpiCards";
+import { MissionSummaryCard } from "@/components/dashboard/MissionSummaryCard";
+import { PreCadScoreGauge } from "@/components/dashboard/PreCadScoreGauge";
+import { ContradictionConvergenceCard } from "@/components/dashboard/ContradictionConvergenceCard";
 import { PROJECT_STATUS_LABELS } from "@/types/project";
 import { ArrowLeft, AlertCircle, Calendar, User } from "lucide-react";
 
@@ -20,6 +24,8 @@ export default function ProjectDashboard() {
   const project = mockProjects.find((p) => p.id === id);
   const details = id ? mockProjectDetails[id] : undefined;
   const history = id ? mockProjectHistory[id] ?? [] : [];
+  const preCadScore = id ? mockPreCadScores[id] : undefined;
+  const convergence = id ? mockConvergence[id] : undefined;
 
   if (!project) {
     return (
@@ -72,6 +78,29 @@ export default function ProjectDashboard() {
           <PhaseProgressBar progress={project.phase_progress} />
         </CardContent>
       </Card>
+
+      {/* Mission Summary + KPIs */}
+      {details && (
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold">專案概覽</h2>
+          <MissionSummaryCard
+            mission={details.mission}
+            hardConstraints={details.hardConstraints}
+            softObjectives={details.softObjectives}
+          />
+          {details.criticalKPIs && details.criticalKPIs.length > 0 && (
+            <KpiCards kpis={details.criticalKPIs} />
+          )}
+        </div>
+      )}
+
+      {/* Pre-CAD Score + Contradiction Convergence */}
+      {(preCadScore || convergence) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {preCadScore && <PreCadScoreGauge data={preCadScore} />}
+          {convergence && <ContradictionConvergenceCard data={convergence} />}
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="space-y-3">

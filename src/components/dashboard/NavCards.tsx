@@ -13,9 +13,9 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 const phaseTopColor: Record<string, string> = {
-  "Phase 1": "bg-[hsl(217,91%,60%)]",
-  "Phase 2": "bg-[hsl(38,92%,50%)]",
-  "Phase 3": "bg-[hsl(160,64%,43%)]",
+  "Phase 1": "bg-phase-1",
+  "Phase 2": "bg-phase-2",
+  "Phase 3": "bg-phase-3",
 };
 
 interface NavCardsProps {
@@ -39,7 +39,7 @@ export function NavCards({ cards }: NavCardsProps) {
               "overflow-hidden transition-all relative",
               card.locked
                 ? "opacity-50 cursor-not-allowed"
-                : "cursor-pointer hover:shadow-md hover:-translate-y-0.5"
+                : "cursor-pointer hover:shadow-card-hover hover:-translate-y-0.5"
             )}
             onClick={() => {
               if (!card.locked) navigate(`/projects/${id}/${card.route}`);

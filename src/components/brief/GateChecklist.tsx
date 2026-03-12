@@ -19,7 +19,7 @@ export function GateChecklist({ items, onNavigateNext }: GateChecklistProps) {
       <div className="rounded-lg border p-4 space-y-4">
         {/* Phase 1 blue top band */}
         <div className="flex items-center gap-3">
-          <div className="h-6 w-1 rounded-full bg-[hsl(217,91%,60%)]" />
+          <div className="h-6 w-1 rounded-full bg-phase-1" />
           <h3 className="text-sm font-semibold">Gate 1.1 — 任務定義完整性檢查</h3>
           <Badge
             variant={allPassed ? "default" : "destructive"}

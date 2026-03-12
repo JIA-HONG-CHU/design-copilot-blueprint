@@ -180,7 +180,7 @@ export default function TaskDefinition() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="h-8 w-1 rounded-full bg-[hsl(217,91%,60%)]" />
+          <div className="h-8 w-1 rounded-full bg-phase-1" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Brief — 定義簡報

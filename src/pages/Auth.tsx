@@ -56,17 +56,19 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
-        <div className="text-center space-y-2">
-          <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center mx-auto">
+        <div className="text-center space-y-3">
+          <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center mx-auto shadow-card">
             <span className="text-primary-foreground font-bold text-lg">RD</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">RD Design Copilot</h1>
-          <p className="text-sm text-muted-foreground">
-            {view === "login" ? "登入以繼續" : view === "signup" ? "建立帳號" : "重設密碼"}
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">RD Design Copilot</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {view === "login" ? "登入以繼續" : view === "signup" ? "建立帳號" : "重設密碼"}
+            </p>
+          </div>
         </div>
 
-        <Card>
+        <Card className="shadow-card-hover">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               {view === "forgot" && (
@@ -139,14 +141,14 @@ export default function Auth() {
                 <>
                   <button
                     type="button"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full"
                     onClick={() => setView("forgot")}
                   >
                     忘記密碼？
                   </button>
                   <button
                     type="button"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors block w-full"
                     onClick={() => setView("signup")}
                   >
                     還沒有帳號？點此註冊
@@ -156,7 +158,7 @@ export default function Auth() {
               {view === "signup" && (
                 <button
                   type="button"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
                   onClick={() => setView("login")}
                 >
                   已有帳號？點此登入
@@ -165,6 +167,10 @@ export default function Auth() {
             </div>
           </CardContent>
         </Card>
+
+        <p className="text-[11px] text-muted-foreground text-center">
+          RD Design Copilot v1.1 · AI 輔助概念設計系統
+        </p>
       </div>
     </div>
   );

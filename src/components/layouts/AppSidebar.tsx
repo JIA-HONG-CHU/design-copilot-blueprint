@@ -2,7 +2,6 @@ import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,16 +32,10 @@ const projectSteps = [
   { id: "feynman", label: "Feynman", zhLabel: "內化傳達", icon: GraduationCap, route: "feynman", phase: 3 },
 ];
 
-const phaseColors: Record<number, string> = {
-  1: "text-[hsl(217,91%,60%)]",
-  2: "text-[hsl(38,92%,50%)]",
-  3: "text-[hsl(160,64%,43%)]",
-};
-
-const phaseBorderColors: Record<number, string> = {
-  1: "border-l-[hsl(217,91%,60%)]",
-  2: "border-l-[hsl(38,92%,50%)]",
-  3: "border-l-[hsl(160,64%,43%)]",
+const phaseLabels: Record<number, string> = {
+  1: "Define",
+  2: "Diverge",
+  3: "Converge",
 };
 
 function getStepStatus(pathname: string, route: string, projectId: string): "active" | "completed" | "not_started" {
@@ -81,9 +74,11 @@ export function AppSidebar() {
   return (
     <aside className="hidden md:flex md:flex-col md:w-60 border-r border-sidebar-border bg-sidebar shrink-0">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-sidebar-border">
-        <LayoutDashboard className="h-6 w-6 text-sidebar-primary" />
-        <span className="font-bold text-base text-sidebar-foreground">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+          <span className="text-primary-foreground font-bold text-xs">RD</span>
+        </div>
+        <span className="font-semibold text-sm text-sidebar-foreground tracking-tight">
           RD Design Copilot
         </span>
       </div>
@@ -100,9 +95,9 @@ export function AppSidebar() {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
+                  ? "bg-primary/10 text-primary shadow-sm"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
@@ -126,9 +121,9 @@ export function AppSidebar() {
               to={`/projects/${projectId}`}
               end
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                 location.pathname === `/projects/${projectId}`
-                  ? "bg-sidebar-accent text-sidebar-primary"
+                  ? "bg-primary/10 text-primary shadow-sm"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
@@ -136,11 +131,13 @@ export function AppSidebar() {
               Dashboard
             </NavLink>
 
-            {/* 6 steps with phase grouping */}
+            {/* 6+1 steps with phase grouping */}
             {[1, 2, 3].map(phase => (
               <div key={phase} className="space-y-0.5">
-                <p className={cn("text-[10px] font-medium px-3 pt-2", phaseColors[phase])}>
-                  Phase {phase}: {phase === 1 ? "Define" : phase === 2 ? "Diverge" : "Converge"}
+                <p className={cn("text-[10px] font-semibold px-3 pt-3 pb-0.5 uppercase tracking-wider",
+                  phase === 1 ? "text-phase-1" : phase === 2 ? "text-phase-2" : "text-phase-3"
+                )}>
+                  Phase {phase} · {phaseLabels[phase]}
                 </p>
                 {projectSteps.filter(s => s.phase === phase).map(step => {
                   const status = getStepStatus(location.pathname, step.route, projectId!);
@@ -150,10 +147,13 @@ export function AppSidebar() {
                       key={step.id}
                       to={`/projects/${projectId}/${step.route}`}
                       className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors border-l-2 border-l-transparent ml-1",
+                        "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 border-l-2 ml-1",
                         isActive
-                          ? cn("bg-sidebar-accent text-sidebar-primary font-medium", phaseBorderColors[phase])
-                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          ? cn(
+                              "bg-primary/5 text-primary font-medium",
+                              phase === 1 ? "border-l-phase-1" : phase === 2 ? "border-l-phase-2" : "border-l-phase-3"
+                            )
+                          : "border-l-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       )}
                     >
                       <StatusDot status={status} />
@@ -173,9 +173,9 @@ export function AppSidebar() {
       <div className="border-t border-sidebar-border p-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 w-full rounded-md px-2 py-2 text-sm hover:bg-sidebar-accent transition-colors text-left">
+            <button className="flex items-center gap-2.5 w-full rounded-lg px-2 py-2 text-sm hover:bg-sidebar-accent transition-colors text-left">
               <Avatar className="h-7 w-7">
-                <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+                <AvatarFallback className="text-[10px] bg-primary text-primary-foreground font-semibold">
                   {initials}
                 </AvatarFallback>
               </Avatar>

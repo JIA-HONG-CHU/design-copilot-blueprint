@@ -176,8 +176,8 @@ export default function Settings() {
 
       <Separator />
 
-      <div className="text-xs text-muted-foreground text-center pb-6">
-        RD Design Copilot v1.0 · © 2026
+      <div className="text-[11px] text-muted-foreground text-center pb-6">
+        RD Design Copilot v1.1 · © 2026
       </div>
     </div>
   );

@@ -64,9 +64,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center mx-auto">
-            <span className="text-primary-foreground font-bold text-lg">RD</span>
-          </div>
+          <img src={logoImg} alt="RD Design Copilot" className="h-12 w-12 rounded-2xl mx-auto shadow-card" />
           <h1 className="text-2xl font-bold tracking-tight">重設密碼</h1>
           <p className="text-sm text-muted-foreground">請輸入新的密碼</p>
         </div>

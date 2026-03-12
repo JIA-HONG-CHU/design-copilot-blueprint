@@ -337,6 +337,53 @@ export default function DesignReview() {
       {/* Purpose intro */}
       <SectionIntro text="RD 完成 CAD 建模後，在此審查設計證據。證據矩陣連結自 Track 假設、風險從高風險假設衍生、實驗從 Track 同步。" />
 
+      {/* Section 1: Candidate Solutions List */}
+      <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="text-sm font-semibold">審查方案列表</h3>
+            <Badge variant="outline" className="text-xs">{candidateSolutions.length} 方案</Badge>
+          </div>
+          {candidateSolutions.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">沒有審查方案，請先完成 Pre-CAD 審查。</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {candidateSolutions.map((sol: any) => (
+                <div key={sol.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium line-clamp-1">{sol.name}</p>
+                    <div className="flex gap-1 shrink-0">
+                      {sol.mustCriteria?.map((m: any) => (
+                        <span key={m.id}>
+                          {m.passed === true ? <CheckCircle className="h-3 w-3 text-primary" /> : m.passed === false ? <XCircle className="h-3 w-3 text-destructive" /> : <span className="text-muted-foreground text-xs">—</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{sol.description}</p>
+                  <div className="space-y-1">
+                    <Label className="text-xs">方案去向</Label>
+                    <Select
+                      value={dispositions[sol.id] || ""}
+                      onValueChange={(v) => setDispositions((prev) => ({ ...prev, [sol.id]: v }))}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="選擇去向" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="approve">✅ 批准</SelectItem>
+                        <SelectItem value="revise">🔄 修訂</SelectItem>
+                        <SelectItem value="eliminate">❌ 淘汰</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* AI Black Hat Questioning (P1) */}
       <Card className="border-destructive/20 bg-destructive/5">
         <CardContent className="p-4 space-y-3">

@@ -60,15 +60,8 @@ export function FileUploadZone({ files, onFilesChange, onExtract, isExtracting }
         return { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "error" as const, progress: 0, errorMessage: "檔案超過 20MB 限制" };
       }
 
-      // Simulate upload
-      const file: UploadedFile = { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "uploading", progress: 0 };
-      setTimeout(() => {
-        onFilesChange((prev: UploadedFile[]) => prev.map((uf) => uf.id === file.id ? { ...uf, progress: 60 } : uf));
-      }, 300);
-      setTimeout(() => {
-        onFilesChange((prev: UploadedFile[]) => prev.map((uf) => uf.id === file.id ? { ...uf, progress: 100, status: "done" } : uf));
-      }, 800);
-
+      // Simulate upload - in real app this would be actual upload
+      const file: UploadedFile = { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "done", progress: 100 };
       return file;
     });
 

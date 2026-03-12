@@ -52,7 +52,7 @@ export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }
             <ShieldCheck className="h-4 w-4" />
             約束可行性驗證 (Gate 1)
           </CardTitle>
-          {status !== "checking" && status !== "idle" && (
+          {status !== "checking" && (
             <Badge variant={statusConfig[status].variant}>
               {statusConfig[status].label}
             </Badge>

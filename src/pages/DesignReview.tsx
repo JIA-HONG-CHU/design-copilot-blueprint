@@ -28,6 +28,7 @@ import type {
 import { EVIDENCE_LEVELS, getRiskScore, getRiskLevel, getRiskColor, EXP_STATUS_COLOR } from "@/types/designReview";
 import { mockTrackAssumptions, mockExperiments as mockTrackExperiments } from "@/data/mockTrack";
 import { RISK_LEVEL_CONFIG } from "@/types/track";
+import { mockSolutions } from "@/data/mockSolutions";
 
 // Build evidence matrix from Track assumptions instead of independent mock
 function buildEvidenceFromTrack(projectId: string): EvidenceMatrixRow[] {

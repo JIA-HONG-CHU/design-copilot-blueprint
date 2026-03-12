@@ -23,7 +23,7 @@ import {
 } from "@/data/mockTaskDefinition";
 import { mockExtractionResults, mockFeasibilityConflictsWarning } from "@/data/mockExtraction";
 import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
-import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";

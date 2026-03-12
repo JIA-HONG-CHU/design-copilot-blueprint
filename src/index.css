@@ -2,9 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-
-/* RD Design Copilot Design System — All colors in HSL */
+/* RD Design Copilot Design System v1.1 — All colors in HSL */
 
 @layer base {
   :root {
@@ -41,11 +39,22 @@
     --info: 187 71% 40%;
     --info-foreground: 0 0% 100%;
 
+    /* Phase colors */
+    --phase-1: 217 91% 60%;
+    --phase-2: 38 92% 50%;
+    --phase-3: 160 64% 43%;
+
     --border: 210 14% 89%;
     --input: 210 14% 89%;
     --ring: 211 100% 50%;
 
     --radius: 0.5rem;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(210 11% 15% / 0.05);
+    --shadow: 0 4px 6px -1px hsl(210 11% 15% / 0.08), 0 2px 4px -2px hsl(210 11% 15% / 0.05);
+    --shadow-md: 0 8px 16px -4px hsl(210 11% 15% / 0.1), 0 4px 6px -2px hsl(210 11% 15% / 0.05);
+    --shadow-lg: 0 16px 32px -8px hsl(210 11% 15% / 0.12);
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 210 11% 15%;
@@ -91,9 +100,20 @@
     --info: 187 71% 35%;
     --info-foreground: 210 17% 95%;
 
+    /* Phase colors (dark) */
+    --phase-1: 217 91% 65%;
+    --phase-2: 38 92% 55%;
+    --phase-3: 160 64% 48%;
+
     --border: 220 13% 20%;
     --input: 220 13% 20%;
     --ring: 211 100% 55%;
+
+    /* Shadows (dark) */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.2);
+    --shadow: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -2px hsl(0 0% 0% / 0.15);
+    --shadow-md: 0 8px 16px -4px hsl(0 0% 0% / 0.35), 0 4px 6px -2px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 16px 32px -8px hsl(0 0% 0% / 0.4);
 
     --sidebar-background: 220 13% 10%;
     --sidebar-foreground: 210 17% 95%;
@@ -111,8 +131,31 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: "Noto Sans TC", "Helvetica Neue", Arial, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.2;
+  }
+}
+
+@layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow);
+  }
+  .shadow-card-hover {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-lg);
   }
 }

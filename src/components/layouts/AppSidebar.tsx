@@ -1,4 +1,5 @@
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
+import logoImg from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";

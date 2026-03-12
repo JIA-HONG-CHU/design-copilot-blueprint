@@ -147,18 +147,38 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
             </svg>
           </div>
         )}
-        <div className="flex gap-3 mt-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.fatal }} /> Fatal
+        {/* Legend with severity definitions */}
+        <div className="mt-3 pt-3 border-t space-y-2">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.fatal }} /> Fatal
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.major }} /> Major
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.minor }} /> Minor
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="w-3 h-3 rounded-full bg-primary" /> 方案
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="opacity-50">■</span> 半透明 = 已解決
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.major }} /> Major
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-3 h-3 rounded-sm" style={{ background: severityColor.minor }} /> Minor
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-3 h-3 rounded-full bg-primary" /> 方案
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground bg-muted/30 rounded-md p-2.5">
+            <div className="flex items-start gap-1.5">
+              <div className="w-2 h-2 rounded-sm mt-0.5 shrink-0" style={{ background: severityColor.fatal }} />
+              <span><strong className="text-red-600 dark:text-red-400">Fatal</strong> — 架構層級衝突，必須解決才能收斂。未解決則 Confidence 無法達 100%。</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <div className="w-2 h-2 rounded-sm mt-0.5 shrink-0" style={{ background: severityColor.major }} />
+              <span><strong className="text-orange-600 dark:text-orange-400">Major</strong> — 影響核心功能的重大矛盾，必須解決。與 Fatal 共同計入 Confidence 分母。</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <div className="w-2 h-2 rounded-sm mt-0.5 shrink-0" style={{ background: severityColor.minor }} />
+              <span><strong className="text-muted-foreground">Minor</strong> — 次要矛盾，不阻斷流程。記入 Risk Register 供後續追蹤。</span>
+            </div>
           </div>
         </div>
       </CardContent>

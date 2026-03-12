@@ -1,6 +1,8 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { HelpCircle } from 'lucide-react';
 import type { ConvergenceState } from '@/types/convergence';
 
 interface Props {
@@ -64,39 +66,71 @@ export function ConvergenceDashboard({ state }: Props) {
           </div>
         </div>
 
-        {/* Row 2: Fatal / Major / Minor counters */}
+        {/* Row 2: Fatal / Major / Minor counters with severity definitions */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-950/30">
-            <p className="text-lg font-bold text-red-600 tabular-nums">
-              {state.fatalCount.resolved}/{state.fatalCount.total}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Fatal 收斂</p>
-            {state.fatalCount.total > 0 && (
-              <Progress
-                value={(state.fatalCount.resolved / state.fatalCount.total) * 100}
-                className="mt-1 h-1"
-              />
-            )}
-          </div>
-          <div className="text-center p-2 rounded-lg bg-orange-50 dark:bg-orange-950/30">
-            <p className="text-lg font-bold text-orange-600 tabular-nums">
-              {state.majorCount.resolved}/{state.majorCount.total}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Major 收斂</p>
-            {state.majorCount.total > 0 && (
-              <Progress
-                value={(state.majorCount.resolved / state.majorCount.total) * 100}
-                className="mt-1 h-1"
-              />
-            )}
-          </div>
-          <div className="text-center p-2 rounded-lg bg-muted/50">
-            <p className="text-lg font-bold text-muted-foreground tabular-nums">
-              {state.minorCount}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Minor (Risk Register)</p>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-950/30 cursor-help">
+                <p className="text-lg font-bold text-red-600 tabular-nums">
+                  {state.fatalCount.resolved}/{state.fatalCount.total}
+                </p>
+                <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
+                  Fatal 收斂 <HelpCircle className="h-2.5 w-2.5" />
+                </p>
+                {state.fatalCount.total > 0 && (
+                  <Progress
+                    value={(state.fatalCount.resolved / state.fatalCount.total) * 100}
+                    className="mt-1 h-1"
+                  />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[200px]">
+              <p className="text-xs"><strong>Fatal</strong> — 架構層級的根本性衝突，必須完全解決才能繼續。未收斂則 Confidence 無法達 100%。</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="text-center p-2 rounded-lg bg-orange-50 dark:bg-orange-950/30 cursor-help">
+                <p className="text-lg font-bold text-orange-600 tabular-nums">
+                  {state.majorCount.resolved}/{state.majorCount.total}
+                </p>
+                <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
+                  Major 收斂 <HelpCircle className="h-2.5 w-2.5" />
+                </p>
+                {state.majorCount.total > 0 && (
+                  <Progress
+                    value={(state.majorCount.resolved / state.majorCount.total) * 100}
+                    className="mt-1 h-1"
+                  />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[200px]">
+              <p className="text-xs"><strong>Major</strong> — 影響核心功能的重大矛盾，必須解決。與 Fatal 共同計入 Confidence 公式分母。</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="text-center p-2 rounded-lg bg-muted/50 cursor-help">
+                <p className="text-lg font-bold text-muted-foreground tabular-nums">
+                  {state.minorCount}
+                </p>
+                <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
+                  Minor (Risk Register) <HelpCircle className="h-2.5 w-2.5" />
+                </p>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[200px]">
+              <p className="text-xs"><strong>Minor</strong> — 次要矛盾，不阻斷收斂流程。自動記入 Risk Register，供後續設計階段追蹤處理。</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
+
+        {/* Confidence formula hint */}
+        <p className="text-[10px] text-muted-foreground text-right">
+          Confidence = 已收斂(Fatal + Major) / 總計(Fatal + Major) × 100%
+        </p>
       </CardContent>
     </Card>
   );

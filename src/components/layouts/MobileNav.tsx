@@ -1,4 +1,5 @@
 import { useState } from "react";
+import logoImg from "@/assets/logo.png";
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,9 +56,7 @@ export function MobileNav() {
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden bg-card">
       <div className="flex items-center gap-2.5">
-        <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-          <span className="text-primary-foreground font-bold text-[10px]">RD</span>
-        </div>
+        <img src={logoImg} alt="RD Design Copilot" className="h-7 w-7 rounded-md" />
         <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
       </div>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -68,9 +67,7 @@ export function MobileNav() {
         </SheetTrigger>
         <SheetContent side="left" className="w-72 p-0 flex flex-col">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xs">RD</span>
-            </div>
+            <img src={logoImg} alt="RD Design Copilot" className="h-8 w-8 rounded-lg" />
             <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

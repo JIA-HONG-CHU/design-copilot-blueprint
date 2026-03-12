@@ -14,6 +14,7 @@ export interface EvidenceMatrixRow {
   assumptionCode: string;
   summary: string;
   currentLevel: EvidenceLevel;
+  isNorthStar: boolean; // North Star KPI evidence — Gate C requires >= E2 (WBS H7)
   experiments: { expCode: string; level: EvidenceLevel; status: ExperimentStatus }[];
 }
 

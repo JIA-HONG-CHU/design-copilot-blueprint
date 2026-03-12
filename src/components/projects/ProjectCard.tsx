@@ -21,7 +21,7 @@ const statusVariantMap: Record<string, "default" | "secondary" | "outline"> = {
 const PHASE_STEPS: { phase: 1 | 2 | 3; keys: (keyof PhaseProgress)[] }[] = [
   { phase: 1, keys: ["1.1", "1.2", "1.3"] },
   { phase: 2, keys: ["2.1", "2.2", "2.3"] },
-  { phase: 3, keys: ["3.2", "3.3"] },
+  { phase: 3, keys: ["3.1", "3.2", "3.3"] },
 ];
 
 const phaseColors: Record<number, string> = {

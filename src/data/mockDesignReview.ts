@@ -2,13 +2,13 @@ import type { EvidenceMatrixRow, RiskItem, Experiment } from '@/types/designRevi
 
 export const mockEvidenceMatrix: Record<string, EvidenceMatrixRow[]> = {
   'proj-001': [
-    { assumptionCode: 'A-001', summary: '散熱片面積 ≥ 50cm² 足以控溫', currentLevel: 'E2', experiments: [{ expCode: 'Exp-001', level: 'E2', status: 'Done' }] },
-    { assumptionCode: 'A-002', summary: '磁力耦合器傳動效率 ≥ 90%', currentLevel: 'E0', experiments: [] },
-    { assumptionCode: 'A-003', summary: 'PA66+GF30 可承受 500N 側向載荷', currentLevel: 'E1', experiments: [{ expCode: 'Exp-002', level: 'E1', status: 'Running' }] },
-    { assumptionCode: 'A-004', summary: '密封結構可達 IP55 防護等級', currentLevel: 'E3', experiments: [{ expCode: 'Exp-003', level: 'E3', status: 'Done' }] },
-    { assumptionCode: 'A-005', summary: '碳纖維增強材料供應商交期 ≤ 4 週', currentLevel: 'E1', experiments: [{ expCode: 'Exp-004', level: 'E1', status: 'Plan' }] },
-    { assumptionCode: 'A-006', summary: '雙繞組切換延遲 ≤ 50ms', currentLevel: 'E0', experiments: [] },
-    { assumptionCode: 'A-007', summary: '噪音在 65dB 以下可接受', currentLevel: 'E2', experiments: [{ expCode: 'Exp-005', level: 'E2', status: 'Done' }] },
+    { assumptionCode: 'A-001', summary: '散熱片面積 ≥ 50cm² 足以控溫', currentLevel: 'E2', isNorthStar: true, experiments: [{ expCode: 'Exp-001', level: 'E2', status: 'Done' }] },
+    { assumptionCode: 'A-002', summary: '磁力耦合器傳動效率 ≥ 90%', currentLevel: 'E0', isNorthStar: true, experiments: [] },
+    { assumptionCode: 'A-003', summary: 'PA66+GF30 可承受 500N 側向載荷', currentLevel: 'E1', isNorthStar: false, experiments: [{ expCode: 'Exp-002', level: 'E1', status: 'Running' }] },
+    { assumptionCode: 'A-004', summary: '密封結構可達 IP55 防護等級', currentLevel: 'E3', isNorthStar: false, experiments: [{ expCode: 'Exp-003', level: 'E3', status: 'Done' }] },
+    { assumptionCode: 'A-005', summary: '碳纖維增強材料供應商交期 ≤ 4 週', currentLevel: 'E1', isNorthStar: false, experiments: [{ expCode: 'Exp-004', level: 'E1', status: 'Plan' }] },
+    { assumptionCode: 'A-006', summary: '雙繞組切換延遲 ≤ 50ms', currentLevel: 'E0', isNorthStar: true, experiments: [] },
+    { assumptionCode: 'A-007', summary: '噪音在 65dB 以下可接受', currentLevel: 'E2', isNorthStar: false, experiments: [{ expCode: 'Exp-005', level: 'E2', status: 'Done' }] },
   ],
 };
 

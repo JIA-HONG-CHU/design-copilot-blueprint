@@ -453,6 +453,34 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
                 <p className="text-sm mt-1">{selectedCard.source === 'explore_tag' ? 'Explore 頁面標記' : selectedCard.source === 'manual' ? '手動新增' : selectedCard.source === 'ai_suggest' ? 'AI 建議' : '未知因素轉化'}</p>
               </div>
 
+              {/* Extended Assumption Ledger fields (WBS 4.6.3) */}
+              {selectedCard.worstConsequence && (
+                <div>
+                  <span className="text-xs text-muted-foreground">最壞後果</span>
+                  <p className="text-sm mt-1 text-destructive">{selectedCard.worstConsequence}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {selectedCard.verificationCost && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">驗證成本</span>
+                    <p className="text-sm mt-1">{selectedCard.verificationCost}</p>
+                  </div>
+                )}
+                {selectedCard.verificationDuration && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">驗證週期</span>
+                    <p className="text-sm mt-1">{selectedCard.verificationDuration}</p>
+                  </div>
+                )}
+              </div>
+              {selectedCard.sourceArtifactId && (
+                <div>
+                  <span className="text-xs text-muted-foreground">來源 Artifact</span>
+                  <Badge variant="outline" className="text-xs font-mono mt-1">{selectedCard.sourceArtifactId}</Badge>
+                </div>
+              )}
+
               <div>
                 <span className="text-xs text-muted-foreground">實驗詳情</span>
                 {(() => {

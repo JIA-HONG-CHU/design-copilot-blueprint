@@ -37,6 +37,10 @@ import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
 import { SubsystemBlockDiagram } from "@/components/create/SubsystemBlockDiagram";
 import { LayoutGrid, List } from "lucide-react";
+import HealthMonitor from "@/components/solution/HealthMonitor";
+import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
+import { mockConvergenceNodes, mockConvergenceEdges } from "@/data/mockSolutions";
+import { useContradictionScan } from "@/hooks/useContradictionScan";
 
 const RADAR_COLORS = [
   "hsl(var(--primary))",
@@ -90,6 +94,7 @@ export default function Create() {
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const { scanResult, isScanning, runScan } = useContradictionScan();
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
   const [showAddSubsystemForm, setShowAddSubsystemForm] = useState(false);
   const [editingSubsystemId, setEditingSubsystemId] = useState<string | null>(null);
@@ -454,6 +459,15 @@ export default function Create() {
             </div>
           );
         })}
+        {/* Architecture Health Monitor (WBS 2.2.2) */}
+        <HealthMonitor
+          nodeCount={scanResult.nodeCount || mockConvergenceNodes.filter(n => n.type === 'contradiction').length}
+          hasCircular={scanResult.hasCircular}
+        />
+
+        {/* Contradiction Convergence Graph (WBS 2.2.4) */}
+        <ConvergenceGraph nodes={mockConvergenceNodes} edges={mockConvergenceEdges} />
+
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[1] ?? []} />
       </div>
     );

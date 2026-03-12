@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { AttachmentsPanel } from "@/components/review/AttachmentsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type {
@@ -42,6 +44,7 @@ function buildEvidenceFromTrack(projectId: string): EvidenceMatrixRow[] {
       assumptionCode: a.assumptionCode,
       summary: a.description,
       currentLevel,
+      isNorthStar: a.riskLevel === 'H*' || a.riskLevel === 'H', // H*/H assumptions are North Star KPIs
       experiments: [], // will be populated from Track experiments
     };
   });
@@ -210,11 +213,20 @@ export default function DesignReview() {
     toast.success("實驗已刪除");
   };
 
-  // --- Gate 3.1 ---
+  // --- Gate 3.1 (Gate C) — with North Star KPI + MUST revalidation (WBS 4.3/H7/H8) ---
+  const northStarKPIs = evidenceRows.filter(r => r.isNorthStar === true);
+  const northStarAllE2Plus = northStarKPIs.length > 0 && northStarKPIs.every(r => {
+    const lvl = r.currentLevel;
+    return lvl === 'E2' || lvl === 'E3' || lvl === 'E4';
+  });
+  const allEvidenceAboveE0 = evidenceRows.length > 0 && evidenceRows.every(r => r.currentLevel !== 'E0');
+
   const gate31Items: Gate31Item[] = useMemo(() => [
     { label: '證據矩陣已建立 (≥1 假設有實驗)', passed: evidenceRows.some(r => r.experiments.length > 0) || experiments.length > 0 },
     { label: '所有 H*/H 風險有 mitigation', passed: highRisksWithoutMitigation === 0 },
-  ], [evidenceRows, experiments, highRisksWithoutMitigation]);
+    { label: 'North Star KPI 皆達 ≥ E2 證據等級', passed: northStarAllE2Plus },
+    { label: 'MUST 已以 E2+ 證據重新驗證（無 E0）', passed: allEvidenceAboveE0 },
+  ], [evidenceRows, experiments, highRisksWithoutMitigation, northStarAllE2Plus, allEvidenceAboveE0]);
 
   const gate31Passed = gate31Items.every(i => i.passed);
 
@@ -836,6 +848,9 @@ export default function DesignReview() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Knowledge Enhancement Panel (WBS 3.4.2) */}
+      <KnowledgeRefsPanel refs={mockPageKnowledgeRefs.review ?? []} />
 
       {/* Gate 3.1 */}
       <Separator />

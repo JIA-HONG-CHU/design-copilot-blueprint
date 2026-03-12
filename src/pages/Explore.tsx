@@ -12,6 +12,8 @@ import { mockSocraticQuestions, mockExploreContradictions, mockCausalLoop } from
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 
 type TabKey = 'socratic' | 'contradictions' | 'cld';
 
@@ -68,16 +70,16 @@ export default function Explore() {
   // Gate 1.2 check
   const confirmedContradictions = contradictions.filter((c) => c.status === 'confirmed').length;
   const gate12Items: GateCheckItem[] = useMemo(() => [
-    { label: '累計 ≥ 10 個回答', current: answeredCount, target: 10, passed: answeredCount >= 10 },
+    { label: '累計 ≥ 10 個回答（含 ≥ 10 假設已辨識）', current: answeredCount, target: 10, passed: answeredCount >= 10 },
     { label: '識別 ≥ 3 個已確認矛盾', current: confirmedContradictions, target: 3, passed: confirmedContradictions >= 3 },
-    { label: '6 類問題皆有回答', current: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size, target: 6, passed: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size >= 6 },
+    { label: '7 類問題皆有回答', current: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size, target: 7, passed: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size >= 7 },
   ], [answeredCount, confirmedContradictions, questions]);
 
   // Phase Gate 1 check
   const allContradictionsClassified = contradictions.length > 0 && contradictions.every((c) => c.type === 'TC' || c.type === 'PC');
   const phaseGate1Items: GateCheckItem[] = useMemo(() => [
     { label: '至少 1 個因果迴路圖已建立', current: causalLoop ? 1 : 0, target: 1, passed: !!causalLoop },
-    { label: '至少 1 個斷路點已標記', current: breakpointsCount, target: 1, passed: breakpointsCount >= 1 },
+    { label: '至少 3 個斷路點已標記', current: breakpointsCount, target: 3, passed: breakpointsCount >= 3 },
     { label: '所有矛盾已分類為 TC 或 PC', current: allContradictionsClassified ? contradictions.length : 0, target: Math.max(contradictions.length, 1), passed: allContradictionsClassified && contradictions.length > 0 },
   ], [causalLoop, breakpointsCount, contradictions, allContradictionsClassified]);
 
@@ -181,6 +183,9 @@ export default function Explore() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Knowledge Enhancement Panel (WBS 3.4.2) */}
+      <KnowledgeRefsPanel refs={mockPageKnowledgeRefs.explore ?? []} />
 
       {/* Gates */}
       <ExploreGates

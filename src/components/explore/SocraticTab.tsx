@@ -17,7 +17,7 @@ interface SocraticTabProps {
   projectId: string;
 }
 
-const CATEGORY_FILTERS: (QuestionCategory | 'all')[] = ['all', 'clarification', 'assumption', 'consequence', 'counter', 'origin', 'action'];
+const CATEGORY_FILTERS: (QuestionCategory | 'all')[] = ['all', 'clarification', 'assumption', 'consequence', 'counter', 'origin', 'action', 'reframing'];
 
 const AI_TAG_LABELS = {
   assumption: { label: '假設', color: '#8B5CF6', description: 'AI 偵測到此回答包含未驗證的假設，建議納入假設追蹤。' },
@@ -136,7 +136,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
   return (
     <div className="space-y-5">
       {/* Purpose intro */}
-      <SectionIntro text="AI 會根據您的 Brief 自動生成 6 類蘇格拉底式問題，引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
+      <SectionIntro text="AI 會根據您的 Brief 自動生成 7 類蘇格拉底式問題（含重構），引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
       {/* Progress */}
       <div className="space-y-2">
@@ -146,8 +146,8 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
             已回答 {answeredCount}/{totalCount}
           </Badge>
         </div>
-        <Progress value={(answeredCategories / 6) * 100} className="h-2" />
-        <p className="text-xs text-muted-foreground">{answeredCategories}/6 類別已回答</p>
+        <Progress value={(answeredCategories / 7) * 100} className="h-2" />
+        <p className="text-xs text-muted-foreground">{answeredCategories}/7 類別已回答</p>
       </div>
 
       {/* Category filter pills */}

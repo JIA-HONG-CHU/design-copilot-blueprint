@@ -114,7 +114,7 @@ export const mockTrackAssumptions: Record<string, TrackAssumption[]> = {
       source: "manual",
       linkedContradictionId: "ec-001",
       aiChallenge: null,
-      worstConsequence: "噪音超標影響用戶體驗",
+      worstConsequence: "噪音超標需重新設計",
       verificationCost: "NTD 3,000",
       verificationDuration: "3 days",
       sourceArtifactId: "CTD-001",

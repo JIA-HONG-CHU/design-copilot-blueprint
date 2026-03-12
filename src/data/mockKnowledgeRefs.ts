@@ -43,3 +43,27 @@ export const mockStepKnowledgeRefs: Record<number, KnowledgeRef[]> = {
     { id: "KB-CASE-012", type: "rag", title: "Pre-CAD 審查最佳實踐", source: "內部 SOP", relevance: "Medium", summary: "五維審查維度中，「失效機制風險」最常被遺漏，建議優先評估。" },
   ],
 };
+
+// Page-level references for non-Create pages (WBS 3.4.2)
+export const mockPageKnowledgeRefs: Record<string, KnowledgeRef[]> = {
+  explore: [
+    { id: "KB-SOC-001", type: "rag", title: "蘇格拉底式問題設計指南", source: "內部方法論庫", relevance: "High", summary: "7 類問題的提問順序建議：先澄清 → 假設 → 因果 → 反面 → 起源 → 行動 → 重構。" },
+    { id: "WEB-CLD-001", type: "web", title: "因果迴路圖在系統工程的應用", source: "Systems Engineering, 2025", relevance: "Medium", summary: "建議從 3-5 個核心變量開始建模，逐步擴展至完整系統。" },
+  ],
+  track: [
+    { id: "KB-ASM-002", type: "rag", title: "假設風險分級標準", source: "內部風險管理 SOP", relevance: "High", summary: "H* 等級假設為安全相關或結構性假設，必須在 Gate 2 前完成實驗計畫。" },
+    { id: "WEB-EXP-002", type: "web", title: "最小可行驗證實驗 (MVE) 設計方法", source: "Lean Engineering, 2025", relevance: "Medium", summary: "MVE 建議在 1-2 週內完成，重點在降低最大不確定性。" },
+  ],
+  review: [
+    { id: "KB-EVD-003", type: "rag", title: "證據品質等級 E0-E4 定義標準", source: "內部品質管理庫", relevance: "High", summary: "E0=無證據, E1=工程估算, E2=仿真/文獻, E3=原型測試, E4=量產驗證。" },
+    { id: "KB-RISK-001", type: "rag", title: "FMEA 風險評分指南", source: "內部 FMEA 範本", relevance: "High", summary: "P×S 矩陣：P≥4且S≥4 為「重大」風險，必須有緩解措施。" },
+  ],
+  decide: [
+    { id: "KB-KT-001", type: "rag", title: "KT 決策分析框架 (MUST/WANT/AC)", source: "內部決策方法庫", relevance: "High", summary: "三階段決策：先排除不合格(MUST) → 量化評分(WANT) → 評估負面後果(AC)。" },
+    { id: "WEB-DEC-001", type: "web", title: "Kepner-Tregoe 決策分析最佳實踐", source: "KT Official, 2025", relevance: "Medium", summary: "建議每個 WANT 標準附 3 級錨定分數以提升評分一致性。" },
+  ],
+  feynman: [
+    { id: "KB-FEY-001", type: "rag", title: "費曼學習法在工程設計的應用", source: "內部知識管理庫", relevance: "High", summary: "知識回寫的 6 類資產：決策記錄、實驗結果、矛盾解法、失效模式、設計規則、最佳實踐。" },
+    { id: "KB-KM-003", type: "rag", title: "組織知識回寫自動化指南", source: "內部 KM SOP", relevance: "Medium", summary: "自動化回寫需確保每條知識包含：來源追溯、適用範圍、有效期限。" },
+  ],
+};

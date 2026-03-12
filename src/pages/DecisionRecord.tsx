@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend
@@ -30,8 +32,10 @@ import type {
 } from "@/types/decisionRecord";
 import { DEFAULT_WANT_TEMPLATE } from "@/types/decisionRecord";
 import {
-  mockDecideAlternatives, mockWantCriteria, mockWantScores, mockKtDecision, mockSignatures
+  mockDecideAlternatives, mockWantCriteria, mockWantScores, mockKtDecision, mockSignatures, mockAdverseConsequences
 } from "@/data/mockDecisionRecord";
+import type { AdverseConsequence, ACProbability, ACSeverity } from "@/types/decisionRecord";
+import { computeACLevel } from "@/types/decisionRecord";
 
 /* ── Mock data for MUST results, risks, convergence ── */
 const mockMustResults = [
@@ -66,6 +70,7 @@ export default function DecisionRecord() {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [wantExpanded, setWantExpanded] = useState(false);
+  const [adverseConsequences, setAdverseConsequences] = useState<AdverseConsequence[]>(mockAdverseConsequences);
 
   // ── WANT helpers ──
   const calcWeightedTotal = useCallback((altScores: Record<string, number>) => {
@@ -106,7 +111,7 @@ export default function DecisionRecord() {
     setScores(prev => prev.map(s => ({
       ...s, scores: Object.fromEntries(templated.map(c => [c.id, s.scores[c.id] || 5]))
     })));
-    toast.success("已載入標準模板 W1-W6");
+    toast.success("已載入標準模板 W1-W7");
   };
 
   // ── Decision helpers ──
@@ -197,12 +202,14 @@ export default function DecisionRecord() {
   // ── Gates ──
   const allScored = scores.every(s => criteria.every(c => s.scores[c.id] && s.scores[c.id] >= 1));
 
+  const hasACAssessment = adverseConsequences.length > 0;
   const gate32Items: DecideGateItem[] = useMemo(() => [
-    { label: 'WANT 評分已完成', passed: allScored && criteria.length >= 3 },
+    { label: 'WANT 評分已完成 (含 W7 驗證可行性)', passed: allScored && criteria.length >= 3 },
+    { label: '負面後果 (AC) 已評估', passed: hasACAssessment },
     { label: '決策方案已選擇', passed: !!decision.selectedAlternativeId },
     { label: '決策理由已填寫 (≥20 字元)', passed: decision.rationale.length >= 20 },
     { label: '至少 1 項行動計畫', passed: decision.actionItems.length >= 1 },
-  ], [allScored, criteria, decision]);
+  ], [allScored, criteria, decision, hasACAssessment]);
 
   const gate32Passed = gate32Items.every(i => i.passed);
 
@@ -527,6 +534,55 @@ export default function DecisionRecord() {
           </CardContent>
         </Card>
 
+        {/* 2c-2: Adverse Consequences (AC) — WBS 3.3.3 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> 負面後果分析 (AC)
+              <HelpTooltip text="KT 決策第三階段：評估各方案的潛在負面後果（Adverse Consequences），識別風險並擬定緩解措施。" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">AC ID</TableHead>
+                    <TableHead className="w-32">方案</TableHead>
+                    <TableHead>負面後果</TableHead>
+                    <TableHead className="w-16 text-center">機率</TableHead>
+                    <TableHead className="w-16 text-center">嚴重度</TableHead>
+                    <TableHead className="w-16 text-center">等級</TableHead>
+                    <TableHead>緩解措施</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {adverseConsequences.map(ac => {
+                    const altName = alternatives.find(a => a.id === ac.alternativeId)?.name || ac.alternativeId;
+                    const levelColor = ac.level === 'H*' || ac.level === 'H' ? 'destructive' : ac.level === 'M' ? 'secondary' : 'outline';
+                    return (
+                      <TableRow key={ac.id}>
+                        <TableCell className="font-mono text-xs">{ac.id}</TableCell>
+                        <TableCell className="text-xs">{altName.length > 15 ? altName.slice(0, 15) + '...' : altName}</TableCell>
+                        <TableCell className="text-sm">{ac.description}</TableCell>
+                        <TableCell className="text-center text-xs">{ac.probability === 'high' ? '高' : ac.probability === 'medium' ? '中' : '低'}</TableCell>
+                        <TableCell className="text-center text-xs">{ac.severity === 'high' ? '高' : ac.severity === 'medium' ? '中' : '低'}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={levelColor as "default" | "secondary" | "outline" | "destructive"} className="text-xs">{ac.level}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{ac.mitigation}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {adverseConsequences.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">尚無負面後果評估</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* 2d: 矛盾收斂摘要 */}
         <Card>
           <CardHeader className="pb-2">
@@ -753,6 +809,9 @@ export default function DecisionRecord() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Knowledge Enhancement Panel (WBS 3.4.2) */}
+      <KnowledgeRefsPanel refs={mockPageKnowledgeRefs.decide ?? []} />
 
       {/* ═══════════════════════════════════════════
           Gate Checks

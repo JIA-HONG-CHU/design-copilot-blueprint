@@ -12,6 +12,8 @@ import type { TrackAssumption, UnknownFactor, TrackGateItem } from "@/types/trac
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 
 type TabKey = 'kanban' | 'unknown';
 
@@ -193,6 +195,9 @@ export default function Track() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Knowledge Enhancement Panel (WBS 3.4.2) */}
+      <KnowledgeRefsPanel refs={mockPageKnowledgeRefs.track ?? []} />
 
       {/* Gate */}
       <TrackGate

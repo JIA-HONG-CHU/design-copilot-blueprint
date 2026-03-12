@@ -19,6 +19,7 @@ const STEPS: StepDef[] = [
   { key: "2.1", label: "2.1", phase: 2 },
   { key: "2.2", label: "2.2", phase: 2 },
   { key: "2.3", label: "2.3", phase: 2 },
+  { key: "3.1", label: "3.1", phase: 3 },
   { key: "3.2", label: "3.2", phase: 3 },
   { key: "3.3", label: "3.3", phase: 3 },
 ];

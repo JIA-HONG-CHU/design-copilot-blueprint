@@ -68,6 +68,29 @@ export interface ScamperVariant {
   newContradictions?: string[];
 }
 
+// Interface Contract — 6 Dimensions (E2E Spec)
+export interface InterfaceContract {
+  envelope: string;           // 包絡尺寸
+  loadPath: string;           // 負載路徑
+  signalPath: string;         // 信號路徑
+  thermalPath: string;        // 熱路徑
+  datumTolerance: string;     // 基準與公差
+  serviceability: string;     // 維修通道
+}
+
+export const INTERFACE_CONTRACT_DIMS: { key: keyof InterfaceContract; label: string; labelZh: string }[] = [
+  { key: 'envelope',       label: 'Envelope',          labelZh: '包絡尺寸' },
+  { key: 'loadPath',       label: 'Load Path',         labelZh: '負載路徑' },
+  { key: 'signalPath',     label: 'Signal Path',       labelZh: '信號路徑' },
+  { key: 'thermalPath',    label: 'Thermal Path',      labelZh: '熱路徑' },
+  { key: 'datumTolerance', label: 'Datum & Tolerance',  labelZh: '基準與公差' },
+  { key: 'serviceability', label: 'Serviceability',    labelZh: '維修通道' },
+];
+
+export const EMPTY_INTERFACE_CONTRACT: InterfaceContract = {
+  envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '',
+};
+
 // Alternative (concept route)
 export type AlternativeSource = 'triz_tc' | 'triz_pc' | 'triz_sf' | 'scamper' | 'manual' | 'ai_integrated';
 
@@ -78,6 +101,7 @@ export interface Alternative {
   source: AlternativeSource;
   keyAssumptionIds: string[];
   mustScores: Record<string, 'pass' | 'fail' | 'marginal' | null>; // M1-M6
+  interfaceContract: InterfaceContract; // 6-dim interface contract (E2E H4)
   preCadScores: {
     must: number | null;
     decoupling: number | null;

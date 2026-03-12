@@ -1,5 +1,5 @@
 // Socratic Q&A types
-export type QuestionCategory = 'clarification' | 'assumption' | 'consequence' | 'counter' | 'origin' | 'action';
+export type QuestionCategory = 'clarification' | 'assumption' | 'consequence' | 'counter' | 'origin' | 'action' | 'reframing';
 
 export interface SocraticQuestion {
   id: string;
@@ -20,6 +20,7 @@ export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh:
   counter: { label: 'Counter', labelZh: '對立', color: '#F59E0B' },
   origin: { label: 'Origin', labelZh: '本源', color: '#10B981' },
   action: { label: 'Action', labelZh: '行動', color: '#6366F1' },
+  reframing: { label: 'Reframing', labelZh: '重構', color: '#EF4444' },
 };
 
 // Contradiction types (enhanced from existing)

@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   FolderKanban, BookOpen, Settings, LayoutDashboard,
   ClipboardList, Compass, ListChecks, Wand2, Search, Gavel, GraduationCap,
-  LogOut, Sun, Moon, Monitor, ChevronDown,
+  LogOut, Sun, Moon, Monitor, ChevronDown, ShieldCheck,
 } from "lucide-react";
 
 const globalNavItems = [
@@ -28,6 +28,7 @@ const projectSteps = [
   { id: "explore", label: "Explore", zhLabel: "問題探索", icon: Compass, route: "explore", phase: 1 },
   { id: "track", label: "Track", zhLabel: "假設追蹤", icon: ListChecks, route: "track", phase: 2 },
   { id: "create", label: "Create", zhLabel: "方案創造", icon: Wand2, route: "create", phase: 2 },
+  { id: "pre-cad", label: "Pre-CAD", zhLabel: "Pre-CAD 審查", icon: ShieldCheck, route: "pre-cad", phase: 2 },
   { id: "review", label: "Review", zhLabel: "設計審查", icon: Search, route: "review", phase: 3 },
   { id: "decide", label: "Decide", zhLabel: "最終決策", icon: Gavel, route: "decide", phase: 3 },
   { id: "feynman", label: "Feynman", zhLabel: "內化傳達", icon: GraduationCap, route: "feynman", phase: 3 },

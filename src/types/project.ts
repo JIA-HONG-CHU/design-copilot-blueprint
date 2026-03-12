@@ -9,6 +9,7 @@ export interface PhaseProgress {
   "2.1": StepStatus;
   "2.2": StepStatus;
   "2.3": StepStatus;
+  "3.1": StepStatus;
   "3.2": StepStatus;
   "3.3": StepStatus;
 }

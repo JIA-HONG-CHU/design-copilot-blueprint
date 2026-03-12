@@ -14,6 +14,11 @@ export interface TrackAssumption {
   source: AssumptionSource;
   linkedContradictionId: string | null;
   aiChallenge: string | null; // AI challenge question
+  // E2E Assumption Ledger extended fields (WBS 4.6)
+  worstConsequence: string;           // 最壞後果
+  verificationCost: string;           // 驗證成本
+  verificationDuration: string;       // 驗證週期 (e.g. "1 week")
+  sourceArtifactId: string | null;    // 來源 Artifact ID (e.g. CTD-001)
   createdAt: string;
   updatedAt: string;
 }

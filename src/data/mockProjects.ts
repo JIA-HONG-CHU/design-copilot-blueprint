@@ -14,7 +14,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "passed", "1.3": "passed",
       "2.1": "passed", "2.2": "in_progress", "2.3": "not_started",
-      "3.2": "not_started", "3.3": "not_started",
+      "3.1": "not_started", "3.2": "not_started", "3.3": "not_started",
     },
     quick_stats: {
       contradictions_count: 3,
@@ -40,7 +40,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "passed", "1.3": "passed",
       "2.1": "passed", "2.2": "passed", "2.3": "passed",
-      "3.2": "in_progress", "3.3": "not_started",
+      "3.1": "in_progress", "3.2": "not_started", "3.3": "not_started",
     },
     quick_stats: {
       contradictions_count: 5,
@@ -66,7 +66,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "passed", "1.3": "passed",
       "2.1": "passed", "2.2": "passed", "2.3": "passed",
-      "3.2": "passed", "3.3": "passed",
+      "3.1": "passed", "3.2": "passed", "3.3": "passed",
     },
     quick_stats: {
       contradictions_count: 4,
@@ -92,7 +92,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "in_progress", "1.3": "not_started",
       "2.1": "not_started", "2.2": "not_started", "2.3": "not_started",
-      "3.2": "not_started", "3.3": "not_started",
+      "3.1": "not_started", "3.2": "not_started", "3.3": "not_started",
     },
     quick_stats: {
       contradictions_count: 1,
@@ -118,7 +118,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "passed", "1.3": "passed",
       "2.1": "passed", "2.2": "passed", "2.3": "passed",
-      "3.2": "passed", "3.3": "passed",
+      "3.1": "passed", "3.2": "passed", "3.3": "passed",
     },
     quick_stats: {
       contradictions_count: 3,
@@ -144,7 +144,7 @@ export const mockProjects: Project[] = [
     phase_progress: {
       "1.1": "passed", "1.2": "passed", "1.3": "passed",
       "2.1": "passed", "2.2": "in_progress", "2.3": "not_started",
-      "3.2": "not_started", "3.3": "not_started",
+      "3.1": "not_started", "3.2": "not_started", "3.3": "not_started",
     },
     quick_stats: {
       contradictions_count: 2,

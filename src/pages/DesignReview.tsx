@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
-  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2
+  CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2, ClipboardCheck
 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";

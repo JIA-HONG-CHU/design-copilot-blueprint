@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +10,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Sparkles, Loader2, ChevronRight, Check, X, Minus, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles, Loader2, Check, X, Minus, Eye, AlertTriangle } from "lucide-react";
 import { mockContradictions } from "@/data/mockContradictions";
-import { mockSolutions } from "@/data/mockSolutions";
+import { mockSolutions, mockConvergenceNodes, mockConvergenceEdges } from "@/data/mockSolutions";
 import { trizParameters } from "@/data/trizParameters";
-import { Solution, MustCriteria, SolutionRisk } from "@/types/solution";
+import { Solution, MustCriteria, ConvergenceNode, ConvergenceEdge } from "@/types/solution";
+import { ContradictionSeverity } from "@/types/contradiction";
 import { useIsMobile } from "@/hooks/use-mobile";
+import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
+import HealthMonitor from "@/components/solution/HealthMonitor";
+
+const severityBadgeClass: Record<ContradictionSeverity, string> = {
+  fatal: "bg-destructive text-destructive-foreground",
+  major: "bg-orange-500 text-white",
+  minor: "bg-muted text-muted-foreground",
+};
 
 const SolutionExplorer = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,10 +41,22 @@ const SolutionExplorer = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedSolution, setSelectedSolution] = useState<Solution | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [convergenceNodes] = useState<ConvergenceNode[]>(mockConvergenceNodes);
+  const [convergenceEdges] = useState<ConvergenceEdge[]>(mockConvergenceEdges);
 
-  // Editing state for detail
   const [editForm, setEditForm] = useState<Partial<Solution>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  const contradictionNodeCount = useMemo(
+    () => convergenceNodes.filter((n) => n.type === "contradiction" && !n.resolved).length,
+    [convergenceNodes]
+  );
+
+  const filteredSolutions = useMemo(() => {
+    if (severityFilter === "all") return solutions;
+    return solutions.filter((s) => s.contradictionSeverity === severityFilter);
+  }, [solutions, severityFilter]);
 
   const getParamLabel = (paramId: number | null) => {
     if (!paramId) return "—";
@@ -73,12 +95,16 @@ const SolutionExplorer = () => {
         { id: "m3", label: "尺寸 ≤ 現有空間", passed: null },
       ],
       relatedContradictionIds: [...selectedContradictionIds],
+      secondaryContradictions: [
+        { id: `sc-${Date.now()}`, description: "MR 流體成本較高，可能影響整體預算", severity: "major", resolved: false },
+      ],
+      contradictionSeverity: "major",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     setSolutions((prev) => [...prev, newSol]);
     setIsGenerating(false);
-    toast.success("AI 已生成新方案");
+    toast.success("AI 已生成新方案，並完成二次矛盾掃描");
   };
 
   const openDetail = (sol: Solution) => {
@@ -147,6 +173,16 @@ const SolutionExplorer = () => {
         {editErrors.name && <p className="text-xs text-destructive">{editErrors.name}</p>}
       </div>
 
+      {/* Contradiction severity badges */}
+      {editForm.contradictionSeverity && (
+        <div className="space-y-1.5">
+          <Label>矛盾嚴重度</Label>
+          <Badge className={`text-xs ${severityBadgeClass[editForm.contradictionSeverity]}`}>
+            {editForm.contradictionSeverity === "fatal" ? "Fatal 致命" : editForm.contradictionSeverity === "major" ? "Major 重大" : "Minor 次要"}
+          </Badge>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <Label>機制說明 *</Label>
         <Textarea
@@ -206,7 +242,7 @@ const SolutionExplorer = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {editForm.risks?.map((r, i) => (
+            {editForm.risks?.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="text-sm">{r.description}</TableCell>
                 <TableCell>
@@ -244,12 +280,41 @@ const SolutionExplorer = () => {
             >
               {getMustIcon(m.passed)}
               <span className="text-sm flex-1">{m.label}</span>
-              <Badge variant={getMustBadge(m.passed)} className="text-xs">
+              <Badge variant={getMustBadge(m.passed) as any} className="text-xs">
                 {m.passed === true ? "通過" : m.passed === false ? "未通過" : "待評估"}
               </Badge>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Secondary contradictions */}
+      <div className="space-y-1.5">
+        <Label className="flex items-center gap-1.5">
+          二次矛盾掃描結果
+          {editForm.secondaryContradictions && editForm.secondaryContradictions.some((sc) => !sc.resolved) && (
+            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+          )}
+        </Label>
+        {editForm.secondaryContradictions && editForm.secondaryContradictions.length > 0 ? (
+          <div className="space-y-2">
+            {editForm.secondaryContradictions.map((sc) => (
+              <div key={sc.id} className={`p-2 rounded-md border text-sm ${!sc.resolved ? "border-destructive/30 bg-destructive/5" : ""}`}>
+                <div className="flex items-center gap-2">
+                  <Badge className={`text-xs ${severityBadgeClass[sc.severity]}`}>
+                    {sc.severity === "fatal" ? "Fatal" : sc.severity === "major" ? "Major" : "Minor"}
+                  </Badge>
+                  <span className={sc.resolved ? "line-through text-muted-foreground" : ""}>{sc.description}</span>
+                </div>
+              </div>
+            ))}
+            {editForm.secondaryContradictions.some((sc) => !sc.resolved) && (
+              <p className="text-xs text-destructive">⚠️ 存在未解決的二次矛盾，建議針對新矛盾再次生成方案。</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">無二次矛盾 ✅</p>
+        )}
       </div>
 
       <div className="flex gap-2 pt-2">
@@ -270,59 +335,78 @@ const SolutionExplorer = () => {
           <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: '"Noto Sans TC", "Helvetica Neue", Arial, sans-serif' }}>
             方案探索
           </h1>
-          <p className="text-sm text-muted-foreground">基於矛盾生成、篩選和評估設計方案</p>
+          <p className="text-sm text-muted-foreground">基於矛盾生成、篩選和評估設計方案，追蹤收斂至完全解決</p>
         </div>
       </div>
 
-      {/* Contradiction selector + generate */}
-      <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">選擇矛盾並生成方案</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {contradictions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">尚無矛盾，請先前往矛盾識別頁面新增。</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {contradictions.map((c) => {
-                const selected = selectedContradictionIds.includes(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => toggleContradiction(c.id)}
-                    className={`cursor-pointer rounded-lg border p-3 text-sm transition-colors ${
-                      selected ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox checked={selected} className="pointer-events-none" />
-                      <span className="font-medium">
-                        {getParamLabel(c.improvingParam)} → {getParamLabel(c.worseningParam)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {c.engineeringStatement}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <Button onClick={handleGenerate} disabled={isGenerating || contradictions.length === 0}>
-            {isGenerating ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+      {/* Top row: Selector + Health Monitor */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Contradiction selector + generate */}
+        <Card className="lg:col-span-2 rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">選擇矛盾並生成方案</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {contradictions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">尚無矛盾，請先前往矛盾識別頁面新增。</p>
             ) : (
-              <Sparkles className="mr-1.5 h-4 w-4" />
+              <div className="flex flex-wrap gap-2">
+                {contradictions.map((c) => {
+                  const selected = selectedContradictionIds.includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => toggleContradiction(c.id)}
+                      className={`cursor-pointer rounded-lg border p-3 text-sm transition-colors ${
+                        selected ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox checked={selected} className="pointer-events-none" />
+                        <Badge className={`text-xs ${severityBadgeClass[c.severity]}`}>
+                          {c.severity === "fatal" ? "Fatal" : c.severity === "major" ? "Major" : "Minor"}
+                        </Badge>
+                        <span className="font-medium">
+                          {getParamLabel(c.improvingParam)} → {getParamLabel(c.worseningParam)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.engineeringStatement}</p>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-            {isGenerating ? "生成中..." : "生成方案"}
-          </Button>
-        </CardContent>
-      </Card>
+            <Button onClick={handleGenerate} disabled={isGenerating || contradictions.length === 0}>
+              {isGenerating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+              {isGenerating ? "生成中..." : "生成方案"}
+            </Button>
+          </CardContent>
+        </Card>
 
-      {/* Solution list */}
+        {/* Health Monitor */}
+        <HealthMonitor nodeCount={contradictionNodeCount} hasCircular={false} />
+      </div>
+
+      {/* Convergence Graph */}
+      <ConvergenceGraph nodes={convergenceNodes} edges={convergenceEdges} />
+
+      {/* Solution list with filter */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">方案列表 ({solutions.length})</h2>
-        {solutions.length === 0 ? (
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h2 className="text-lg font-semibold">方案列表 ({filteredSolutions.length})</h2>
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue placeholder="篩選嚴重度" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部嚴重度</SelectItem>
+              <SelectItem value="fatal">Fatal 致命</SelectItem>
+              <SelectItem value="major">Major 重大</SelectItem>
+              <SelectItem value="minor">Minor 次要</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {filteredSolutions.length === 0 ? (
           <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
             <CardContent className="py-12 text-center text-muted-foreground">
               <p className="font-medium">尚無方案</p>
@@ -331,7 +415,7 @@ const SolutionExplorer = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {solutions.map((sol) => (
+            {filteredSolutions.map((sol) => (
               <Card
                 key={sol.id}
                 className="rounded-lg cursor-pointer hover:shadow-md transition-shadow"
@@ -346,6 +430,17 @@ const SolutionExplorer = () => {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2">{sol.description}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge className={`text-xs ${severityBadgeClass[sol.contradictionSeverity]}`}>
+                      {sol.contradictionSeverity === "fatal" ? "Fatal" : sol.contradictionSeverity === "major" ? "Major" : "Minor"}
+                    </Badge>
+                    {sol.secondaryContradictions.some((sc) => !sc.resolved) && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        二次矛盾
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1">
                       {sol.mustCriteria.map((m) => (
@@ -356,9 +451,6 @@ const SolutionExplorer = () => {
                       MUST {mustPassCount(sol)}/{mustTotal(sol)}
                     </Badge>
                   </div>
-                  {sol.risks.some((r) => r.severity === "high") && (
-                    <Badge variant="destructive" className="text-xs">高風險</Badge>
-                  )}
                 </CardContent>
               </Card>
             ))}
@@ -366,7 +458,7 @@ const SolutionExplorer = () => {
         )}
       </div>
 
-      {/* Detail: Sheet on desktop, Dialog on mobile */}
+      {/* Detail */}
       {isMobile ? (
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
           <DialogContent className="max-h-[90vh] overflow-y-auto">

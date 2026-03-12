@@ -28,6 +28,7 @@ import type {
 import { EVIDENCE_LEVELS, getRiskScore, getRiskLevel, getRiskColor, EXP_STATUS_COLOR } from "@/types/designReview";
 import { mockTrackAssumptions, mockExperiments as mockTrackExperiments } from "@/data/mockTrack";
 import { RISK_LEVEL_CONFIG } from "@/types/track";
+import { mockSolutions } from "@/data/mockSolutions";
 
 // Build evidence matrix from Track assumptions instead of independent mock
 function buildEvidenceFromTrack(projectId: string): EvidenceMatrixRow[] {
@@ -110,7 +111,6 @@ export default function DesignReview() {
 
   // Get candidate solutions (from mockSolutions that passed Pre-CAD)
   const candidateSolutions = useMemo(() => {
-    const { mockSolutions } = require("@/data/mockSolutions");
     return (mockSolutions as any[]).filter(
       (s: any) => s.projectId === id && s.mustCriteria?.some((m: any) => m.passed === true)
     );

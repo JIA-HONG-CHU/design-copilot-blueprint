@@ -76,9 +76,7 @@ export function AppSidebar() {
     <aside className="hidden md:flex md:flex-col md:w-60 border-r border-sidebar-border bg-sidebar shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
-        <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-primary-foreground font-bold text-xs">RD</span>
-        </div>
+        <img src={logoImg} alt="RD Design Copilot" className="h-8 w-8 rounded-lg" />
         <span className="font-semibold text-sm text-sidebar-foreground tracking-tight">
           RD Design Copilot
         </span>

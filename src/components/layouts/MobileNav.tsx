@@ -67,9 +67,7 @@ export function MobileNav() {
         </SheetTrigger>
         <SheetContent side="left" className="w-72 p-0 flex flex-col">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xs">RD</span>
-            </div>
+            <img src={logoImg} alt="RD Design Copilot" className="h-8 w-8 rounded-lg" />
             <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

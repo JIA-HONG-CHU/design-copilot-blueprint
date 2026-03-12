@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,13 +13,15 @@ import { toast } from "sonner";
 import { ArrowLeft, Plus, Pencil, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { trizParameters } from "@/data/trizParameters";
 import { mockContradictions } from "@/data/mockContradictions";
-import { Contradiction } from "@/types/contradiction";
+import { Contradiction, ContradictionSeverity } from "@/types/contradiction";
+import SocraticPanel from "@/components/contradiction/SocraticPanel";
 
 interface FormErrors {
   naturalDescription?: string;
   improvingParam?: string;
   worseningParam?: string;
   engineeringStatement?: string;
+  severity?: string;
 }
 
 const emptyForm = {
@@ -28,7 +30,25 @@ const emptyForm = {
   worseningParam: null as number | null,
   engineeringStatement: "",
   physicalContradiction: "",
+  severity: "" as ContradictionSeverity | "",
 };
+
+const severityOptions: { value: ContradictionSeverity; label: string; color: string }[] = [
+  { value: "fatal", label: "Fatal 致命", color: "bg-destructive text-destructive-foreground" },
+  { value: "major", label: "Major 重大", color: "bg-orange-500 text-white" },
+  { value: "minor", label: "Minor 次要", color: "bg-muted text-muted-foreground" },
+];
+
+const getSeverityBadge = (severity: ContradictionSeverity) => {
+  const opt = severityOptions.find((o) => o.value === severity);
+  return opt ? (
+    <Badge className={`text-xs ${opt.color}`}>{opt.label}</Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs">—</Badge>
+  );
+};
+
+const severityOrder: Record<ContradictionSeverity, number> = { fatal: 0, major: 1, minor: 2 };
 
 const ContradictionIdentification = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +62,19 @@ const ContradictionIdentification = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isMobileEditOpen, setIsMobileEditOpen] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [sortBySeverity, setSortBySeverity] = useState(true);
+
+  const filteredContradictions = useMemo(() => {
+    let list = [...contradictions];
+    if (severityFilter !== "all") {
+      list = list.filter((c) => c.severity === severityFilter);
+    }
+    if (sortBySeverity) {
+      list.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    }
+    return list;
+  }, [contradictions, severityFilter, sortBySeverity]);
 
   const validate = (): boolean => {
     const e: FormErrors = {};
@@ -51,6 +84,7 @@ const ContradictionIdentification = () => {
     if (!form.worseningParam) e.worseningParam = "惡化參數為必填項。";
     if (!form.engineeringStatement || form.engineeringStatement.length < 20)
       e.engineeringStatement = "工程表述為必填項，且需至少 20 個字元。";
+    if (!form.severity) e.severity = "矛盾嚴重度為必填項。";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -67,7 +101,7 @@ const ContradictionIdentification = () => {
     if (editingId) {
       setContradictions((prev) =>
         prev.map((c) =>
-          c.id === editingId ? { ...c, ...form, updatedAt: now } : c
+          c.id === editingId ? { ...c, ...form, severity: form.severity as ContradictionSeverity, updatedAt: now } : c
         )
       );
       toast.success("矛盾已更新");
@@ -75,7 +109,12 @@ const ContradictionIdentification = () => {
       const newContradiction: Contradiction = {
         id: `cont-${Date.now()}`,
         projectId: id || "",
-        ...form,
+        naturalDescription: form.naturalDescription,
+        improvingParam: form.improvingParam,
+        worseningParam: form.worseningParam,
+        engineeringStatement: form.engineeringStatement,
+        physicalContradiction: form.physicalContradiction,
+        severity: form.severity as ContradictionSeverity,
         createdAt: now,
         updatedAt: now,
       };
@@ -93,6 +132,7 @@ const ContradictionIdentification = () => {
       worseningParam: c.worseningParam,
       engineeringStatement: c.engineeringStatement,
       physicalContradiction: c.physicalContradiction,
+      severity: c.severity,
     });
     setEditingId(c.id);
     setErrors({});
@@ -111,13 +151,13 @@ const ContradictionIdentification = () => {
       return;
     }
     setIsAiLoading(true);
-    // Mock AI response
     await new Promise((r) => setTimeout(r, 1500));
     setForm((prev) => ({
       ...prev,
       improvingParam: 9,
       worseningParam: 1,
       engineeringStatement: `當改善「${trizParameters[8].nameZh}」時，「${trizParameters[0].nameZh}」隨之惡化，需要在兩者之間找到平衡。`,
+      severity: "major",
     }));
     setIsAiLoading(false);
     toast.info("AI 已生成建議的 TRIZ 矛盾句，請檢查並調整。");
@@ -129,7 +169,6 @@ const ContradictionIdentification = () => {
     return p ? `${p.id}. ${p.nameZh}` : "—";
   };
 
-  /* ---- Form UI (shared between desktop inline and mobile dialog) ---- */
   const formContent = (
     <div className="space-y-4">
       {/* Natural description */}
@@ -158,6 +197,9 @@ const ContradictionIdentification = () => {
           AI 轉化
         </Button>
       </div>
+
+      {/* Socratic Panel */}
+      <SocraticPanel description={form.naturalDescription} />
 
       {/* Improving / Worsening params */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -230,6 +272,27 @@ const ContradictionIdentification = () => {
         />
       </div>
 
+      {/* Severity */}
+      <div className="space-y-1.5">
+        <Label>矛盾嚴重度 *</Label>
+        <Select
+          value={form.severity}
+          onValueChange={(v) => setForm((f) => ({ ...f, severity: v as ContradictionSeverity }))}
+        >
+          <SelectTrigger className={errors.severity ? "border-destructive" : ""}>
+            <SelectValue placeholder="選擇嚴重度" />
+          </SelectTrigger>
+          <SelectContent>
+            {severityOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.severity && <p className="text-xs text-destructive">{errors.severity}</p>}
+      </div>
+
       {/* Action buttons */}
       <div className="flex gap-2 pt-2">
         <Button onClick={handleSubmit}>
@@ -256,7 +319,7 @@ const ContradictionIdentification = () => {
           <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: '"Noto Sans TC", "Helvetica Neue", Arial, sans-serif' }}>
             矛盾識別
           </h1>
-          <p className="text-sm text-muted-foreground">將工程問題形式化為 TRIZ 矛盾句</p>
+          <p className="text-sm text-muted-foreground">透過索克拉底提問將工程問題形式化為 TRIZ 矛盾句</p>
         </div>
       </div>
 
@@ -272,14 +335,39 @@ const ContradictionIdentification = () => {
 
         {/* List */}
         <Card className="lg:col-span-3 rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
-          <CardHeader className="pb-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">矛盾列表</CardTitle>
-            <Button size="sm" className="md:hidden" onClick={() => { resetForm(); setIsMobileEditOpen(true); }}>
-              <Plus className="mr-1 h-4 w-4" /> 新增
-            </Button>
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="text-lg">矛盾列表</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Severity filter */}
+                <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectValue placeholder="篩選嚴重度" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    {severityOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Sort toggle */}
+                <Button
+                  variant={sortBySeverity ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSortBySeverity((v) => !v)}
+                >
+                  依嚴重度排序
+                </Button>
+                <Button size="sm" className="md:hidden h-8" onClick={() => { resetForm(); setIsMobileEditOpen(true); }}>
+                  <Plus className="mr-1 h-4 w-4" /> 新增
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {contradictions.length === 0 ? (
+            {filteredContradictions.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <p className="text-base font-medium">尚無矛盾</p>
                 <p className="text-sm mt-1">請使用左側表單新增第一個 TRIZ 矛盾。</p>
@@ -292,6 +380,7 @@ const ContradictionIdentification = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[50px]">#</TableHead>
+                        <TableHead className="w-[90px]">嚴重度</TableHead>
                         <TableHead>改善參數</TableHead>
                         <TableHead>惡化參數</TableHead>
                         <TableHead className="min-w-[200px]">工程表述</TableHead>
@@ -299,9 +388,10 @@ const ContradictionIdentification = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contradictions.map((c, idx) => (
+                      {filteredContradictions.map((c, idx) => (
                         <TableRow key={c.id}>
                           <TableCell className="font-medium">{idx + 1}</TableCell>
+                          <TableCell>{getSeverityBadge(c.severity)}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="text-xs whitespace-nowrap">
                               {getParamLabel(c.improvingParam)}
@@ -338,11 +428,14 @@ const ContradictionIdentification = () => {
 
                 {/* Mobile cards */}
                 <div className="md:hidden space-y-3">
-                  {contradictions.map((c, idx) => (
+                  {filteredContradictions.map((c, idx) => (
                     <Card key={c.id} className="rounded-lg">
                       <CardContent className="p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm">矛盾 #{idx + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">矛盾 #{idx + 1}</span>
+                            {getSeverityBadge(c.severity)}
+                          </div>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(c)}>
                               <Pencil className="h-3.5 w-3.5" />

@@ -4,6 +4,8 @@ export interface TrizParameter {
   nameZh: string;
 }
 
+export type ContradictionSeverity = 'fatal' | 'major' | 'minor';
+
 export interface Contradiction {
   id: string;
   projectId: string;
@@ -12,6 +14,7 @@ export interface Contradiction {
   worseningParam: number | null;
   engineeringStatement: string;
   physicalContradiction: string;
+  severity: ContradictionSeverity;
   createdAt: string;
   updatedAt: string;
 }

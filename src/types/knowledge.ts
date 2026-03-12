@@ -3,7 +3,7 @@ export interface KnowledgeArticle {
   slug: string;
   title: string;
   description: string;
-  category: "playbook" | "case-study" | "template";
+  category: "playbook" | "case-study" | "template" | "convergence-pattern";
   tags: string[];
   author: string;
   publishedAt: string;

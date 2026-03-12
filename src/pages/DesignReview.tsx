@@ -769,6 +769,74 @@ export default function DesignReview() {
         </TabsContent>
       </Tabs>
 
+      {/* Conclusion & Decision Section */}
+      <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+        <CardContent className="p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-semibold">審查結論與決策</h3>
+          </div>
+
+          {/* Disposition summary */}
+          {candidateSolutions.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">方案去向摘要：</p>
+              <div className="flex flex-wrap gap-1.5">
+                {candidateSolutions.map((sol: any) => {
+                  const d = dispositions[sol.id];
+                  return (
+                    <Badge
+                      key={sol.id}
+                      variant={d === "approve" ? "default" : d === "eliminate" ? "destructive" : "secondary"}
+                      className="text-xs"
+                    >
+                      {sol.name?.slice(0, 15)}: {d === "approve" ? "批准" : d === "revise" ? "修訂" : d === "eliminate" ? "淘汰" : "未決定"}
+                    </Badge>
+                  );
+                })}
+              </div>
+              {candidateSolutions.some((s: any) => !dispositions[s.id]) && (
+                <p className="text-xs text-destructive">⚠ 尚有方案未選擇去向</p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">審查結論備註（選填）</Label>
+            <Textarea
+              value={reviewConclusion}
+              onChange={(e) => setReviewConclusion(e.target.value)}
+              placeholder="記錄審查會議的關鍵討論和決策原因..."
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+
+          <Button
+            onClick={async () => {
+              const allDecided = candidateSolutions.every((s: any) => dispositions[s.id]);
+              if (!allDecided) {
+                toast.error("請為所有方案選擇去向");
+                return;
+              }
+              if (!gate31Passed) {
+                toast.error("Gate 3.1 未通過，無法批准審查");
+                return;
+              }
+              setIsSubmitting(true);
+              await new Promise((r) => setTimeout(r, 1500));
+              setIsSubmitting(false);
+              toast.success("設計審查已批准，專案推進至下一階段");
+              navigate(`/projects/${id}`);
+            }}
+            disabled={isSubmitting || !gate31Passed || candidateSolutions.some((s: any) => !dispositions[s.id])}
+          >
+            {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            批准審查
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Gate 3.1 */}
       <Separator />
       <Card className="border-2 border-primary/30 bg-primary/5">

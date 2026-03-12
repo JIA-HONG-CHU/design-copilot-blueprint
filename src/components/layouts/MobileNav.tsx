@@ -1,5 +1,5 @@
 import { useState } from "react";
-import logoImg from "@/assets/logo.png";
+import logoImg from "@/assets/logo-delta.svg";
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";

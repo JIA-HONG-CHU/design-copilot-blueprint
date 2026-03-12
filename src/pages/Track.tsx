@@ -65,6 +65,10 @@ export default function Track() {
       source: 'unknown_convert',
       linkedContradictionId: null,
       aiChallenge: null,
+      worstConsequence: '',
+      verificationCost: '',
+      verificationDuration: '',
+      sourceArtifactId: null,
       createdAt: now,
       updatedAt: now,
     };

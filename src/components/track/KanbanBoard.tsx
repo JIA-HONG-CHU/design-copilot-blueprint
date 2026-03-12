@@ -83,6 +83,10 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
       source: 'manual',
       linkedContradictionId: null,
       aiChallenge: null,
+      worstConsequence: '',
+      verificationCost: '',
+      verificationDuration: '',
+      sourceArtifactId: null,
       createdAt: now,
       updatedAt: now,
     };

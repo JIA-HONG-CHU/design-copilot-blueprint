@@ -278,6 +278,7 @@ export default function Create() {
       mechanism: "AI 整合 TRIZ 分割原理與 SCAMPER 替代建議，採用蜂巢夾層殼體搭配磁力耦合傳動，在減重 35% 的同時維持結構剛度，傳動效率提升至 92%。",
       source: "ai_integrated", keyAssumptionIds: ["ta-001", "ta-003"],
       mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
+      interfaceContract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' },
       preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
       overallPass: null,
     };

@@ -16,8 +16,8 @@ export const mockWantCriteria: WantCriterion[] = [
 ];
 
 export const mockWantScores: WantScore[] = [
-  { alternativeId: 'alt-001', alternativeName: '磁力耦合 + 可變轉速方案', scores: { w1: 8, w2: 7, w3: 6, w4: 7, w5: 6, w6: 8 }, weightedTotal: 0 },
-  { alternativeId: 'alt-002', alternativeName: '同軸直連 + 漸變壁厚方案', scores: { w1: 6, w2: 9, w3: 8, w4: 6, w5: 8, w6: 5 }, weightedTotal: 0 },
+  { alternativeId: 'alt-001', alternativeName: '磁力耦合 + 可變轉速方案', scores: { w1: 8, w2: 7, w3: 6, w4: 7, w5: 6, w6: 8 }, evidence: { w1: { artifactId: null, evidenceLevel: null }, w2: { artifactId: null, evidenceLevel: null }, w3: { artifactId: null, evidenceLevel: null }, w4: { artifactId: null, evidenceLevel: null }, w5: { artifactId: null, evidenceLevel: null }, w6: { artifactId: null, evidenceLevel: null } }, weightedTotal: 0 },
+  { alternativeId: 'alt-002', alternativeName: '同軸直連 + 漸變壁厚方案', scores: { w1: 6, w2: 9, w3: 8, w4: 6, w5: 8, w6: 5 }, evidence: { w1: { artifactId: null, evidenceLevel: null }, w2: { artifactId: null, evidenceLevel: null }, w3: { artifactId: null, evidenceLevel: null }, w4: { artifactId: null, evidenceLevel: null }, w5: { artifactId: null, evidenceLevel: null }, w6: { artifactId: null, evidenceLevel: null } }, weightedTotal: 0 },
 ];
 
 export const mockKtDecision: KtDecision = {

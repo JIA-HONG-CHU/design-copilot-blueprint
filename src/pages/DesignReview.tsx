@@ -111,7 +111,6 @@ export default function DesignReview() {
 
   // Get candidate solutions (from mockSolutions that passed Pre-CAD)
   const candidateSolutions = useMemo(() => {
-    const { mockSolutions } = require("@/data/mockSolutions");
     return (mockSolutions as any[]).filter(
       (s: any) => s.projectId === id && s.mustCriteria?.some((m: any) => m.passed === true)
     );

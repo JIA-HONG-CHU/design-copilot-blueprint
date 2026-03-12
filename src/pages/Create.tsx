@@ -258,6 +258,7 @@ export default function Create() {
     const newAlt: Alternative = {
       id: `alt-${Date.now()}`, name: "", mechanism: "", source: "manual",
       keyAssumptionIds: [], mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
+      interfaceContract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' },
       preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
       overallPass: null,
     };

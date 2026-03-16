@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target, Lock, Star } from "lucide-react";
 import {
   CONSTRAINT_LABEL_CLASSIFIER_VERSION,
   classifyHardConstraints,
-  getConstraintLabelSuggestions,
   normalizeConstraintKey,
   splitConstraintItems,
 } from "@/lib/constraintLabeling";
@@ -45,7 +43,6 @@ export function MissionSummaryCard({
   const { user } = useAuth();
   const [constraintLabelMap, setConstraintLabelMap] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
-  const [overrideTargetKey, setOverrideTargetKey] = useState<string | null>(null);
 
   const {
     entryId,
@@ -72,10 +69,6 @@ export function MissionSummaryCard({
   const hardConstraintClassifyResult = useMemo(
     () => classifyHardConstraints(hardConstraintItems, constraintLabelMap),
     [hardConstraintItems, constraintLabelMap],
-  );
-  const labelOptions = useMemo(
-    () => getConstraintLabelSuggestions(hardConstraintClassifyResult.nextLabelMap),
-    [hardConstraintClassifyResult.nextLabelMap],
   );
 
   const persistLabelMap = (
@@ -158,24 +151,6 @@ export function MissionSummaryCard({
   ]);
 
   const hardConstraintGroups = hardConstraintClassifyResult.groups;
-  const handleOverrideLabel = (item: string, label: string) => {
-    const key = normalizeConstraintKey(item);
-    const nextMap = { ...constraintLabelMap, [key]: label };
-    setConstraintLabelMap(nextMap);
-    if (!canManageLabels) return;
-    persistLabelMap(nextMap, {
-      action: "manual_override",
-      note: `${item} -> ${label}`,
-      actor: {
-        id: user?.id ?? "unknown",
-        email: user?.email ?? "unknown",
-        displayName: (user?.user_metadata?.display_name as string) ?? (user?.email ?? "unknown"),
-      },
-      previousMap: constraintLabelMap,
-    });
-    setOverrideTargetKey(null);
-  };
-
   if (!mission && hardConstraintItems.length === 0 && softObjectiveItems.length === 0) return null;
 
   return (
@@ -213,7 +188,6 @@ export function MissionSummaryCard({
                       {group.items.map((item, index) => {
                         const itemKey = normalizeConstraintKey(item);
                         const currentLabel = hardConstraintClassifyResult.itemLabels[itemKey] ?? group.label;
-                        const isEditing = overrideTargetKey === itemKey;
                         return (
                           <li key={`${group.label}-${item}-${index}`}>
                             <div className="flex flex-wrap items-center gap-2">
@@ -221,33 +195,6 @@ export function MissionSummaryCard({
                               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                 {currentLabel}
                               </span>
-                              {canManageLabels && isEditing ? (
-                                <Select
-                                  value={currentLabel}
-                                  onValueChange={(value) => handleOverrideLabel(item, value)}
-                                >
-                                  <SelectTrigger className="h-7 w-[160px] text-xs">
-                                    <SelectValue placeholder="選擇標籤" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {labelOptions.map((labelOption) => (
-                                      <SelectItem key={labelOption} value={labelOption}>
-                                        {labelOption}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : canManageLabels ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-1.5 text-[11px] text-muted-foreground"
-                                  onClick={() => setOverrideTargetKey(itemKey)}
-                                >
-                                  改標籤
-                                </Button>
-                              ) : null}
                             </div>
                           </li>
                         );

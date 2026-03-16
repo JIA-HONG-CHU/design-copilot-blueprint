@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConstraints } from "@/hooks/api/useBrief";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProject } from "@/hooks/api/useProjects";
 import {
   buildConstraintLabelHistoryPayload,
   buildConstraintLabelPayload,
@@ -31,6 +33,8 @@ import {
 export default function ConstraintLabelDictionary() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: project } = useProject(projectId);
 
   const { data: constraints, isLoading: constraintsLoading } = useConstraints(projectId);
   const {
@@ -50,6 +54,10 @@ export default function ConstraintLabelDictionary() {
   const [initialized, setInitialized] = useState(false);
   const [mergeFromLabel, setMergeFromLabel] = useState("");
   const [mergeToLabel, setMergeToLabel] = useState("");
+  const [previewHistoryId, setPreviewHistoryId] = useState<string | null>(null);
+  const isProjectOwner = !!user && !!project?.createdBy && user.id === project.createdBy;
+  const isAdmin = user?.app_metadata?.role === "admin";
+  const canManageLabels = Boolean(isProjectOwner || isAdmin);
 
   useEffect(() => {
     if (!projectId) {
@@ -109,6 +117,11 @@ export default function ConstraintLabelDictionary() {
       const historyPayload = buildConstraintLabelHistoryPayload({
         action: options.action,
         source: "dictionary",
+        actor: {
+          id: user?.id ?? "unknown",
+          email: user?.email ?? "unknown",
+          displayName: (user?.user_metadata?.display_name as string) ?? (user?.email ?? "unknown"),
+        },
         before: options.previousMap ?? localLabelMap,
         after: nextMap,
         classifierVersion: targetClassifierVersion,
@@ -125,16 +138,20 @@ export default function ConstraintLabelDictionary() {
   };
 
   useEffect(() => {
-    if (!initialized || !classifyResult.hasUpdates) return;
+    if (!initialized || !classifyResult.hasUpdates || !canManageLabels) return;
     setLocalLabelMap(classifyResult.nextLabelMap);
     persistLabelMap(classifyResult.nextLabelMap, {
       action: "auto_classify_sync",
       previousMap: localLabelMap,
       classifierVersion: classifierVersion || CONSTRAINT_LABEL_CLASSIFIER_VERSION,
     });
-  }, [initialized, classifyResult, classifierVersion]);
+  }, [initialized, classifyResult, classifierVersion, canManageLabels, localLabelMap]);
 
   const handleMergeLabels = () => {
+    if (!canManageLabels) {
+      toast.error("你沒有權限修改標籤字典");
+      return;
+    }
     if (!mergeFromLabel || !mergeToLabel) {
       toast.error("請先選擇來源標籤與目標標籤");
       return;
@@ -161,6 +178,10 @@ export default function ConstraintLabelDictionary() {
   };
 
   const handleUpgradeVersion = () => {
+    if (!canManageLabels) {
+      toast.error("你沒有權限升級映射版本");
+      return;
+    }
     persistLabelMap(localLabelMap, {
       action: "upgrade_classifier_version",
       previousMap: localLabelMap,
@@ -170,6 +191,10 @@ export default function ConstraintLabelDictionary() {
   };
 
   const handleRollback = (targetMap: Record<string, string>, note: string) => {
+    if (!canManageLabels) {
+      toast.error("你沒有權限回滾");
+      return;
+    }
     setLocalLabelMap(targetMap);
     persistLabelMap(targetMap, {
       action: "rollback",
@@ -186,6 +211,17 @@ export default function ConstraintLabelDictionary() {
     upgrade_classifier_version: "升級分類器版本",
     rollback: "回滾",
   };
+
+  const previewItem = historyItems.find((item) => item.id === previewHistoryId);
+  const previewDiff = useMemo(() => {
+    if (!previewItem) return [];
+    const before = previewItem.payload.before;
+    const after = previewItem.payload.after;
+    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+    return keys
+      .filter((key) => before[key] !== after[key])
+      .map((key) => ({ key, from: before[key] ?? "-", to: after[key] ?? "-" }));
+  }, [previewItem]);
 
   if (constraintsLoading || labelMapLoading) {
     return (
@@ -207,6 +243,9 @@ export default function ConstraintLabelDictionary() {
           </Button>
           <h1 className="text-xl font-semibold">標籤字典</h1>
         </div>
+        {!canManageLabels && (
+          <Badge variant="outline">唯讀模式（僅專案擁有者或 Admin 可編輯）</Badge>
+        )}
       </div>
 
       <Card>
@@ -216,7 +255,7 @@ export default function ConstraintLabelDictionary() {
         <CardContent className="flex flex-wrap items-center gap-2 text-sm">
           <Badge variant="outline">Schema v{schemaVersion}</Badge>
           <Badge variant="outline">Classifier {classifierVersion}</Badge>
-          {isLegacyPayload && (
+          {isLegacyPayload && canManageLabels && (
             <Button size="sm" variant="outline" onClick={handleUpgradeVersion}>
               升級至 {CONSTRAINT_LABEL_CLASSIFIER_VERSION}
             </Button>
@@ -254,7 +293,7 @@ export default function ConstraintLabelDictionary() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleMergeLabels}>
+          <Button onClick={handleMergeLabels} disabled={!canManageLabels}>
             <GitMerge className="mr-1 h-4 w-4" />
             合併
           </Button>
@@ -306,20 +345,55 @@ export default function ConstraintLabelDictionary() {
                     {new Date(history.createdAt).toLocaleString("zh-TW")}
                     {history.payload.note ? ` · ${history.payload.note}` : ""}
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    by {history.payload.actor.displayName} ({history.payload.actor.email})
+                  </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleRollback(history.payload.after, `rollback to ${history.id}`)}
-                >
-                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                  回滾到此版本
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPreviewHistoryId((prev) => (prev === history.id ? null : history.id))}
+                  >
+                    {previewHistoryId === history.id ? "收合差異" : "預覽差異"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canManageLabels}
+                    onClick={() => handleRollback(history.payload.after, `rollback to ${history.id}`)}
+                  >
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                    回滾到此版本
+                  </Button>
+                </div>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      {previewItem && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">回滾差異預覽</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              共 {previewDiff.length} 個 key 會改變（顯示前 20 筆）
+            </p>
+            <div className="space-y-1">
+              {previewDiff.slice(0, 20).map((row) => (
+                <div key={row.key} className="rounded border p-2">
+                  <p className="font-mono text-xs text-muted-foreground">{row.key}</p>
+                  <p className="text-xs">from: {row.from}</p>
+                  <p className="text-xs">to: {row.to}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

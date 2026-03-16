@@ -68,6 +68,11 @@ export interface ConstraintLabelHistoryPayload {
   classifierVersion: string;
   action: ConstraintLabelActionType;
   source: 'dashboard' | 'dictionary';
+  actor: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
   before: Record<string, string>;
   after: Record<string, string>;
   note?: string;
@@ -333,6 +338,11 @@ export function buildConstraintLabelPayload(
 export function buildConstraintLabelHistoryPayload(params: {
   action: ConstraintLabelActionType;
   source: 'dashboard' | 'dictionary';
+  actor: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
   before: Record<string, string>;
   after: Record<string, string>;
   classifierVersion?: string;
@@ -343,6 +353,7 @@ export function buildConstraintLabelHistoryPayload(params: {
     classifierVersion: params.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION,
     action: params.action,
     source: params.source,
+    actor: params.actor,
     before: params.before,
     after: params.after,
     note: params.note,
@@ -422,6 +433,11 @@ export function useConstraintLabelHistory(projectId: string | undefined, limit =
             classifierVersion: parsed.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION,
             action: parsed.action,
             source: parsed.source,
+            actor: parsed.actor ?? {
+              id: 'unknown',
+              email: 'unknown',
+              displayName: 'unknown',
+            },
             before: parsed.before,
             after: parsed.after,
             note: parsed.note,

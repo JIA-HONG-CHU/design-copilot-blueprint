@@ -23,17 +23,26 @@ import {
   useCreateConstraintLabelMap,
   useUpdateConstraintLabelMap,
 } from "@/hooks/api/useKnowledge";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MissionSummaryCardProps {
   projectId?: string;
+  projectOwnerId?: string;
   mission?: string;
   hardConstraints?: string | string[];
   softObjectives?: string | string[];
 }
 
-export function MissionSummaryCard({ projectId, mission, hardConstraints, softObjectives }: MissionSummaryCardProps) {
+export function MissionSummaryCard({
+  projectId,
+  projectOwnerId,
+  mission,
+  hardConstraints,
+  softObjectives,
+}: MissionSummaryCardProps) {
   const hardConstraintItems = splitConstraintItems(hardConstraints);
   const softObjectiveItems = splitConstraintItems(softObjectives);
+  const { user } = useAuth();
   const [constraintLabelMap, setConstraintLabelMap] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
   const [overrideTargetKey, setOverrideTargetKey] = useState<string | null>(null);
@@ -46,6 +55,9 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
   const createLabelMap = useCreateConstraintLabelMap(projectId);
   const updateLabelMap = useUpdateConstraintLabelMap(projectId);
   const createHistory = useCreateConstraintLabelHistory(projectId);
+  const isProjectOwner = !!user && !!projectOwnerId && user.id === projectOwnerId;
+  const isAdmin = user?.app_metadata?.role === "admin";
+  const canManageLabels = Boolean(isProjectOwner || isAdmin);
 
   useEffect(() => {
     if (!projectId) {
@@ -71,6 +83,11 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     options?: {
       action?: ConstraintLabelActionType;
       note?: string;
+      actor?: {
+        id: string;
+        email: string;
+        displayName: string;
+      };
       previousMap?: Record<string, string>;
       classifierVersion?: string;
     },
@@ -97,6 +114,11 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
       const historyPayload = buildConstraintLabelHistoryPayload({
         action: options.action,
         source: "dashboard",
+        actor: options.actor ?? {
+          id: user?.id ?? "unknown",
+          email: user?.email ?? "unknown",
+          displayName: (user?.user_metadata?.display_name as string) ?? (user?.email ?? "unknown"),
+        },
         before: options.previousMap ?? constraintLabelMap,
         after: nextMap,
         classifierVersion,
@@ -113,10 +135,15 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
   };
 
   useEffect(() => {
-    if (!initialized || !hardConstraintClassifyResult.hasUpdates) return;
+    if (!initialized || !hardConstraintClassifyResult.hasUpdates || !canManageLabels) return;
     setConstraintLabelMap(hardConstraintClassifyResult.nextLabelMap);
     persistLabelMap(hardConstraintClassifyResult.nextLabelMap, {
       action: "auto_classify_sync",
+      actor: {
+        id: user?.id ?? "unknown",
+        email: user?.email ?? "unknown",
+        displayName: (user?.user_metadata?.display_name as string) ?? (user?.email ?? "unknown"),
+      },
       previousMap: constraintLabelMap,
     });
   }, [
@@ -126,6 +153,8 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     entryId,
     createLabelMap,
     updateLabelMap,
+    canManageLabels,
+    user,
   ]);
 
   const hardConstraintGroups = hardConstraintClassifyResult.groups;
@@ -133,9 +162,15 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     const key = normalizeConstraintKey(item);
     const nextMap = { ...constraintLabelMap, [key]: label };
     setConstraintLabelMap(nextMap);
+    if (!canManageLabels) return;
     persistLabelMap(nextMap, {
       action: "manual_override",
       note: `${item} -> ${label}`,
+      actor: {
+        id: user?.id ?? "unknown",
+        email: user?.email ?? "unknown",
+        displayName: (user?.user_metadata?.display_name as string) ?? (user?.email ?? "unknown"),
+      },
       previousMap: constraintLabelMap,
     });
     setOverrideTargetKey(null);
@@ -186,7 +221,7 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
                               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                 {currentLabel}
                               </span>
-                              {isEditing ? (
+                              {canManageLabels && isEditing ? (
                                 <Select
                                   value={currentLabel}
                                   onValueChange={(value) => handleOverrideLabel(item, value)}
@@ -202,7 +237,7 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              ) : (
+                              ) : canManageLabels ? (
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -212,6 +247,7 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
                                 >
                                   改標籤
                                 </Button>
+                              ) : null
                               )}
                             </div>
                           </li>

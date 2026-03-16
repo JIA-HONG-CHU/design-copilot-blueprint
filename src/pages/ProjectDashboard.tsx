@@ -399,6 +399,7 @@ export default function ProjectDashboard() {
           <h2 className="text-base font-semibold">專案概覽</h2>
           <MissionSummaryCard
             projectId={id}
+            projectOwnerId={project.createdBy}
             mission={brief?.mission ?? project.mission ?? ''}
             hardConstraints={
               constraints?.filter(c => c.type === 'hard').map(c => c.description)

@@ -133,6 +133,7 @@ export const queryKeys = {
   },
   constraint_labels: {
     byProject: (projectId: string) => ['constraint_labels', projectId] as const,
+    historyByProject: (projectId: string) => ['constraint_labels', projectId, 'history'] as const,
   },
 
   // Evidence entries (structured measurement logs)

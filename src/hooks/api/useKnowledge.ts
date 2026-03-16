@@ -46,12 +46,31 @@ interface KnowledgeEntryDbRow {
 }
 
 export const CONSTRAINT_LABEL_ASSET_TYPE = 'constraint_label_map';
+export const CONSTRAINT_LABEL_HISTORY_ASSET_TYPE = 'constraint_label_history';
 export const HARD_CONSTRAINT_LABEL_TITLE = 'hard_constraints';
 
 export interface ConstraintLabelMapPayload {
   schemaVersion: number;
   classifierVersion: string;
   labels: Record<string, string>;
+  updatedAt: string;
+}
+
+export type ConstraintLabelActionType =
+  | 'auto_classify_sync'
+  | 'manual_override'
+  | 'merge_labels'
+  | 'upgrade_classifier_version'
+  | 'rollback';
+
+export interface ConstraintLabelHistoryPayload {
+  schemaVersion: number;
+  classifierVersion: string;
+  action: ConstraintLabelActionType;
+  source: 'dashboard' | 'dictionary';
+  before: Record<string, string>;
+  after: Record<string, string>;
+  note?: string;
   updatedAt: string;
 }
 
@@ -311,6 +330,26 @@ export function buildConstraintLabelPayload(
   };
 }
 
+export function buildConstraintLabelHistoryPayload(params: {
+  action: ConstraintLabelActionType;
+  source: 'dashboard' | 'dictionary';
+  before: Record<string, string>;
+  after: Record<string, string>;
+  classifierVersion?: string;
+  note?: string;
+}): ConstraintLabelHistoryPayload {
+  return {
+    schemaVersion: CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+    classifierVersion: params.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+    action: params.action,
+    source: params.source,
+    before: params.before,
+    after: params.after,
+    note: params.note,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function useCreateConstraintLabelMap(projectId: string | undefined) {
   return useSupabaseMutation<KnowledgeEntryDbRow, {
     project_id: string;
@@ -339,6 +378,80 @@ export function useUpdateConstraintLabelMap(projectId: string | undefined) {
     type: 'update',
     invalidateKeys: projectId
       ? [queryKeys.constraint_labels.byProject(projectId), queryKeys.knowledge_entries.byProject(projectId)]
+      : [queryKeys.knowledge_entries.all],
+    successMessage: false,
+    errorMessage: false,
+  });
+}
+
+export interface ConstraintLabelHistoryItem {
+  id: string;
+  projectId: string;
+  createdAt: string;
+  payload: ConstraintLabelHistoryPayload;
+}
+
+export function useConstraintLabelHistory(projectId: string | undefined, limit = 20) {
+  const result = useSupabaseQuery<KnowledgeEntryDbRow[]>({
+    table: 'knowledge_entries',
+    queryKey: [...queryKeys.constraint_labels.historyByProject(projectId ?? ''), limit],
+    filters: projectId
+      ? [
+          { column: 'project_id', operator: 'eq' as const, value: projectId },
+          { column: 'asset_type', operator: 'eq' as const, value: CONSTRAINT_LABEL_HISTORY_ASSET_TYPE },
+          { column: 'title', operator: 'eq' as const, value: HARD_CONSTRAINT_LABEL_TITLE },
+        ]
+      : [],
+    orderBy: { column: 'created_at', ascending: false },
+    limit,
+    enabled: !!projectId,
+  });
+
+  const items: ConstraintLabelHistoryItem[] = (result.data ?? [])
+    .map((row) => {
+      try {
+        const parsed = JSON.parse(row.content) as Partial<ConstraintLabelHistoryPayload>;
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (!parsed.before || !parsed.after || !parsed.action || !parsed.source) return null;
+        return {
+          id: row.id,
+          projectId: row.project_id,
+          createdAt: row.created_at,
+          payload: {
+            schemaVersion: parsed.schemaVersion ?? CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+            classifierVersion: parsed.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+            action: parsed.action,
+            source: parsed.source,
+            before: parsed.before,
+            after: parsed.after,
+            note: parsed.note,
+            updatedAt: parsed.updatedAt ?? row.created_at,
+          } as ConstraintLabelHistoryPayload,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is ConstraintLabelHistoryItem => !!item);
+
+  return {
+    ...result,
+    items,
+  };
+}
+
+export function useCreateConstraintLabelHistory(projectId: string | undefined) {
+  return useSupabaseMutation<KnowledgeEntryDbRow, {
+    project_id: string;
+    asset_type: string;
+    title: string;
+    content: string;
+    reviewed?: boolean;
+  }>({
+    table: 'knowledge_entries',
+    type: 'insert',
+    invalidateKeys: projectId
+      ? [queryKeys.constraint_labels.historyByProject(projectId)]
       : [queryKeys.knowledge_entries.all],
     successMessage: false,
     errorMessage: false,

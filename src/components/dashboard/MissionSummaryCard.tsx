@@ -12,9 +12,13 @@ import {
   splitConstraintItems,
 } from "@/lib/constraintLabeling";
 import {
+  buildConstraintLabelHistoryPayload,
   CONSTRAINT_LABEL_ASSET_TYPE,
+  CONSTRAINT_LABEL_HISTORY_ASSET_TYPE,
   HARD_CONSTRAINT_LABEL_TITLE,
   buildConstraintLabelPayload,
+  type ConstraintLabelActionType,
+  useCreateConstraintLabelHistory,
   useConstraintLabelMap,
   useCreateConstraintLabelMap,
   useUpdateConstraintLabelMap,
@@ -41,6 +45,7 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
   } = useConstraintLabelMap(projectId);
   const createLabelMap = useCreateConstraintLabelMap(projectId);
   const updateLabelMap = useUpdateConstraintLabelMap(projectId);
+  const createHistory = useCreateConstraintLabelHistory(projectId);
 
   useEffect(() => {
     if (!projectId) {
@@ -61,30 +66,59 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     [hardConstraintClassifyResult.nextLabelMap],
   );
 
-  const persistLabelMap = (nextMap: Record<string, string>, classifierVersion = CONSTRAINT_LABEL_CLASSIFIER_VERSION) => {
+  const persistLabelMap = (
+    nextMap: Record<string, string>,
+    options?: {
+      action?: ConstraintLabelActionType;
+      note?: string;
+      previousMap?: Record<string, string>;
+      classifierVersion?: string;
+    },
+  ) => {
     if (!projectId) return;
+    const classifierVersion = options?.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION;
     const serialized = JSON.stringify(buildConstraintLabelPayload(nextMap, classifierVersion));
 
     if (entryId) {
       if (updateLabelMap.isPending) return;
       updateLabelMap.mutate({ id: entryId, content: serialized, reviewed: true });
-      return;
+    } else {
+      if (createLabelMap.isPending) return;
+      createLabelMap.mutate({
+        project_id: projectId,
+        asset_type: CONSTRAINT_LABEL_ASSET_TYPE,
+        title: HARD_CONSTRAINT_LABEL_TITLE,
+        content: serialized,
+        reviewed: true,
+      });
     }
 
-    if (createLabelMap.isPending) return;
-    createLabelMap.mutate({
-      project_id: projectId,
-      asset_type: CONSTRAINT_LABEL_ASSET_TYPE,
-      title: HARD_CONSTRAINT_LABEL_TITLE,
-      content: serialized,
-      reviewed: true,
-    });
+    if (options?.action && !createHistory.isPending) {
+      const historyPayload = buildConstraintLabelHistoryPayload({
+        action: options.action,
+        source: "dashboard",
+        before: options.previousMap ?? constraintLabelMap,
+        after: nextMap,
+        classifierVersion,
+        note: options.note,
+      });
+      createHistory.mutate({
+        project_id: projectId,
+        asset_type: CONSTRAINT_LABEL_HISTORY_ASSET_TYPE,
+        title: HARD_CONSTRAINT_LABEL_TITLE,
+        content: JSON.stringify(historyPayload),
+        reviewed: true,
+      });
+    }
   };
 
   useEffect(() => {
     if (!initialized || !hardConstraintClassifyResult.hasUpdates) return;
     setConstraintLabelMap(hardConstraintClassifyResult.nextLabelMap);
-    persistLabelMap(hardConstraintClassifyResult.nextLabelMap);
+    persistLabelMap(hardConstraintClassifyResult.nextLabelMap, {
+      action: "auto_classify_sync",
+      previousMap: constraintLabelMap,
+    });
   }, [
     initialized,
     hardConstraintClassifyResult,
@@ -99,7 +133,11 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     const key = normalizeConstraintKey(item);
     const nextMap = { ...constraintLabelMap, [key]: label };
     setConstraintLabelMap(nextMap);
-    persistLabelMap(nextMap);
+    persistLabelMap(nextMap, {
+      action: "manual_override",
+      note: `${item} -> ${label}`,
+      previousMap: constraintLabelMap,
+    });
     setOverrideTargetKey(null);
   };
 

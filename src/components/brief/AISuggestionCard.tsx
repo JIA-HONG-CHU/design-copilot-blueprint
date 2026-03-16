@@ -14,10 +14,14 @@ interface AISuggestionCardProps {
   /** Whether the AI is currently generating. */
   isLoading?: boolean;
   /** Called with the (potentially edited) content when user clicks "採用". */
-  onAdopt: (editedContent: string) => void;
+  onAdopt: (editedContent: string) => void | Promise<void>;
   onSkip: () => void;
   /** Number of rows for the editable textarea. Defaults to 4. */
   rows?: number;
+  /** Disable all action buttons (adopt/edit/skip) while parent is processing. */
+  disableActions?: boolean;
+  /** Show adopting state on the adopt button. */
+  isAdopting?: boolean;
 }
 
 export function AISuggestionCard({
@@ -28,6 +32,8 @@ export function AISuggestionCard({
   onAdopt,
   onSkip,
   rows = 4,
+  disableActions = false,
+  isAdopting = false,
 }: AISuggestionCardProps) {
   const [editedContent, setEditedContent] = useState(content ?? "");
   const [isEditing, setIsEditing] = useState(false);
@@ -38,6 +44,7 @@ export function AISuggestionCard({
   }
 
   const handleAdopt = () => {
+    if (disableActions || isLoading || isAdopting) return;
     onAdopt(editedContent);
   };
 
@@ -68,11 +75,15 @@ export function AISuggestionCard({
                 rows={rows}
                 className="text-sm bg-background"
                 autoFocus
+                disabled={disableActions || isAdopting}
               />
             ) : (
               <div
                 className="text-sm leading-relaxed whitespace-pre-wrap p-2 rounded-md bg-background/50 border border-transparent hover:border-primary/20 cursor-pointer transition-colors group relative"
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                  if (disableActions || isAdopting) return;
+                  setIsEditing(true);
+                }}
               >
                 {editedContent}
                 <Pencil className="h-3 w-3 text-muted-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -86,21 +97,25 @@ export function AISuggestionCard({
             )}
 
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="default" onClick={handleAdopt}>
-                <Check className="h-3 w-3 mr-1" />
-                採用
+              <Button size="sm" variant="default" onClick={handleAdopt} disabled={disableActions || isLoading || isAdopting}>
+                {isAdopting ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3 mr-1" />
+                )}
+                {isAdopting ? "採用中..." : "採用"}
               </Button>
               {isEditing ? (
-                <Button size="sm" variant="outline" onClick={() => { setIsEditing(false); setEditedContent(content); }}>
+                <Button size="sm" variant="outline" disabled={disableActions || isAdopting} onClick={() => { setIsEditing(false); setEditedContent(content); }}>
                   還原
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                <Button size="sm" variant="outline" disabled={disableActions || isAdopting} onClick={() => setIsEditing(true)}>
                   <Pencil className="h-3 w-3 mr-1" />
                   編輯
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={onSkip}>
+              <Button size="sm" variant="ghost" disabled={disableActions || isAdopting} onClick={onSkip}>
                 <X className="h-3 w-3 mr-1" />
                 跳過
               </Button>

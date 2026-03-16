@@ -103,9 +103,11 @@ export default function TaskDefinition() {
   const [showConstraintSuggestions, setShowConstraintSuggestions] = useState(false);
   const [constraintSuggestionList, setConstraintSuggestionList] = useState<SuggestedConstraint[]>([]);
   const [isConstraintSuggesting, setIsConstraintSuggesting] = useState(false);
+  const [activeConstraintActionIndex, setActiveConstraintActionIndex] = useState<number | null>(null);
   const [showKpiSuggestions, setShowKpiSuggestions] = useState(false);
   const [kpiSuggestionList, setKpiSuggestionList] = useState<SuggestedKpi[]>([]);
   const [isKpiSuggesting, setIsKpiSuggesting] = useState(false);
+  const [activeKpiActionIndex, setActiveKpiActionIndex] = useState<number | null>(null);
   const [backendStatus, setBackendStatus] = useState<"checking" | "ok" | "down">("checking");
   const [backendStatusMessage, setBackendStatusMessage] = useState("檢查後端連線中...");
 
@@ -224,6 +226,11 @@ export default function TaskDefinition() {
   // KPI suggestion — triggered by button click
   const handleKpiSuggest = async () => {
     if (!id) return;
+    if (mission.trim().length < 10) {
+      toast.error("請先填寫 Mission（至少 10 字）再使用 AI 建議 KPI");
+      return;
+    }
+    if (isKpiSuggesting) return;
     setShowKpiSuggestions(true);
     setKpiSuggestionList([]);
     setIsKpiSuggesting(true);
@@ -236,6 +243,11 @@ export default function TaskDefinition() {
       });
       setKpiSuggestionList(res.suggestions);
       setKpiEvidenceRefs(res.evidence_references ?? []);
+      if (res.suggestions.length === 0) {
+        toast.info("AI 未產出 KPI 建議，請補充更具體的 Mission 或約束");
+      } else {
+        toast.success(`AI 已產生 ${res.suggestions.length} 項 KPI 建議`);
+      }
     } catch (err) {
       console.error("KPI suggestion failed:", err);
       toast.error(getApiErrorMessage(err, "AI KPI 建議"));
@@ -713,7 +725,12 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               硬約束 (Hard Constraints) <span className="text-destructive">★</span>
             </CardTitle>
-            <Button size="sm" variant="secondary" onClick={handleConstraintSuggest} disabled={isConstraintSuggesting}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleConstraintSuggest}
+              disabled={isConstraintSuggesting || activeConstraintActionIndex !== null}
+            >
               {isConstraintSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
               AI 建議
               <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
@@ -730,6 +747,7 @@ export default function TaskDefinition() {
                   isLoading
                   onAdopt={() => {}}
                   onSkip={() => { setShowConstraintSuggestions(false); setIsConstraintSuggesting(false); }}
+                  disableActions={activeConstraintActionIndex !== null}
                 />
               )}
               {constraintSuggestionList.map((s, i) => (
@@ -738,12 +756,28 @@ export default function TaskDefinition() {
                   title={`建議約束 #${i + 1}`}
                   content={`${s.description}\n來源: ${s.source}`}
                   changesSummary={s.rationale}
-                  onAdopt={(edited) => {
+                  isAdopting={activeConstraintActionIndex === i}
+                  disableActions={activeConstraintActionIndex !== null && activeConstraintActionIndex !== i}
+                  onAdopt={async (edited) => {
+                    if (activeConstraintActionIndex !== null) return;
+                    setActiveConstraintActionIndex(i);
                     const desc = edited.split("\n")[0];
                     const source = edited.includes("來源:") ? edited.split("來源:")[1]?.trim() ?? s.source : s.source;
-                    handleAdoptConstraintSuggestion(desc, source);
+                    try {
+                      handleAdoptConstraintSuggestion(desc, source);
+                      setConstraintSuggestionList((prev) => {
+                        const next = prev.filter((_, idx) => idx !== i);
+                        if (next.length === 0) {
+                          setShowConstraintSuggestions(false);
+                        }
+                        return next;
+                      });
+                    } finally {
+                      setActiveConstraintActionIndex(null);
+                    }
                   }}
                   onSkip={() => {
+                    if (activeConstraintActionIndex !== null) return;
                     setConstraintSuggestionList(prev => prev.filter((_, idx) => idx !== i));
                   }}
                   rows={2}
@@ -756,7 +790,16 @@ export default function TaskDefinition() {
                 <p className="text-xs text-muted-foreground text-center py-2">AI 未產出額外建議</p>
               )}
               {!isConstraintSuggesting && (
-                <Button size="sm" variant="ghost" onClick={() => setShowConstraintSuggestions(false)} className="text-xs">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={activeConstraintActionIndex !== null}
+                  onClick={() => {
+                    setShowConstraintSuggestions(false);
+                    setConstraintSuggestionList([]);
+                  }}
+                  className="text-xs"
+                >
                   關閉建議
                 </Button>
               )}
@@ -802,7 +845,12 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               關鍵績效指標 (Critical KPIs) <span className="text-destructive">★</span>
             </CardTitle>
-            <Button size="sm" variant="secondary" onClick={handleKpiSuggest} disabled={isKpiSuggesting}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleKpiSuggest}
+              disabled={isKpiSuggesting || activeKpiActionIndex !== null}
+            >
               {isKpiSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
               AI 建議 KPI
               <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
@@ -819,6 +867,7 @@ export default function TaskDefinition() {
                   isLoading
                   onAdopt={() => {}}
                   onSkip={() => { setShowKpiSuggestions(false); setIsKpiSuggesting(false); }}
+                  disableActions={activeKpiActionIndex !== null}
                 />
               )}
               {kpiSuggestionList.map((s, i) => (
@@ -827,8 +876,26 @@ export default function TaskDefinition() {
                   title={`建議 KPI: ${s.kpi_name}`}
                   content={`目標值: ${s.target_value} ${s.unit}\n衡量方式: ${s.measurement_method}`}
                   changesSummary={s.rationale}
-                  onAdopt={() => handleAdoptKpiSuggestion(s)}
+                  isAdopting={activeKpiActionIndex === i}
+                  disableActions={activeKpiActionIndex !== null && activeKpiActionIndex !== i}
+                  onAdopt={async () => {
+                    if (activeKpiActionIndex !== null) return;
+                    setActiveKpiActionIndex(i);
+                    try {
+                      handleAdoptKpiSuggestion(s);
+                      setKpiSuggestionList((prev) => {
+                        const next = prev.filter((_, idx) => idx !== i);
+                        if (next.length === 0) {
+                          setShowKpiSuggestions(false);
+                        }
+                        return next;
+                      });
+                    } finally {
+                      setActiveKpiActionIndex(null);
+                    }
+                  }}
                   onSkip={() => {
+                    if (activeKpiActionIndex !== null) return;
                     setKpiSuggestionList(prev => prev.filter((_, idx) => idx !== i));
                   }}
                   rows={2}
@@ -841,7 +908,16 @@ export default function TaskDefinition() {
                 <p className="text-xs text-muted-foreground text-center py-2">AI 未產出額外建議</p>
               )}
               {!isKpiSuggesting && (
-                <Button size="sm" variant="ghost" onClick={() => setShowKpiSuggestions(false)} className="text-xs">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={activeKpiActionIndex !== null}
+                  onClick={() => {
+                    setShowKpiSuggestions(false);
+                    setKpiSuggestionList([]);
+                  }}
+                  className="text-xs"
+                >
                   關閉建議
                 </Button>
               )}

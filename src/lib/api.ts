@@ -8,7 +8,7 @@
 const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 // In dev, prefer Vite same-origin proxy to avoid "localhost" resolving to the user's browser machine.
 const BASE_URL = import.meta.env.DEV ? "/api/v1" : (ENV_BASE_URL || "/api/v1");
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 90000;
 
 // ─── Evidence Reference (shared across AI responses) ────────────────────────
 

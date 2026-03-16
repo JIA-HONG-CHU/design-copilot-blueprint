@@ -5,16 +5,39 @@ import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useProjects } from "@/hooks/api/useProjects";
-import { FolderOpen, AlertCircle, RefreshCw, FolderKanban, PlayCircle, CheckCircle2, Archive } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useDeleteProject, useProjects } from "@/hooks/api/useProjects";
+import type { Project } from "@/types/project";
+import { FolderOpen, AlertCircle, RefreshCw, FolderKanban, PlayCircle, CheckCircle2, Archive, AlertTriangle } from "lucide-react";
 
 export default function ProjectList() {
   const [search, setSearch] = useState("");
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [creatorFilter, setCreatorFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading, isError, refetch } = useProjects();
+  const deleteProject = useDeleteProject();
+
+  const handleConfirmDelete = async () => {
+    if (!projectPendingDelete) return;
+    try {
+      await deleteProject.mutateAsync({ id: projectPendingDelete.id });
+      setProjectPendingDelete(null);
+    } catch {
+      // toast is handled in useDeleteProject
+    }
+  };
 
   // Extract unique creators for filter
   const creators = useMemo(() => {
@@ -150,12 +173,45 @@ export default function ProjectList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={setProjectPendingDelete}
+              isDeleting={deleteProject.isPending && projectPendingDelete?.id === project.id}
+            />
           ))}
         </div>
       )}
 
       <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
+
+      <AlertDialog open={!!projectPendingDelete} onOpenChange={(open) => !open && setProjectPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除專案？</AlertDialogTitle>
+            <AlertDialogDescription>
+              專案「{projectPendingDelete?.name ?? ""}」將被永久刪除，且無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">高風險操作</p>
+              <p>刪除後將移除該專案及其關聯資料，請再次確認。</p>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProject.isPending}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDelete}
+              disabled={deleteProject.isPending}
+            >
+              {deleteProject.isPending ? "刪除中..." : "確認刪除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

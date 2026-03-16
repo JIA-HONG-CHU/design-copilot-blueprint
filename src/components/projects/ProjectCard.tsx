@@ -4,11 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import type { Project, PhaseProgress } from "@/types/project";
 import { PROJECT_STATUS_LABELS } from "@/types/project";
-import { Calendar, User } from "lucide-react";
+import { Calendar, Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProjectCardProps {
   project: Project;
+  onDelete: (project: Project) => void;
+  isDeleting?: boolean;
 }
 
 const statusVariantMap: Record<string, "default" | "secondary" | "outline"> = {
@@ -41,7 +43,7 @@ function getPhaseSegmentFill(keys: (keyof PhaseProgress)[], progress: PhaseProgr
   return Math.round((passed / keys.length) * 100);
 }
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, isDeleting = false }: ProjectCardProps) {
   const navigate = useNavigate();
 
   const formattedDate = new Date(project.updatedAt).toLocaleDateString("zh-TW", {
@@ -75,9 +77,23 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <CardTitle className="text-base font-bold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
             {project.name}
           </CardTitle>
-          <Badge variant={statusVariantMap[project.status]} className="shrink-0 text-xs">
-            {PROJECT_STATUS_LABELS[project.status]}
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              aria-label={`刪除專案 ${project.name}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(project);
+              }}
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <Badge variant={statusVariantMap[project.status]} className="text-xs">
+              {PROJECT_STATUS_LABELS[project.status]}
+            </Badge>
+          </div>
         </div>
         <CardDescription className="line-clamp-2 text-sm mt-1">
           {project.description}

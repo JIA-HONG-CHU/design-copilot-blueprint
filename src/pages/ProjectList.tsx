@@ -5,7 +5,7 @@ import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { mockProjects } from "@/data/mockProjects";
+import { useProjects } from "@/hooks/api/useProjects";
 import { FolderOpen, AlertCircle, RefreshCw, FolderKanban, PlayCircle, CheckCircle2, Archive } from "lucide-react";
 
 export default function ProjectList() {
@@ -14,25 +14,24 @@ export default function ProjectList() {
   const [creatorFilter, setCreatorFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const [isLoading] = useState(false);
-  const [isError] = useState(false);
+  const { data: projects = [], isLoading, isError, refetch } = useProjects();
 
   // Extract unique creators for filter
   const creators = useMemo(() => {
-    const set = new Set(mockProjects.map((p) => p.createdBy));
+    const set = new Set(projects.map((p) => p.createdBy));
     return Array.from(set).sort();
-  }, []);
+  }, [projects]);
 
   // Stats
   const stats = useMemo(() => ({
-    total: mockProjects.length,
-    inProgress: mockProjects.filter((p) => p.status === "in_progress").length,
-    completed: mockProjects.filter((p) => p.status === "completed").length,
-    archived: mockProjects.filter((p) => p.status === "archived").length,
-  }), []);
+    total: projects.length,
+    inProgress: projects.filter((p) => p.status === "in_progress").length,
+    completed: projects.filter((p) => p.status === "completed").length,
+    archived: projects.filter((p) => p.status === "archived").length,
+  }), [projects]);
 
   const filteredProjects = useMemo(() => {
-    return mockProjects.filter((p) => {
+    return projects.filter((p) => {
       const q = search.toLowerCase();
       const matchesSearch =
         !search ||
@@ -45,7 +44,7 @@ export default function ProjectList() {
         creatorFilter === "all" || p.createdBy === creatorFilter;
       return matchesSearch && matchesPhase && matchesCreator;
     });
-  }, [search, phaseFilter, creatorFilter]);
+  }, [projects, search, phaseFilter, creatorFilter]);
 
   const statCards = [
     { label: "全部專案", value: stats.total, icon: FolderKanban, color: "text-primary" },
@@ -98,7 +97,7 @@ export default function ProjectList() {
         <p className="text-xs text-muted-foreground">
           顯示 {filteredProjects.length} 個專案
           {(search || phaseFilter !== "all" || creatorFilter !== "all") && (
-            <span>（共 {mockProjects.length} 個）</span>
+            <span>（共 {projects.length} 個）</span>
           )}
         </p>
       )}
@@ -126,7 +125,7 @@ export default function ProjectList() {
           <p className="text-sm text-muted-foreground mt-1 mb-4">
             無法取得專案列表，請稍後再試。
           </p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             重試
           </Button>

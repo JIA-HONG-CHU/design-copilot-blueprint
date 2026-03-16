@@ -10,18 +10,35 @@ import { KpiList } from "@/components/brief/KpiList";
 import { AITaskDefinitionCard } from "@/components/brief/AITaskDefinitionCard";
 import { GateChecklist } from "@/components/brief/GateChecklist";
 import { AISuggestionCard } from "@/components/brief/AISuggestionCard";
+import { EvidenceRefsInline } from "@/components/brief/EvidenceRefsInline";
 import { FileUploadZone, type UploadedFile } from "@/components/task-definition/FileUploadZone";
 import { AIExtractionResults, type ExtractedItem } from "@/components/task-definition/AIExtractionResults";
 import { FeasibilityValidation, type FeasibilityStatus } from "@/components/task-definition/FeasibilityValidation";
 import { MultiItemInput } from "@/components/task-definition/MultiItemInput";
+// TODO: mockFeasibilityConflictsWarning — feasibility check UI placeholder (no backend endpoint yet)
+import { mockFeasibilityConflictsWarning } from "@/data/mockExtraction";
 import {
-  mockBriefData,
-  mockMissionSuggestion,
-  mockConstraintSuggestions,
-  mockKpiSuggestions,
-  mockGenerated5W1H,
-} from "@/data/mockTaskDefinition";
-import { mockExtractionResults, mockFeasibilityConflictsWarning } from "@/data/mockExtraction";
+  briefExtract, type BriefExtractResponse,
+  briefRewrite, type BriefRewriteResponse,
+  constraintSuggest, type ConstraintSuggestResponse, type SuggestedConstraint,
+  kpiSuggest, type KpiSuggestResponse, type SuggestedKpi,
+  briefGenerate5W1H,
+  checkBackendHealth,
+  getApiErrorMessage,
+  type EvidenceReference,
+} from "@/lib/api";
+import {
+  useBrief,
+  useUpsertBrief,
+  useConstraints,
+  useCreateConstraint,
+  useUpdateConstraint,
+  useDeleteConstraint,
+  useKpis,
+  useCreateKpi,
+  useUpdateKpi,
+  useDeleteKpi,
+} from "@/hooks/api/useBrief";
 import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
 import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,8 +50,24 @@ export default function TaskDefinition() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  // ── Supabase queries ──────────────────────────────────────────────────
+  const briefQuery = useBrief(id);
+  const constraintsQuery = useConstraints(id);
+  const kpisQuery = useKpis(id);
+
+  // ── Supabase mutations ────────────────────────────────────────────────
+  const upsertBrief = useUpsertBrief();
+  const createConstraint = useCreateConstraint();
+  const updateConstraint = useUpdateConstraint();
+  const deleteConstraint = useDeleteConstraint();
+  const createKpi = useCreateKpi();
+  const updateKpi = useUpdateKpi();
+  const deleteKpi = useDeleteKpi();
+
+  // Aggregate loading / error states
+  const isLoading = briefQuery.isLoading || constraintsQuery.isLoading || kpisQuery.isLoading;
+  const loadError = briefQuery.isError || constraintsQuery.isError || kpisQuery.isError;
+
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,6 +83,9 @@ export default function TaskDefinition() {
   const [nonGoals, setNonGoals] = useState<string[]>([]);
   const [taskDef5W1H, setTaskDef5W1H] = useState<TaskDefinition5W1H | null>(null);
 
+  // Track whether we've seeded form state from server data
+  const [seeded, setSeeded] = useState(false);
+
   // Upload & extraction state
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -61,52 +97,207 @@ export default function TaskDefinition() {
 
   // AI suggestion state
   const [showMissionSuggestion, setShowMissionSuggestion] = useState(false);
+  const [missionSuggestion, setMissionSuggestion] = useState<string | null>(null);
+  const [missionChangesSummary, setMissionChangesSummary] = useState("");
+  const [isMissionRewriting, setIsMissionRewriting] = useState(false);
   const [showConstraintSuggestions, setShowConstraintSuggestions] = useState(false);
+  const [constraintSuggestionList, setConstraintSuggestionList] = useState<SuggestedConstraint[]>([]);
+  const [isConstraintSuggesting, setIsConstraintSuggesting] = useState(false);
   const [showKpiSuggestions, setShowKpiSuggestions] = useState(false);
+  const [kpiSuggestionList, setKpiSuggestionList] = useState<SuggestedKpi[]>([]);
+  const [isKpiSuggesting, setIsKpiSuggesting] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "ok" | "down">("checking");
+  const [backendStatusMessage, setBackendStatusMessage] = useState("檢查後端連線中...");
 
-  // Load mock data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (id && mockBriefData[id]) {
-        const data = mockBriefData[id];
-        setMission(data.mission);
-        setConstraints(data.constraints);
-        setKpis(data.kpis);
-        setTaskDef5W1H(data.task_definition_5w1h);
-      }
-      setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [id]);
+  // Evidence references from AI responses
+  const [missionEvidenceRefs, setMissionEvidenceRefs] = useState<EvidenceReference[]>([]);
+  const [constraintEvidenceRefs, setConstraintEvidenceRefs] = useState<EvidenceReference[]>([]);
+  const [kpiEvidenceRefs, setKpiEvidenceRefs] = useState<EvidenceReference[]>([]);
 
-  // Auto-trigger AI mission suggestion
+  // Seed form state from server data once loaded
   useEffect(() => {
-    if (mission.trim().length >= 10 && !showMissionSuggestion) {
-      const timer = setTimeout(() => setShowMissionSuggestion(true), 1500);
+    if (seeded || isLoading) return;
+
+    if (briefQuery.data) {
+      setMission(briefQuery.data.mission);
+      setTaskDef5W1H(briefQuery.data.taskDefinition5w1h);
+    }
+
+    if (constraintsQuery.data && constraintsQuery.data.length > 0) {
+      setConstraints(
+        constraintsQuery.data.map((c) => ({
+          id: c.id,
+          constraint_code: c.constraintCode,
+          description: c.description,
+          source: c.source,
+        }))
+      );
+    }
+
+    if (kpisQuery.data && kpisQuery.data.length > 0) {
+      setKpis(
+        kpisQuery.data.map((k) => ({
+          id: k.id,
+          kpi_name: k.kpiName,
+          target_value: k.targetValue,
+          unit: k.unit,
+          measurement_method: k.measurementMethod,
+        }))
+      );
+    }
+
+    setSeeded(true);
+  }, [isLoading, seeded, briefQuery.data, constraintsQuery.data, kpisQuery.data]);
+
+  const runBackendHealthCheck = async (showFailureToast = false) => {
+    setBackendStatus("checking");
+    setBackendStatusMessage("檢查後端連線中...");
+    const result = await checkBackendHealth();
+    if (result.ok) {
+      setBackendStatus("ok");
+      setBackendStatusMessage(result.message);
+      return;
+    }
+    setBackendStatus("down");
+    setBackendStatusMessage(result.message);
+    if (showFailureToast) {
+      toast.error(result.message);
+    }
+  };
+
+  // Check backend reachability on page load so users know status before AI calls.
+  useEffect(() => {
+    void runBackendHealthCheck();
+  }, []);
+
+  // Mission rewrite — triggered by button click
+  const handleMissionRewrite = async () => {
+    if (!id || mission.trim().length < 10) {
+      toast.error("Mission 需至少 10 個字元才能改寫");
+      return;
+    }
+    setShowMissionSuggestion(true);
+    setMissionSuggestion(null);
+    setIsMissionRewriting(true);
+    try {
+      const res = await briefRewrite({
+        project_id: id,
+        mission,
+        constraints: constraints.filter(c => c.description.trim()).map(c => c.description),
+        kpis: kpis.filter(k => k.kpi_name.trim()).map(k => `${k.kpi_name}: ${k.target_value} ${k.unit}`),
+      });
+      setMissionSuggestion(res.rewritten_mission);
+      setMissionChangesSummary(res.changes_summary);
+      setMissionEvidenceRefs(res.evidence_references ?? []);
+    } catch (err) {
+      console.error("Mission rewrite failed:", err);
+      toast.error(getApiErrorMessage(err, "AI 改寫"));
+      setShowMissionSuggestion(false);
+    } finally {
+      setIsMissionRewriting(false);
+    }
+  };
+
+  // Constraint suggestion — triggered by button click
+  const handleConstraintSuggest = async () => {
+    if (!id) return;
+    setShowConstraintSuggestions(true);
+    setConstraintSuggestionList([]);
+    setIsConstraintSuggesting(true);
+    try {
+      const res = await constraintSuggest({
+        project_id: id,
+        mission,
+        existing_constraints: constraints.filter(c => c.description.trim()).map(c => c.description),
+      });
+      setConstraintSuggestionList(res.suggestions);
+      setConstraintEvidenceRefs(res.evidence_references ?? []);
+    } catch (err) {
+      console.error("Constraint suggestion failed:", err);
+      toast.error(getApiErrorMessage(err, "AI 約束建議"));
+      setShowConstraintSuggestions(false);
+    } finally {
+      setIsConstraintSuggesting(false);
+    }
+  };
+
+  // KPI suggestion — triggered by button click
+  const handleKpiSuggest = async () => {
+    if (!id) return;
+    setShowKpiSuggestions(true);
+    setKpiSuggestionList([]);
+    setIsKpiSuggesting(true);
+    try {
+      const res = await kpiSuggest({
+        project_id: id,
+        mission,
+        constraints: constraints.filter(c => c.description.trim()).map(c => c.description),
+        existing_kpis: kpis.filter(k => k.kpi_name.trim()).map(k => `${k.kpi_name}: ${k.target_value} ${k.unit}`),
+      });
+      setKpiSuggestionList(res.suggestions);
+      setKpiEvidenceRefs(res.evidence_references ?? []);
+    } catch (err) {
+      console.error("KPI suggestion failed:", err);
+      toast.error(getApiErrorMessage(err, "AI KPI 建議"));
+      setShowKpiSuggestions(false);
+    } finally {
+      setIsKpiSuggesting(false);
+    }
+  };
+
+  // 5W1H generation — triggered when mission is ready and no 5W1H exists
+  const [is5W1HGenerating, setIs5W1HGenerating] = useState(false);
+  const generate5W1H = async () => {
+    if (!id || mission.trim().length < 10) return;
+    setIs5W1HGenerating(true);
+    try {
+      const res = await briefGenerate5W1H({
+        project_id: id,
+        mission,
+        constraints: constraints.filter(c => c.description.trim()).map(c => c.description),
+        kpis: kpis.filter(k => k.kpi_name.trim()).map(k => `${k.kpi_name}: ${k.target_value} ${k.unit}`),
+      });
+      setTaskDef5W1H(res);
+    } catch (err) {
+      console.error("5W1H generation failed:", err);
+      toast.error(getApiErrorMessage(err, "AI 5W1H 產生"));
+    } finally {
+      setIs5W1HGenerating(false);
+    }
+  };
+
+  // Auto-trigger 5W1H when mission is ready and no data exists
+  useEffect(() => {
+    if (mission.trim().length >= 10 && !taskDef5W1H && !is5W1HGenerating && id) {
+      const timer = setTimeout(() => generate5W1H(), 1000);
       return () => clearTimeout(timer);
     }
-  }, [mission]);
+  }, [mission, taskDef5W1H, id]);
 
-  // Auto-trigger 5W1H
+  // ── Auto-save: debounce upsert brief mission to Supabase ─────────────
   useEffect(() => {
-    if (mission.trim().length >= 10 && !taskDef5W1H) {
-      const timer = setTimeout(() => setTaskDef5W1H(mockGenerated5W1H), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [mission, taskDef5W1H]);
-
-  // Auto-save simulation
-  useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !seeded || !id) return;
     const timer = setTimeout(() => {
       setSaveStatus("saving");
-      setTimeout(() => {
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2000);
-      }, 500);
-    }, 5000);
+      upsertBrief.mutate(
+        {
+          project_id: id,
+          mission,
+          task_definition_5w1h: taskDef5W1H as unknown as Record<string, unknown>,
+        },
+        {
+          onSuccess: () => {
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2000);
+          },
+          onError: () => {
+            setSaveStatus("idle");
+          },
+        }
+      );
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [mission, constraints, kpis, softObjectives, nonGoals]);
+  }, [mission, taskDef5W1H]);
 
   // Gate 1.1 check
   const missionReady = mission.trim().length >= 10;
@@ -123,31 +314,78 @@ export default function TaskDefinition() {
   ], [missionReady, hasConstraint, hasKpi, feasibilityStatus]);
 
   // Handlers
-  const handleExtract = () => {
+
+  const handleExtract = async () => {
+    if (!id) return;
     setIsExtracting(true);
-    setTimeout(() => {
-      setExtractedItems(mockExtractionResults);
+    try {
+      const result: BriefExtractResponse = await briefExtract({
+        project_id: id,
+        raw_text: mission,
+        file_urls: uploadedFiles.map((f) => f.url).filter(Boolean) as string[],
+      });
+      const items: ExtractedItem[] = [
+        ...result.constraints.map((c, i) => ({
+          id: `ext-c-${i}`,
+          type: "constraint" as const,
+          content: c.description,
+          source: c.source,
+          accepted: false,
+        })),
+        ...result.kpis.map((k, i) => ({
+          id: `ext-k-${i}`,
+          type: "kpi" as const,
+          content: `${k.name}: ${k.target_value} ${k.unit}`,
+          source: k.measurement_method || "AI extracted",
+          accepted: false,
+        })),
+        ...result.assumptions.map((a, i) => ({
+          id: `ext-a-${i}`,
+          type: "assumption" as const,
+          content: a,
+          source: "AI extracted",
+          accepted: false,
+        })),
+      ];
+      setExtractedItems(items);
       setShowExtraction(true);
+      toast.success(`AI 提取完成，共提取 ${items.length} 條項目`);
+      if (result.feasibility_warnings.length > 0) {
+        toast.warning(`可行性警告：${result.feasibility_warnings[0]}`);
+      }
+    } catch (err) {
+      console.error("Brief extraction failed:", err);
+      toast.error(getApiErrorMessage(err, "AI 提取"));
+    } finally {
       setIsExtracting(false);
-      toast.success("AI 提取完成，共提取 " + mockExtractionResults.length + " 條項目");
-    }, 2000);
+    }
   };
 
   const handleAcceptAllExtracted = () => {
     const accepted = extractedItems.map((i) => ({ ...i, accepted: true }));
     setExtractedItems(accepted);
 
-    // Auto-fill constraints from accepted items
-    const newConstraints = accepted
-      .filter((i) => i.type === "constraint")
-      .map((i, idx) => ({
+    // Auto-fill constraints from accepted items — persist to Supabase
+    const newConstraintItems = accepted.filter((i) => i.type === "constraint");
+
+    if (newConstraintItems.length > 0 && id) {
+      newConstraintItems.forEach((item, idx) => {
+        const code = `M${constraints.filter((c) => c.description.trim()).length + idx + 1}`;
+        createConstraint.mutate({
+          project_id: id,
+          constraint_code: code,
+          description: item.content,
+          source: item.source,
+        });
+      });
+
+      // Also update local state for immediate UI feedback
+      const newConstraints = newConstraintItems.map((i, idx) => ({
         id: `c-ext-${idx}`,
-        constraint_code: `M${constraints.length + idx + 1}`,
+        constraint_code: `M${constraints.filter((c) => c.description.trim()).length + idx + 1}`,
         description: i.content,
         source: i.source,
       }));
-
-    if (newConstraints.length > 0) {
       setConstraints((prev) => [...prev.filter((c) => c.description.trim()), ...newConstraints]);
     }
     toast.success("已接受所有提取結果並填入表單");
@@ -170,24 +408,50 @@ export default function TaskDefinition() {
     toast.info("已記錄覆寫原因，可繼續進行");
   };
 
-  const handleAdoptMissionSuggestion = () => {
-    setMission(mockMissionSuggestion);
+  const handleAdoptMissionSuggestion = (editedContent: string) => {
+    setMission(editedContent);
     setShowMissionSuggestion(false);
+    setMissionSuggestion(null);
+    toast.success("已採用 AI 改寫的 Mission");
   };
 
   const handleAdoptConstraintSuggestion = (desc: string, source: string) => {
     const code = `M${constraints.length + 1}`;
-    setConstraints([
-      ...constraints,
-      { id: `c-ai-${Date.now()}`, constraint_code: code, description: desc, source },
-    ]);
+    const tempId = `c-ai-${Date.now()}`;
+    // Optimistic local update
+    setConstraints([...constraints, { id: tempId, constraint_code: code, description: desc, source }]);
+    // Persist to Supabase
+    if (id) {
+      createConstraint.mutate({ project_id: id, constraint_code: code, description: desc, source });
+    }
+    toast.success("已新增 AI 建議約束");
   };
 
-  const handleAdoptKpiSuggestion = (kpi: typeof mockKpiSuggestions[0]) => {
-    setKpis([...kpis, { id: `k-ai-${Date.now()}`, ...kpi }]);
+  const handleAdoptKpiSuggestion = (kpi: SuggestedKpi) => {
+    const tempId = `k-ai-${Date.now()}`;
+    const newKpi = {
+      id: tempId,
+      kpi_name: kpi.kpi_name,
+      target_value: kpi.target_value,
+      unit: kpi.unit,
+      measurement_method: kpi.measurement_method,
+    };
+    // Optimistic local update
+    setKpis([...kpis, newKpi]);
+    // Persist to Supabase
+    if (id) {
+      createKpi.mutate({
+        project_id: id,
+        kpi_name: kpi.kpi_name,
+        target_value: kpi.target_value,
+        unit: kpi.unit,
+        measurement_method: kpi.measurement_method,
+      });
+    }
+    toast.success("已新增 AI 建議 KPI");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!missionReady || !hasConstraint || !hasKpi) {
       toast.error("請完成所有必填項目");
       return;
@@ -199,12 +463,72 @@ export default function TaskDefinition() {
       return;
     }
 
+    if (!id) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    try {
+      // 1. Upsert brief (mission + 5W1H)
+      await upsertBrief.mutateAsync({
+        project_id: id,
+        mission,
+        task_definition_5w1h: taskDef5W1H as unknown as Record<string, unknown>,
+      });
+
+      // 2. Sync constraints — persist any new local-only constraints
+      const validConstraints = constraints.filter((c) => c.description.trim().length >= 2);
+      for (const c of validConstraints) {
+        if (c.id.startsWith("c-")) {
+          // Locally created — insert
+          await createConstraint.mutateAsync({
+            project_id: id,
+            constraint_code: c.constraint_code,
+            description: c.description,
+            source: c.source || undefined,
+          });
+        } else {
+          // Existing — update
+          await updateConstraint.mutateAsync({
+            id: c.id,
+            constraint_code: c.constraint_code,
+            description: c.description,
+            source: c.source || undefined,
+          });
+        }
+      }
+
+      // 3. Sync KPIs — persist any new local-only KPIs
+      const validKpis = kpis.filter(
+        (k) => k.kpi_name.trim() && k.target_value.trim() && k.unit.trim() && k.measurement_method.trim()
+      );
+      for (const k of validKpis) {
+        if (k.id.startsWith("k-")) {
+          // Locally created — insert
+          await createKpi.mutateAsync({
+            project_id: id,
+            kpi_name: k.kpi_name,
+            target_value: k.target_value,
+            unit: k.unit,
+            measurement_method: k.measurement_method,
+          });
+        } else {
+          // Existing — update
+          await updateKpi.mutateAsync({
+            id: k.id,
+            kpi_name: k.kpi_name,
+            target_value: k.target_value,
+            unit: k.unit,
+            measurement_method: k.measurement_method,
+          });
+        }
+      }
+
       toast.success("任務定義已保存");
       navigate(`/projects/${id}/explore`);
-    }, 1000);
+    } catch (err) {
+      toast.error("保存失敗，請重試");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
@@ -245,14 +569,28 @@ export default function TaskDefinition() {
             <ArrowLeft className="h-4 w-4 mr-1" />
             返回 Dashboard
           </Button>
-          {saveStatus !== "idle" && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              {saveStatus === "saving" && "Saving..."}
-              {saveStatus === "saved" && (
-                <><Check className="h-3 w-3 text-success" /> Saved</>
-              )}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void runBackendHealthCheck(true)}
+              className="h-7 px-2 text-xs"
+            >
+              <RefreshCw className={cn("h-3 w-3 mr-1", backendStatus === "checking" && "animate-spin")} />
+              後端檢查
+            </Button>
+            <Badge variant={backendStatus === "ok" ? "default" : backendStatus === "down" ? "destructive" : "secondary"} className="text-[10px]">
+              {backendStatus === "ok" ? "Backend 正常" : backendStatus === "down" ? "Backend 異常" : "Backend 檢查中"}
+            </Badge>
+            {saveStatus !== "idle" && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                {saveStatus === "saving" && "Saving..."}
+                {saveStatus === "saved" && (
+                  <><Check className="h-3 w-3 text-success" /> Saved</>
+                )}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="h-8 w-1 rounded-full bg-phase-1" />
@@ -269,6 +607,22 @@ export default function TaskDefinition() {
       </div>
 
       <SectionIntro text="上傳專案相關素材，AI 將自動提取約束與假設。接著定義核心使命、硬約束、軟目標與 KPI，通過約束可行性驗證後進入下一階段。" />
+
+      {backendStatus === "down" && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="py-3 text-sm text-destructive flex items-center justify-between gap-3">
+            <span>{backendStatusMessage}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void runBackendHealthCheck(true)}
+              className="h-7"
+            >
+              重新檢查
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Section 1: 多模態素材上傳 */}
       <FileUploadZone
@@ -308,19 +662,46 @@ export default function TaskDefinition() {
               missionReady && "border-l-[3px] border-l-success"
             )}
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            {!missionReady && mission.trim().length > 0 && (
-              <span className="text-destructive">Mission 需至少 10 個字元</span>
-            )}
-            <span className="ml-auto">{mission.length}/500</span>
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              {!missionReady && mission.trim().length > 0 && (
+                <span className="text-destructive">Mission 需至少 10 個字元</span>
+              )}
+              {missionReady && !showMissionSuggestion && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleMissionRewrite}
+                  disabled={isMissionRewriting}
+                  className="text-xs h-7"
+                >
+                  {isMissionRewriting ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 mr-1" />
+                  )}
+                  AI 改寫
+                  <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
+                </Button>
+              )}
+            </div>
+            <span>{mission.length}/500</span>
           </div>
           {showMissionSuggestion && (
-            <AISuggestionCard
-              title="改寫建議"
-              content={mockMissionSuggestion}
-              onAdopt={handleAdoptMissionSuggestion}
-              onSkip={() => setShowMissionSuggestion(false)}
-            />
+            <>
+              <AISuggestionCard
+                title="改寫建議"
+                content={missionSuggestion}
+                changesSummary={missionChangesSummary}
+                isLoading={isMissionRewriting}
+                onAdopt={handleAdoptMissionSuggestion}
+                onSkip={() => { setShowMissionSuggestion(false); setMissionSuggestion(null); }}
+                rows={4}
+              />
+              {missionEvidenceRefs.length > 0 && (
+                <EvidenceRefsInline references={missionEvidenceRefs} />
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -332,8 +713,8 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               硬約束 (Hard Constraints) <span className="text-destructive">★</span>
             </CardTitle>
-            <Button size="sm" variant="secondary" onClick={() => setShowConstraintSuggestions(true)}>
-              <Sparkles className="h-3 w-3 mr-1" />
+            <Button size="sm" variant="secondary" onClick={handleConstraintSuggest} disabled={isConstraintSuggesting}>
+              {isConstraintSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
               AI 建議
               <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
             </Button>
@@ -343,18 +724,42 @@ export default function TaskDefinition() {
           <ConstraintsTable constraints={constraints} onChange={setConstraints} />
           {showConstraintSuggestions && (
             <div className="space-y-2 mt-3">
-              {mockConstraintSuggestions.map((s, i) => (
+              {isConstraintSuggesting && (
+                <AISuggestionCard
+                  title="分析中..."
+                  isLoading
+                  onAdopt={() => {}}
+                  onSkip={() => { setShowConstraintSuggestions(false); setIsConstraintSuggesting(false); }}
+                />
+              )}
+              {constraintSuggestionList.map((s, i) => (
                 <AISuggestionCard
                   key={i}
-                  title="建議約束"
-                  content={`${s.description} (來源: ${s.source})`}
-                  onAdopt={() => handleAdoptConstraintSuggestion(s.description, s.source)}
-                  onSkip={() => {}}
+                  title={`建議約束 #${i + 1}`}
+                  content={`${s.description}\n來源: ${s.source}`}
+                  changesSummary={s.rationale}
+                  onAdopt={(edited) => {
+                    const desc = edited.split("\n")[0];
+                    const source = edited.includes("來源:") ? edited.split("來源:")[1]?.trim() ?? s.source : s.source;
+                    handleAdoptConstraintSuggestion(desc, source);
+                  }}
+                  onSkip={() => {
+                    setConstraintSuggestionList(prev => prev.filter((_, idx) => idx !== i));
+                  }}
+                  rows={2}
                 />
               ))}
-              <Button size="sm" variant="ghost" onClick={() => setShowConstraintSuggestions(false)} className="text-xs">
-                關閉建議
-              </Button>
+              {!isConstraintSuggesting && constraintEvidenceRefs.length > 0 && (
+                <EvidenceRefsInline references={constraintEvidenceRefs} />
+              )}
+              {!isConstraintSuggesting && constraintSuggestionList.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">AI 未產出額外建議</p>
+              )}
+              {!isConstraintSuggesting && (
+                <Button size="sm" variant="ghost" onClick={() => setShowConstraintSuggestions(false)} className="text-xs">
+                  關閉建議
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
@@ -397,8 +802,8 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               關鍵績效指標 (Critical KPIs) <span className="text-destructive">★</span>
             </CardTitle>
-            <Button size="sm" variant="secondary" onClick={() => setShowKpiSuggestions(true)}>
-              <Sparkles className="h-3 w-3 mr-1" />
+            <Button size="sm" variant="secondary" onClick={handleKpiSuggest} disabled={isKpiSuggesting}>
+              {isKpiSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
               AI 建議 KPI
               <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
             </Button>
@@ -408,18 +813,38 @@ export default function TaskDefinition() {
           <KpiList kpis={kpis} onChange={setKpis} />
           {showKpiSuggestions && (
             <div className="space-y-2 mt-3">
-              {mockKpiSuggestions.map((s, i) => (
+              {isKpiSuggesting && (
+                <AISuggestionCard
+                  title="分析中..."
+                  isLoading
+                  onAdopt={() => {}}
+                  onSkip={() => { setShowKpiSuggestions(false); setIsKpiSuggesting(false); }}
+                />
+              )}
+              {kpiSuggestionList.map((s, i) => (
                 <AISuggestionCard
                   key={i}
                   title={`建議 KPI: ${s.kpi_name}`}
-                  content={`目標值: ${s.target_value} ${s.unit} · 衡量方式: ${s.measurement_method}`}
+                  content={`目標值: ${s.target_value} ${s.unit}\n衡量方式: ${s.measurement_method}`}
+                  changesSummary={s.rationale}
                   onAdopt={() => handleAdoptKpiSuggestion(s)}
-                  onSkip={() => {}}
+                  onSkip={() => {
+                    setKpiSuggestionList(prev => prev.filter((_, idx) => idx !== i));
+                  }}
+                  rows={2}
                 />
               ))}
-              <Button size="sm" variant="ghost" onClick={() => setShowKpiSuggestions(false)} className="text-xs">
-                關閉建議
-              </Button>
+              {!isKpiSuggesting && kpiEvidenceRefs.length > 0 && (
+                <EvidenceRefsInline references={kpiEvidenceRefs} />
+              )}
+              {!isKpiSuggesting && kpiSuggestionList.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">AI 未產出額外建議</p>
+              )}
+              {!isKpiSuggesting && (
+                <Button size="sm" variant="ghost" onClick={() => setShowKpiSuggestions(false)} className="text-xs">
+                  關閉建議
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
@@ -429,7 +854,7 @@ export default function TaskDefinition() {
       <AITaskDefinitionCard
         data={taskDef5W1H}
         missionReady={missionReady}
-        onRegenerate={() => setTaskDef5W1H(mockGenerated5W1H)}
+        onRegenerate={() => { setTaskDef5W1H(null); generate5W1H(); }}
       />
 
       {/* Section 9: 約束可行性驗證 (Gate 1) */}

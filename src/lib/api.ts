@@ -1,0 +1,657 @@
+/**
+ * API client for communicating with the FastAPI backend.
+ *
+ * All AI-powered features (TRIZ, Socratic, CLD, Anti-Anchor, Risk, etc.)
+ * go through this client instead of using mock data + setTimeout.
+ */
+
+const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+// In dev, prefer Vite same-origin proxy to avoid "localhost" resolving to the user's browser machine.
+const BASE_URL = import.meta.env.DEV ? "/api/v1" : (ENV_BASE_URL || "/api/v1");
+const REQUEST_TIMEOUT_MS = 30000;
+
+// ─── Evidence Reference (shared across AI responses) ────────────────────────
+
+export interface EvidenceReference {
+  ref_id: string;
+  ref_type: "web_search" | "uploaded_doc" | "engineering_reasoning";
+  title: string;
+  source: string;
+  url?: string;
+  snippet?: string;
+}
+
+class ApiError extends Error {
+  status: number;
+  body: unknown;
+  constructor(status: number, body: unknown) {
+    super(`API error ${status}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+class ApiNetworkError extends Error {
+  kind: "network" | "timeout";
+
+  constructor(kind: "network" | "timeout", message: string) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+
+async function getAuthToken(): Promise<string | null> {
+  if (DEV_BYPASS) return "dev-bypass-token";
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiNetworkError("timeout", `Request timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    }
+    if (err instanceof TypeError) {
+      throw new ApiNetworkError("network", err.message);
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function request<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = await getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown error");
+    throw new ApiError(res.status, errorBody);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ─── Brief ──────────────────────────────────────────────────────────────────
+
+export interface BriefExtractRequest {
+  project_id: string;
+  raw_text: string;
+  file_urls?: string[];
+}
+
+export interface ExtractedConstraint {
+  code: string;
+  description: string;
+  source: string;
+  type: string;
+  feasibility: string;
+}
+
+export interface ExtractedKpi {
+  name: string;
+  target_value: string;
+  unit: string;
+  measurement_method: string;
+}
+
+export interface BriefExtractResponse {
+  constraints: ExtractedConstraint[];
+  kpis: ExtractedKpi[];
+  assumptions: string[];
+  feasibility_warnings: string[];
+}
+
+export function briefExtract(body: BriefExtractRequest) {
+  return request<BriefExtractResponse>("/definitions/extract", body);
+}
+
+// ─── Brief Rewrite ──────────────────────────────────────────────────────────
+
+export interface BriefRewriteRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  kpis?: string[];
+}
+
+export interface BriefRewriteResponse {
+  rewritten_mission: string;
+  changes_summary: string;
+  evidence_references?: EvidenceReference[];
+}
+
+export function briefRewrite(body: BriefRewriteRequest) {
+  return request<BriefRewriteResponse>("/definitions/rewrite", body);
+}
+
+// ─── Constraint Suggestions ─────────────────────────────────────────────────
+
+export interface ConstraintSuggestRequest {
+  project_id: string;
+  mission: string;
+  existing_constraints?: string[];
+}
+
+export interface SuggestedConstraint {
+  description: string;
+  source: string;
+  rationale: string;
+  ref_ids?: string[];
+}
+
+export interface ConstraintSuggestResponse {
+  suggestions: SuggestedConstraint[];
+  evidence_references?: EvidenceReference[];
+}
+
+export function constraintSuggest(body: ConstraintSuggestRequest) {
+  return request<ConstraintSuggestResponse>("/definitions/suggest-constraints", body);
+}
+
+// ─── KPI Suggestions ────────────────────────────────────────────────────────
+
+export interface KpiSuggestRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  existing_kpis?: string[];
+}
+
+export interface SuggestedKpi {
+  kpi_name: string;
+  target_value: string;
+  unit: string;
+  measurement_method: string;
+  rationale: string;
+  ref_ids?: string[];
+}
+
+export interface KpiSuggestResponse {
+  suggestions: SuggestedKpi[];
+  evidence_references?: EvidenceReference[];
+}
+
+export function kpiSuggest(body: KpiSuggestRequest) {
+  return request<KpiSuggestResponse>("/definitions/suggest-kpis", body);
+}
+
+// ─── 5W1H Task Definition ──────────────────────────────────────────────────
+
+export interface TaskDef5W1HRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  kpis?: string[];
+}
+
+export interface TaskDef5W1HResponse {
+  who: string;
+  what: string;
+  where: string;
+  when: string;
+  why: string;
+  how: string;
+  evidence_references?: EvidenceReference[];
+}
+
+export function briefGenerate5W1H(body: TaskDef5W1HRequest) {
+  return request<TaskDef5W1HResponse>("/definitions/generate-5w1h", body);
+}
+
+// ─── Socratic ───────────────────────────────────────────────────────────────
+
+export interface SocraticGenerateRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  existing_questions?: string[];
+}
+
+export interface SocraticQuestionResult {
+  category: string;
+  text: string;
+  suggested_tag: string | null;
+}
+
+export interface SocraticGenerateResponse {
+  questions: SocraticQuestionResult[];
+}
+
+export function socraticGenerate(body: SocraticGenerateRequest) {
+  return request<SocraticGenerateResponse>("/questions/generate", body);
+}
+
+// ─── CLD ────────────────────────────────────────────────────────────────────
+
+export interface CldGenerateRequest {
+  project_id: string;
+  contradictions: string[];
+  assumptions: string[];
+}
+
+export interface CldNode {
+  id: string;
+  label: string;
+  type: string;
+}
+
+export interface CldEdge {
+  from_node: string;
+  to_node: string;
+  polarity: string;
+}
+
+export interface CldGenerateResponse {
+  nodes: CldNode[];
+  edges: CldEdge[];
+  breakpoints: string[];
+}
+
+export function cldGenerate(body: CldGenerateRequest) {
+  return request<CldGenerateResponse>("/causal-loops/generate", body);
+}
+
+// ─── Anti-Anchor ────────────────────────────────────────────────────────────
+
+export interface AntiAnchorGenerateRequest {
+  project_id: string;
+  mission: string;
+  current_constraints: string[];
+  existing_alternatives?: string[];
+}
+
+export interface AntiAnchorRouteResult {
+  name: string;
+  description: string;
+  is_non_typical: boolean;
+  rationale: string;
+}
+
+export interface AntiAnchorGenerateResponse {
+  routes: AntiAnchorRouteResult[];
+}
+
+export function antiAnchorGenerate(body: AntiAnchorGenerateRequest) {
+  return request<AntiAnchorGenerateResponse>("/alternatives/anti-anchor", body);
+}
+
+// ─── TRIZ ───────────────────────────────────────────────────────────────────
+
+export interface TrizSolveRequest {
+  project_id: string;
+  contradiction_id: string;
+  natural_description: string;
+  improving_param?: number | null;
+  worsening_param?: number | null;
+  physical_contradiction?: string | null;
+  type?: "TC" | "PC";
+}
+
+export interface TrizSuggestionResult {
+  path: string;
+  principle_number: number | null;
+  principle_name: string;
+  suggestion: string;
+  affected_modules: string[];
+  secondary_contradictions: string[];
+}
+
+export interface TrizSolveResponse {
+  mapped_improving: number | null;
+  mapped_worsening: number | null;
+  candidate_principles: number[];
+  suggestions: TrizSuggestionResult[];
+}
+
+export function trizSolve(body: TrizSolveRequest) {
+  return request<TrizSolveResponse>("/triz/solve", body);
+}
+
+// ─── SCAMPER ────────────────────────────────────────────────────────────────
+
+export interface ScamperTransformRequest {
+  project_id: string;
+  subsystem_name: string;
+  subsystem_description: string;
+  related_contradictions?: string[];
+}
+
+export interface ScamperVariantResult {
+  action: string;
+  description: string;
+  potential_benefits: string;
+  new_contradictions: string[];
+}
+
+export interface ScamperTransformResponse {
+  variants: ScamperVariantResult[];
+}
+
+export function scamperTransform(body: ScamperTransformRequest) {
+  return request<ScamperTransformResponse>("/scamper/perform", body);
+}
+
+// ─── Risk ───────────────────────────────────────────────────────────────────
+
+export interface RiskAnalyzeRequest {
+  project_id: string;
+  alternative_name: string;
+  mechanism: string;
+  assumptions?: string[];
+}
+
+export interface RiskSuggestionResult {
+  description: string;
+  failure_mode: string;
+  probability: number;
+  severity: number;
+  mitigation: string;
+}
+
+export interface RiskAnalyzeResponse {
+  risks: RiskSuggestionResult[];
+}
+
+export function riskAnalyze(body: RiskAnalyzeRequest) {
+  return request<RiskAnalyzeResponse>("/risks/analyze", body);
+}
+
+// ─── Action ─────────────────────────────────────────────────────────────────
+
+export interface ActionSuggestRequest {
+  project_id: string;
+  selected_alternative: string;
+  rationale: string;
+  risks?: string[];
+}
+
+export interface ActionSuggestionResult {
+  description: string;
+  assignee_role: string;
+  suggested_due_days: number;
+}
+
+export interface ActionSuggestResponse {
+  actions: ActionSuggestionResult[];
+}
+
+export function actionSuggest(body: ActionSuggestRequest) {
+  return request<ActionSuggestResponse>("/actions/suggest", body);
+}
+
+// ─── Convergence ────────────────────────────────────────────────────────────
+
+export interface ConvergenceScanRequest {
+  project_id: string;
+  alternatives: Record<string, unknown>[];
+  contradictions: Record<string, unknown>[];
+}
+
+export interface SecondaryContradictionResult {
+  description: string;
+  severity: string;
+  source_alternative: string;
+}
+
+export interface ConvergenceScanResponse {
+  new_contradictions: SecondaryContradictionResult[];
+  convergence_score: number;
+  architecture_health: string;
+  force_pause: boolean;
+  pause_reason: string;
+}
+
+export function convergenceScan(body: ConvergenceScanRequest) {
+  return request<ConvergenceScanResponse>("/convergence/scan", body);
+}
+
+// ─── MUST Evaluation ────────────────────────────────────────────────────────
+
+export interface MustCriterionConfig {
+  id: string;
+  label: string;
+  source: string;
+  threshold?: string;
+}
+
+export interface MustEvaluateRequest {
+  project_id: string;
+  alternative_name: string;
+  mechanism: string;
+  must_criteria: MustCriterionConfig[];
+  constraints?: string[];
+  kpis?: string[];
+}
+
+export interface MustCriterionResult {
+  id: string;
+  label: string;
+  passed: boolean | null;
+  confidence: number;
+  reasoning: string;
+  evidence_sources: string[];
+}
+
+export interface MustEvaluateResponse {
+  criteria_results: MustCriterionResult[];
+  overall_pass: boolean | null;
+  summary: string;
+}
+
+export function mustEvaluate(body: MustEvaluateRequest) {
+  return request<MustEvaluateResponse>("/must/evaluate", body);
+}
+
+// ─── Contradiction Formalization ────────────────────────────────────────────
+
+export interface ContradictionFormalizeRequest {
+  project_id: string;
+  contradiction_id: string;
+  natural_description: string;
+}
+
+export interface ContradictionFormalizeResponse {
+  engineering_statement: string;
+  improving_param: number | null;
+  worsening_param: number | null;
+  physical_contradiction: string | null;
+  type: "TC" | "PC";
+  confidence: number;
+}
+
+export function contradictionFormalize(body: ContradictionFormalizeRequest) {
+  return request<ContradictionFormalizeResponse>(`/contradictions/${body.contradiction_id}/formalize`, body);
+}
+
+// ─── Assumption Extraction ─────────────────────────────────────────────────
+
+export interface AssumptionExtractRequest {
+  project_id: string;
+  questions_and_answers?: Record<string, unknown>[];
+  mission?: string;
+}
+
+export interface ExtractedAssumption {
+  content: string;
+  source: string;
+  worst_consequence: string;
+  worst_severity: string;
+}
+
+export interface AssumptionExtractResponse {
+  assumptions: ExtractedAssumption[];
+}
+
+export function assumptionExtract(body: AssumptionExtractRequest) {
+  return request<AssumptionExtractResponse>("/assumptions/extract", body);
+}
+
+// ─── SCAMPER Subsystem Suggestions ─────────────────────────────────────────
+
+export interface SubsystemSuggestRequest {
+  project_id: string;
+  mission: string;
+  contradictions?: string[];
+  existing_subsystems?: string[];
+}
+
+export interface SuggestedSubsystem {
+  name: string;
+  reason: string;
+  related_contradictions: string[];
+}
+
+export interface SubsystemSuggestResponse {
+  subsystems: SuggestedSubsystem[];
+}
+
+export function scamperSubsystemSuggest(body: SubsystemSuggestRequest) {
+  return request<SubsystemSuggestResponse>("/scamper/subsystem-suggestions", body);
+}
+
+// ─── SCAMPER Feedback Contradictions ───────────────────────────────────────
+
+export interface ScamperFeedbackRequest {
+  project_id: string;
+  new_contradictions: Record<string, unknown>[];
+}
+
+export interface ScamperFeedbackResponse {
+  created_count: number;
+  deduplicated_count: number;
+  contradiction_ids: string[];
+}
+
+export function scamperFeedbackContradictions(body: ScamperFeedbackRequest) {
+  return request<ScamperFeedbackResponse>("/scamper/feedback-contradictions", body);
+}
+
+// ─── Pre-CAD AI Analysis ───────────────────────────────────────────────────
+
+export interface PreCadAnalyzeRequest {
+  project_id: string;
+  alternative_name: string;
+  mechanism: string;
+  constraints?: string[];
+}
+
+export interface PreCadAnalyzeResponse {
+  spatial_score: number;
+  cost_score: number;
+  safety_score: number;
+  decoupling_score: number;
+  supply_score: number;
+  overall_pass: boolean;
+  analysis: string;
+  evidence_references?: EvidenceReference[];
+}
+
+export function preCadAnalyze(rid: string, body: PreCadAnalyzeRequest) {
+  return request<PreCadAnalyzeResponse>(`/pre-cad-reviews/${rid}/ai-analyze`, body);
+}
+
+// ─── WANT Criteria Seed ────────────────────────────────────────────────────
+
+export interface WantSeedRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  kpis?: string[];
+}
+
+export interface SuggestedWantCriterion {
+  name: string;
+  description: string;
+  weight: number;
+  anchors: Record<string, string>;
+}
+
+export interface WantSeedResponse {
+  criteria: SuggestedWantCriterion[];
+}
+
+export function wantCriteriaSeed(body: WantSeedRequest) {
+  return request<WantSeedResponse>("/want/criteria/seed", body);
+}
+
+// ─── Gate Check ────────────────────────────────────────────────────────────
+
+export interface GateCheckItem {
+  label: string;
+  met: boolean;
+  detail?: string;
+}
+
+export interface GateCheckResponse {
+  gate_id: string;
+  passed: boolean;
+  failed_reasons: string[];
+  checklist_items: GateCheckItem[];
+}
+
+async function requestGet<T>(path: string): Promise<T> {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown error");
+    throw new ApiError(res.status, errorBody);
+  }
+  return res.json() as Promise<T>;
+}
+
+export function gateCheck(gateId: string, projectId: string) {
+  return requestGet<GateCheckResponse>(`/gates/${gateId}/check?project_id=${encodeURIComponent(projectId)}`);
+}
+
+export interface BackendHealthCheckResult {
+  ok: boolean;
+  message: string;
+}
+
+export async function checkBackendHealth(): Promise<BackendHealthCheckResult> {
+  try {
+    const res = await fetchWithTimeout("/health", { method: "GET" });
+    if (!res.ok) {
+      return { ok: false, message: `Health check 回應異常（HTTP ${res.status}）` };
+    }
+    return { ok: true, message: "後端連線正常" };
+  } catch (err) {
+    return { ok: false, message: getApiErrorMessage(err, "後端連線檢查") };
+  }
+}
+
+export function getApiErrorMessage(error: unknown, actionLabel = "操作"): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return `${actionLabel}失敗：未授權（請重新登入或檢查 DEV_BYPASS）`;
+    if (error.status === 403) return `${actionLabel}失敗：權限不足`;
+    if (error.status === 404) return `${actionLabel}失敗：API 路徑不存在`;
+    if (error.status >= 500) return `${actionLabel}失敗：後端服務異常（HTTP ${error.status}）`;
+    return `${actionLabel}失敗：請求錯誤（HTTP ${error.status}）`;
+  }
+  if (error instanceof ApiNetworkError) {
+    if (error.kind === "timeout") return `${actionLabel}失敗：請求逾時，請稍後重試`;
+    return `${actionLabel}失敗：網路連線異常（無法連上後端）`;
+  }
+  if (error instanceof Error) {
+    return `${actionLabel}失敗：${error.message}`;
+  }
+  return `${actionLabel}失敗：未知錯誤`;
+}
+
+export { ApiError, ApiNetworkError };

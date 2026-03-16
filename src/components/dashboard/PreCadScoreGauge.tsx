@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { PreCadScore } from "@/data/mockDashboard";
+import type { PreCadScore } from "@/types/project";
 import { ShieldCheck } from "lucide-react";
 
 interface PreCadScoreGaugeProps {

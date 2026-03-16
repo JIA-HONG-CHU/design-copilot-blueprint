@@ -35,6 +35,7 @@ export interface ConceptRoute {
   composition: CompositionEntry[];
   compositionRationale: string;
   antiPatternWarnings: string[];
+  createdAt?: string;
 }
 
 export interface CompatibilityMatrix {

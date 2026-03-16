@@ -1,3 +1,10 @@
+# Environment variables (contains secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+supabase/.env
+
 # Logs
 logs
 *.log
@@ -22,3 +29,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env

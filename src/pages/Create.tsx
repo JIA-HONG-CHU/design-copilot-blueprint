@@ -25,12 +25,33 @@ import type {
   Alternative, AccordionStepStatus, TrizPath, TrizActionStatus, CreateGateItem,
   SubsystemSource
 } from "@/types/create";
-import { MUST_CRITERIA, PRECAD_DIMENSIONS, SCAMPER_LABELS } from "@/types/create";
+import { DEFAULT_MUST_CRITERIA, PRECAD_DIMENSIONS, SCAMPER_LABELS } from "@/types/create";
+import type { MustCriterion } from "@/types/create";
+// TODO: mockAntiAnchorWarning — AI-generated warning, keep on frontend until AI integration (Sprint 3+)
+import { mockAntiAnchorWarning } from "@/data/mockCreate";
 import {
-  mockAntiAnchorRoutes, mockTrizSolutions, mockSubsystems,
-  mockScamperVariants, mockAlternatives, mockAntiAnchorWarning
-} from "@/data/mockCreate";
-import { mockTrackAssumptions } from "@/data/mockTrack";
+  useAntiAnchorRoutes,
+  useCreateAntiAnchorRoute,
+  useUpdateAntiAnchorRoute,
+  useTrizSolutions,
+  useUpdateTrizSolution,
+  useSubsystems,
+  useCreateSubsystem,
+  useUpdateSubsystem,
+  useDeleteSubsystem,
+  useScamperVariants,
+  useUpdateScamperVariant,
+  useAlternatives,
+  useCreateAlternative,
+  useUpdateAlternative,
+} from "@/hooks/api";
+import { useContradictions } from "@/hooks/api/useContradictions";
+import type { Json } from "@/integrations/supabase/types";
+import { useTrackAssumptions } from "@/hooks/api/useTrack";
+import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate } from "@/lib/api";
+import type { MustCriterionResult } from "@/lib/api";
+import { useProject } from "@/hooks/api/useProjects";
+// TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
@@ -44,8 +65,10 @@ import { BranchExplorationPanel } from "@/components/create/BranchExplorationPan
 import { HumanReviewPanel } from "@/components/create/HumanReviewPanel";
 import { ArchitectureHaltOverlay } from "@/components/create/ArchitectureHaltOverlay";
 import { MultiSolutionAdoptionPanel } from "@/components/create/MultiSolutionAdoptionPanel";
+import { useConceptRoutes, useCompatibilityPairs } from "@/hooks/api/useConceptRoutes";
+// TODO: Replace with API when available — AI-generated adoption state, no dedicated DB table yet
 import { mockAdoptionState } from "@/data/mockConceptRoutes";
-import type { ConceptRoute } from "@/types/conceptRoute";
+import type { ConceptRoute, MultiSolutionAdoptionState } from "@/types/conceptRoute";
 
 const RADAR_COLORS = [
   "hsl(var(--primary))",
@@ -85,17 +108,65 @@ const MOCK_AI_ANTIANCHOR: AntiAnchorRoute[] = [
 export default function Create() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [currentStep, setCurrentStep] = useState(0);
 
-  // Data
-  const [routes, setRoutes] = useState<AntiAnchorRoute[]>([]);
+  // ── Project data (for must_criteria_config) ──
+  const projectQuery = useProject(id);
+  const mustCriteria: MustCriterion[] = useMemo(() => {
+    const config = projectQuery.data?.must_criteria_config;
+    if (config && config.length > 0) return config;
+    return DEFAULT_MUST_CRITERIA;
+  }, [projectQuery.data]);
+  const MUST_KEYS = useMemo(() => mustCriteria.map(c => c.id), [mustCriteria]);
+
+  // AI MUST evaluation results (keyed by altId)
+  const [mustAiResults, setMustAiResults] = useState<Record<string, MustCriterionResult[]>>({});
+
+  // ── API Hooks: queries ──
+  const antiAnchorQuery = useAntiAnchorRoutes(id);
+  const trizQuery = useTrizSolutions(id);
+  const subsystemsQuery = useSubsystems(id);
+  const scamperQuery = useScamperVariants(id);
+  const alternativesQuery = useAlternatives(id);
+  const conceptRoutesQuery = useConceptRoutes(id);
+  const compatibilityPairsQuery = useCompatibilityPairs(id);
+  const trackAssumptionsQuery = useTrackAssumptions(id);
+  const contradictionsQuery = useContradictions(id);
+
+  // ── API Hooks: mutations ──
+  const createAntiAnchorRoute = useCreateAntiAnchorRoute();
+  const updateAntiAnchorRoute = useUpdateAntiAnchorRoute();
+  const updateTrizSolution = useUpdateTrizSolution();
+  const createSubsystem = useCreateSubsystem();
+  const updateSubsystemMut = useUpdateSubsystem();
+  const deleteSubsystemMut = useDeleteSubsystem();
+  const updateScamperVariant = useUpdateScamperVariant();
+  const createAlternative = useCreateAlternative();
+  const updateAlternativeMut = useUpdateAlternative();
+
+  // ── Derived data from queries (with local overrides for optimistic UI) ──
+  const [localRoutes, setLocalRoutes] = useState<AntiAnchorRoute[]>([]);
+  const [localTrizSolutions, setLocalTrizSolutions] = useState<TrizSolution[]>([]);
+  const [localSubsystems, setLocalSubsystems] = useState<Subsystem[]>([]);
+  const [localScamperVariants, setLocalScamperVariants] = useState<ScamperVariant[]>([]);
+  const [localAlternatives, setLocalAlternatives] = useState<Alternative[]>([]);
+
+  // Sync query data → local state
+  useEffect(() => { setLocalRoutes(antiAnchorQuery.data); }, [antiAnchorQuery.data]);
+  useEffect(() => { setLocalTrizSolutions(trizQuery.data); }, [trizQuery.data]);
+  useEffect(() => { setLocalSubsystems(subsystemsQuery.data); }, [subsystemsQuery.data]);
+  useEffect(() => { setLocalScamperVariants(scamperQuery.data); }, [scamperQuery.data]);
+  useEffect(() => { setLocalAlternatives(alternativesQuery.data); }, [alternativesQuery.data]);
+
+  // Use local state as the working data (allows optimistic updates)
+  const routes = localRoutes;
+  const trizSolutions = localTrizSolutions;
+  const subsystems = localSubsystems;
+  const scamperVariants = localScamperVariants;
+  const alternatives = localAlternatives;
+
   const [antiAnchorGenerated, setAntiAnchorGenerated] = useState(false);
-  const [trizSolutions, setTrizSolutions] = useState<TrizSolution[]>([]);
-  const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
-  const [scamperVariants, setScamperVariants] = useState<ScamperVariant[]>([]);
-  const [alternatives, setAlternatives] = useState<Alternative[]>([]);
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
@@ -110,44 +181,74 @@ export default function Create() {
   const [ssFormContradictions, setSsFormContradictions] = useState<string[]>([]);
   const [ssFormInterfaces, setSsFormInterfaces] = useState("");
 
+  // Loading state — true while any query is loading
+  const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
+
+  // Track anti-anchor generated status from data
+  useEffect(() => {
+    if (!antiAnchorQuery.isLoading) {
+      setAntiAnchorGenerated(routes.length > 0);
+    }
+  }, [routes, antiAnchorQuery.isLoading]);
+
+  // ── Computed: Multi-Solution Adoption State from DB (fallback to mock) ──
+  const adoptionState: MultiSolutionAdoptionState = useMemo(() => {
+    const dbRoutes = conceptRoutesQuery.data;
+    const dbPairs = compatibilityPairsQuery.data;
+
+    // If DB has data, build state from it; otherwise fall back to mock
+    if (dbRoutes && dbRoutes.length > 0 && dbPairs && dbPairs.length > 0) {
+      return {
+        matrix: {
+          // TODO: Build solutions list from convergence loop output or DB query
+          solutions: mockAdoptionState.matrix.solutions,
+          pairs: dbPairs,
+        },
+        recommendedRoutes: dbRoutes,
+        // TODO: Compute anti-pattern checks from routes + pairs via AI API
+        antiPatternChecks: mockAdoptionState.antiPatternChecks,
+      };
+    }
+    return mockAdoptionState;
+  }, [conceptRoutesQuery.data, compatibilityPairsQuery.data]);
+
   const assumptionMap = useMemo(() => {
     const map = new Map<string, { code: string; description: string }>();
-    const assumptions = mockTrackAssumptions[id ?? ""] ?? [];
+    const assumptions = trackAssumptionsQuery.data ?? [];
     assumptions.forEach((a) => map.set(a.id, { code: a.assumptionCode, description: a.description }));
     return map;
-  }, [id]);
+  }, [trackAssumptionsQuery.data]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (id) {
-        const existing = mockAntiAnchorRoutes[id] ?? [];
-        setRoutes(existing);
-        setAntiAnchorGenerated(existing.length > 0);
-        setTrizSolutions(mockTrizSolutions[id] ?? []);
-        setSubsystems(mockSubsystems[id] ?? []);
-        setScamperVariants(mockScamperVariants[id] ?? []);
-        setAlternatives(mockAlternatives[id] ?? []);
-      }
-      setIsLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [id]);
+  /** Map contradiction ID → short label for display */
+  const contradictionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (contradictionsQuery.data ?? []).forEach((c) => {
+      map.set(c.id, c.naturalDescription || c.engineeringStatement?.slice(0, 40) || c.id.slice(0, 8));
+    });
+    return map;
+  }, [contradictionsQuery.data]);
+
+  const getMustValues = (a: Alternative) => MUST_KEYS.map((k) => a.mustScores[k] ?? null);
 
   const stepStatuses: AccordionStepStatus[] = useMemo(() => {
     const s1 = routes.length >= 3 ? "complete" : routes.length > 0 ? "in_progress" : "not_started";
-    const s2 = convergenceLoop.state.status === "converged" ? "complete" : convergenceLoop.state.status !== "idle" ? "in_progress" : "not_started";
+    // s2: TRIZ convergence — use DB trizSolutions when convergenceLoop hasn't run
+    const loopDone = convergenceLoop.state.status === "converged";
+    const hasTrizData = trizSolutions.length > 0;
+    const s2 = loopDone || hasTrizData ? "complete" : convergenceLoop.state.status !== "idle" ? "in_progress" : "not_started";
     const confirmed = subsystems.filter((s) => s.confirmed).length;
     const s3 = confirmed > 0 ? "complete" : subsystems.length > 0 ? "in_progress" : "not_started";
     const adoptedSc = scamperVariants.filter((v) => v.adopted).length;
     const s4 = adoptedSc > 0 ? "complete" : scamperVariants.length > 0 ? "in_progress" : "not_started";
     const s5 = alternatives.length > 0 ? "complete" : "not_started";
-    const allMustFilled = alternatives.length > 0 && alternatives.every((a) => Object.values(a.mustScores).every((v) => v !== null));
-    const s6 = allMustFilled ? "complete" : alternatives.some((a) => Object.values(a.mustScores).some((v) => v !== null)) ? "in_progress" : "not_started";
-    const passedMust = alternatives.filter((a) => !Object.values(a.mustScores).includes("fail"));
+    // s6: Only check M1-M6 keys, not the nested bundle fields
+    const allMustFilled = alternatives.length > 0 && alternatives.every((a) => getMustValues(a).every((v) => v !== null));
+    const s6 = allMustFilled ? "complete" : alternatives.some((a) => getMustValues(a).some((v) => v !== null)) ? "in_progress" : "not_started";
+    const passedMust = alternatives.filter((a) => !getMustValues(a).includes("fail"));
     const allScored = passedMust.length > 0 && passedMust.every((a) => Object.values(a.preCadScores).every((v) => v !== null));
     const s7 = allScored ? "complete" : passedMust.some((a) => Object.values(a.preCadScores).some((v) => v !== null)) ? "in_progress" : "not_started";
     return [s1, s2, s3, s4, s5, s6, s7];
-  }, [routes, convergenceLoop.state.status, subsystems, scamperVariants, alternatives]);
+  }, [routes, convergenceLoop.state.status, trizSolutions, subsystems, scamperVariants, alternatives]);
 
   const autoSave = useCallback(() => {
     setSaveStatus("saving");
@@ -175,35 +276,69 @@ export default function Create() {
 
   // Handlers
   const handleAiGenAntiAnchor = async () => {
+    if (!id) return;
     setAiLoading((p) => ({ ...p, antiAnchor: true }));
-    await new Promise((r) => setTimeout(r, 2000));
-    setRoutes(MOCK_AI_ANTIANCHOR);
-    setAntiAnchorGenerated(true);
-    setAiLoading((p) => ({ ...p, antiAnchor: false }));
-    toast.success("AI 已產出 3 條非典型架構概念");
-    autoSave();
+    try {
+      const result = await antiAnchorGenerate({
+        project_id: id,
+        mission: MOCK_MISSION.problemStatement,
+        current_constraints: MOCK_MISSION.contradictions.map((c) => c.description),
+        existing_alternatives: routes.map((r) => r.name),
+      });
+      for (const route of result.routes) {
+        await createAntiAnchorRoute.mutateAsync({
+          project_id: id,
+          name: route.name,
+          description: route.description,
+          is_non_typical: route.is_non_typical,
+          source: 'ai',
+        });
+      }
+      setAntiAnchorGenerated(true);
+      toast.success(`AI 已產出 ${result.routes.length} 條非典型架構概念`);
+    } catch (err) {
+      console.error("Anti-anchor generation failed:", err);
+      // Fallback to mock data
+      for (const route of MOCK_AI_ANTIANCHOR) {
+        await createAntiAnchorRoute.mutateAsync({
+          project_id: id,
+          name: route.name,
+          description: route.description,
+          is_non_typical: true,
+          source: 'ai',
+        });
+      }
+      setAntiAnchorGenerated(true);
+      toast.warning("AI 產出失敗，已使用範例資料");
+    } finally {
+      setAiLoading((p) => ({ ...p, antiAnchor: false }));
+    }
   };
 
   const setTrizStatus = (tsId: string, status: TrizActionStatus) => {
-    setTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status } : t)));
-    autoSave();
+    // Optimistic local update
+    setLocalTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status } : t)));
+    updateTrizSolution.mutate({ id: tsId, status });
   };
   const toggleSubsystem = (ssId: string) => {
-    setSubsystems((prev) => prev.map((s) => (s.id === ssId ? { ...s, confirmed: !s.confirmed } : s)));
-    autoSave();
+    const ss = subsystems.find(s => s.id === ssId);
+    if (!ss) return;
+    setLocalSubsystems((prev) => prev.map((s) => (s.id === ssId ? { ...s, confirmed: !s.confirmed } : s)));
+    updateSubsystemMut.mutate({ id: ssId, confirmed: !ss.confirmed });
   };
   const addSubsystem = () => {
-    if (!ssFormName.trim()) { toast.error("請輸入子系統名稱"); return; }
-    const newSs: Subsystem = {
-      id: `ss-rd-${Date.now()}`, name: ssFormName.trim(), reason: ssFormReason.trim(),
-      relatedContradictions: ssFormContradictions, confirmed: true, source: "rd",
-      interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(s => s.trim()).filter(Boolean) : [],
-    };
-    setSubsystems(prev => [...prev, newSs]);
+    if (!id || !ssFormName.trim()) { toast.error("請輸入子系統名稱"); return; }
+    createSubsystem.mutate({
+      project_id: id,
+      name: ssFormName.trim(),
+      reason: ssFormReason.trim(),
+      related_contradictions: ssFormContradictions,
+      confirmed: true,
+      source: "rd",
+      interfaces: ssFormInterfaces.trim() || undefined,
+    });
     resetSsForm();
     setShowAddSubsystemForm(false);
-    toast.success("已新增 RD 定義子系統");
-    autoSave();
   };
   const startEditSubsystem = (ssId: string) => {
     const ss = subsystems.find(s => s.id === ssId);
@@ -216,31 +351,41 @@ export default function Create() {
   };
   const saveEditSubsystem = () => {
     if (!editingSubsystemId || !ssFormName.trim()) return;
-    setSubsystems(prev => prev.map(s => {
+    const ss = subsystems.find(s => s.id === editingSubsystemId);
+    const newSource = ss?.source === "ai" ? "ai_edited" : ss?.source;
+    // Optimistic local update
+    setLocalSubsystems(prev => prev.map(s => {
       if (s.id !== editingSubsystemId) return s;
       return {
         ...s, name: ssFormName.trim(), reason: ssFormReason.trim(),
         relatedContradictions: ssFormContradictions,
         interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(x => x.trim()).filter(Boolean) : [],
-        source: s.source === "ai" ? "ai_edited" : s.source,
+        source: (newSource ?? s.source) as SubsystemSource,
       };
     }));
+    updateSubsystemMut.mutate({
+      id: editingSubsystemId,
+      name: ssFormName.trim(),
+      reason: ssFormReason.trim(),
+      related_contradictions: ssFormContradictions,
+      interfaces: ssFormInterfaces.trim() || undefined,
+      source: newSource,
+    });
     resetSsForm();
     setEditingSubsystemId(null);
-    toast.success("子系統已更新");
-    autoSave();
   };
   const deleteSubsystem = (ssId: string) => {
-    setSubsystems(prev => prev.filter(s => s.id !== ssId));
-    toast.success("已刪除子系統");
-    autoSave();
+    setLocalSubsystems(prev => prev.filter(s => s.id !== ssId));
+    deleteSubsystemMut.mutate({ id: ssId });
   };
   const resetSsForm = () => {
     setSsFormName(""); setSsFormReason(""); setSsFormContradictions([]); setSsFormInterfaces("");
   };
   const toggleScamperAdopt = (svId: string) => {
-    setScamperVariants((prev) => prev.map((v) => (v.id === svId ? { ...v, adopted: !v.adopted } : v)));
-    autoSave();
+    const sv = scamperVariants.find(v => v.id === svId);
+    if (!sv) return;
+    setLocalScamperVariants((prev) => prev.map((v) => (v.id === svId ? { ...v, adopted: !v.adopted } : v)));
+    updateScamperVariant.mutate({ id: svId, adopted: !sv.adopted });
   };
   const handleFeedbackToConvergence = (variantId: string, contradictionId: string) => {
     // Find the contradiction
@@ -250,7 +395,7 @@ export default function Create() {
     // Feed back to convergence graph
     convergenceLoop.addContradiction(nc.description, nc.severity, variantId);
     // Mark as fed back
-    setScamperVariants(prev => prev.map(v => {
+    setLocalScamperVariants(prev => prev.map(v => {
       if (v.id !== variantId || !v.newContradictions) return v;
       return {
         ...v,
@@ -259,63 +404,117 @@ export default function Create() {
         ),
       };
     }));
+    // Persist the updated new_contradictions to DB
+    const updatedNcs = variant.newContradictions?.map(c =>
+      c.id === contradictionId ? { ...c, fedBack: true } : c
+    ) ?? [];
+    updateScamperVariant.mutate({ id: variantId, new_contradictions: updatedNcs as unknown as Json });
     toast.success(`已將矛盾回饋至收斂圖（${nc.severity.toUpperCase()}），AI 將重新探索`);
     // Jump back to Step 2 (TRIZ) to show updated graph
     setCurrentStep(1);
-    autoSave();
   };
   const cycleMust = (altId: string, mustId: string) => {
-    setAlternatives((prev) =>
-      prev.map((a) => {
-        if (a.id !== altId) return a;
-        const current = a.mustScores[mustId];
-        const next = current === null ? "pass" : current === "pass" ? "fail" : current === "fail" ? "marginal" : null;
-        return { ...a, mustScores: { ...a.mustScores, [mustId]: next } };
-      })
+    const alt = alternatives.find(a => a.id === altId);
+    if (!alt) return;
+    const current = alt.mustScores[mustId];
+    const next = current === null ? "pass" : current === "pass" ? "fail" : current === "fail" ? "marginal" : null;
+    const newMustScores = { ...alt.mustScores, [mustId]: next };
+    setLocalAlternatives((prev) =>
+      prev.map((a) => a.id !== altId ? a : { ...a, mustScores: newMustScores })
     );
-    autoSave();
+    updateAlternativeMut.mutate({ id: altId, must_scores: newMustScores as unknown as Json });
   };
+
+  /** AI pre-evaluate MUST for a single alternative */
+  const handleAiMustEvaluate = async (altId: string) => {
+    const alt = alternatives.find(a => a.id === altId);
+    if (!alt || !id) return;
+    setAiLoading(prev => ({ ...prev, [`must-${altId}`]: true }));
+    try {
+      const project = projectQuery.data;
+      const result = await mustEvaluate({
+        project_id: id,
+        alternative_name: alt.name,
+        mechanism: alt.mechanism,
+        must_criteria: mustCriteria.map(c => ({ id: c.id, label: c.label, source: c.source, threshold: c.threshold })),
+        constraints: [], // could be enriched from brief data
+        kpis: [],
+      });
+      // Store AI results for display
+      setMustAiResults(prev => ({ ...prev, [altId]: result.criteria_results }));
+      // Pre-fill MUST scores from AI judgment
+      const newMustScores = { ...alt.mustScores };
+      result.criteria_results.forEach(cr => {
+        if (cr.passed === true) newMustScores[cr.id] = "pass";
+        else if (cr.passed === false) newMustScores[cr.id] = "fail";
+        // null → leave as-is (RD must decide)
+      });
+      setLocalAlternatives(prev =>
+        prev.map(a => a.id !== altId ? a : { ...a, mustScores: newMustScores })
+      );
+      updateAlternativeMut.mutate({ id: altId, must_scores: newMustScores as unknown as Json });
+      toast.success(`AI 預判完成：${result.summary}`);
+    } catch {
+      toast.error("AI MUST 評估失敗，請手動評估");
+    } finally {
+      setAiLoading(prev => ({ ...prev, [`must-${altId}`]: false }));
+    }
+  };
+
+  /** AI evaluate all alternatives at once */
+  const handleAiMustEvaluateAll = async () => {
+    for (const alt of alternatives) {
+      await handleAiMustEvaluate(alt.id);
+    }
+  };
+
   const updatePreCadScore = (altId: string, dim: string, value: number) => {
-    setAlternatives((prev) =>
-      prev.map((a) => {
-        if (a.id !== altId) return a;
-        const newScores = { ...a.preCadScores, [dim]: value };
-        const allFilled = Object.values(newScores).every((v) => v !== null);
-        const allPass = allFilled && Object.values(newScores).every((v) => (v as number) >= 3);
-        return { ...a, preCadScores: newScores, overallPass: allFilled ? allPass : null };
-      })
+    const alt = alternatives.find(a => a.id === altId);
+    if (!alt) return;
+    const newScores = { ...alt.preCadScores, [dim]: value };
+    const allFilled = Object.values(newScores).every((v) => v !== null);
+    const allPass = allFilled && Object.values(newScores).every((v) => (v as number) >= 3);
+    const overallPass = allFilled ? allPass : null;
+    setLocalAlternatives((prev) =>
+      prev.map((a) => a.id !== altId ? a : { ...a, preCadScores: newScores, overallPass })
     );
-    autoSave();
+    updateAlternativeMut.mutate({ id: altId, pre_cad_scores: newScores as unknown as Json, overall_pass: overallPass });
   };
   const addManualAlternative = () => {
-    const newAlt: Alternative = {
-      id: `alt-${Date.now()}`, name: "", mechanism: "", source: "manual",
-      keyAssumptionIds: [], mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
-      interfaceContract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' },
-      preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
-      overallPass: null,
-    };
-    setAlternatives((prev) => [...prev, newAlt]);
-    toast.success("已新增空白方案");
+    if (!id) return;
+    createAlternative.mutate({
+      project_id: id,
+      name: "",
+      mechanism: "",
+      source: "manual",
+      key_assumption_ids: [],
+      must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
+      interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
+      pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
+      overall_pass: null,
+    });
   };
   const deleteAlternative = (altId: string) => {
-    setAlternatives(prev => prev.filter(a => a.id !== altId));
+    setLocalAlternatives(prev => prev.filter(a => a.id !== altId));
+    // Note: no useDeleteAlternative hook yet — using local removal; data will refresh on next query
     toast.success("方案已刪除");
-    autoSave();
   };
   const handleAiGenAlts = async () => {
+    if (!id) return;
     setAiLoading((p) => ({ ...p, alts: true }));
     await new Promise((r) => setTimeout(r, 2000));
-    const newAlt: Alternative = {
-      id: `alt-ai-${Date.now()}`, name: "AI 整合：蜂巢夾層 + 磁力耦合方案",
+    // TODO: Replace with real AI endpoint
+    await createAlternative.mutateAsync({
+      project_id: id,
+      name: "AI 整合：蜂巢夾層 + 磁力耦合方案",
       mechanism: "AI 整合 TRIZ 分割原理與 SCAMPER 替代建議，採用蜂巢夾層殼體搭配磁力耦合傳動，在減重 35% 的同時維持結構剛度，傳動效率提升至 92%。",
-      source: "ai_integrated", keyAssumptionIds: ["ta-001", "ta-003"],
-      mustScores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null },
-      interfaceContract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' },
-      preCadScores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null },
-      overallPass: null,
-    };
-    setAlternatives((prev) => [...prev, newAlt]);
+      source: "ai_integrated",
+      key_assumption_ids: ["ta-001", "ta-003"],
+      must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
+      interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
+      pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
+      overall_pass: null,
+    });
     setAiLoading((p) => ({ ...p, alts: false }));
     toast.success("AI 已整合生成新方案");
   };
@@ -433,8 +632,40 @@ export default function Create() {
           />
         )}
 
-        {/* Idle state: launch exploration */}
-        {state.status === 'idle' && (
+        {/* Idle state: show existing TRIZ results from DB, or prompt to launch */}
+        {state.status === 'idle' && trizSolutions.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="h-5 w-5 text-primary" />
+              <h3 className="text-sm font-semibold">AI 矛盾收斂完成 — {trizSolutions.length} 條 TRIZ 解法</h3>
+            </div>
+            {trizSolutions.map((ts) => (
+              <Card key={ts.id} className="border-l-[3px] border-l-primary/40">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-[10px]">{ts.path}</Badge>
+                    <Badge variant="outline" className="text-[10px]">原理 {ts.principleNumber}: {ts.principleName}</Badge>
+                    <Badge className={`text-[10px] ${ts.status === 'adopted' ? 'bg-primary' : ts.status === 'rejected' ? 'bg-destructive' : 'bg-muted text-muted-foreground'}`}>
+                      {ts.status === 'adopted' ? '已採用' : ts.status === 'rejected' ? '已排除' : '待評估'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm leading-relaxed">{ts.suggestion}</p>
+                  {ts.contradictionId && (
+                    <p className="text-xs text-muted-foreground">
+                      ⚡ {contradictionMap.get(ts.contradictionId) ?? '矛盾'}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            <Button variant="outline" size="sm" onClick={startExploration} className="text-xs gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              重新執行 AI 矛盾收斂
+            </Button>
+          </div>
+        )}
+
+        {state.status === 'idle' && trizSolutions.length === 0 && (
           <Card className="border-dashed border-2 border-primary/30">
             <CardContent className="p-8 text-center space-y-4">
               <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -484,7 +715,7 @@ export default function Create() {
 
             {reviewConfirmed && (
               <MultiSolutionAdoptionPanel
-                adoptionState={mockAdoptionState}
+                adoptionState={adoptionState}
                 onConfirm={(routes) => {
                   setConceptRoutes(routes);
                   goNext();
@@ -618,9 +849,11 @@ export default function Create() {
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{ss.reason}</p>
                     {ss.relatedContradictions.length > 0 && (
-                      <div className="flex gap-1.5 mt-2">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {ss.relatedContradictions.map((c) => (
-                          <Badge key={c} variant="outline" className="text-[10px] font-mono">{c}</Badge>
+                          <Badge key={c} variant="outline" className="text-[10px]">
+                            ⚡ {contradictionMap.get(c) ?? c.slice(0, 8)}
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -670,7 +903,7 @@ export default function Create() {
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <Badge className="text-[10px] bg-accent text-accent-foreground">{v.action}</Badge>
-                        <span className="text-xs text-muted-foreground">{SCAMPER_LABELS[v.action].zh}</span>
+                        <span className="text-xs text-muted-foreground">{SCAMPER_LABELS[v.action]?.zh ?? v.action}</span>
                         <Badge variant="secondary" className="text-[9px] ml-auto">AI</Badge>
                       </div>
                       <p className="text-sm leading-relaxed">{v.description}</p>
@@ -819,8 +1052,10 @@ export default function Create() {
                   placeholder="方案名稱 ★"
                   value={alt.name}
                   onChange={(e) => {
-                    setAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, name: e.target.value } : a)));
-                    autoSave();
+                    setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, name: e.target.value } : a)));
+                  }}
+                  onBlur={(e) => {
+                    updateAlternativeMut.mutate({ id: alt.id, name: e.target.value });
                   }}
                 />
                 <Textarea
@@ -829,8 +1064,10 @@ export default function Create() {
                   rows={3}
                   className="text-sm leading-relaxed"
                   onChange={(e) => {
-                    setAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, mechanism: e.target.value } : a)));
-                    autoSave();
+                    setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, mechanism: e.target.value } : a)));
+                  }}
+                  onBlur={(e) => {
+                    updateAlternativeMut.mutate({ id: alt.id, mechanism: e.target.value });
                   }}
                 />
                 {alt.keyAssumptionIds.length > 0 && (
@@ -901,13 +1138,29 @@ export default function Create() {
       );
     }
 
+    const anyAiLoading = alternatives.some(a => aiLoading[`must-${a.id}`]);
+
+    /** Get AI reasoning for a criterion */
+    const getAiReasoning = (altId: string, criterionId: string): MustCriterionResult | undefined => {
+      return mustAiResults[altId]?.find(r => r.id === criterionId);
+    };
+
     return (
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Badge className="bg-primary/10 text-primary border-0 px-3 py-1">{passedMustAlts.length} 通過</Badge>
           <Badge className="bg-destructive/10 text-destructive border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("fail")).length} 淘汰</Badge>
           <Badge className="bg-muted text-muted-foreground border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("marginal")).length} 待定</Badge>
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" onClick={handleAiMustEvaluateAll} disabled={anyAiLoading}>
+            {anyAiLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            AI 全部預判
+          </Button>
         </div>
+
+        {mustCriteria !== DEFAULT_MUST_CRITERIA && (
+          <p className="text-xs text-muted-foreground">MUST 準則已從 Brief 約束/KPI 自動導出（共 {mustCriteria.length} 項）</p>
+        )}
 
         {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
@@ -915,9 +1168,15 @@ export default function Create() {
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">方案</th>
-                {MUST_CRITERIA.map((c) => (
-                  <th key={c.id} className="text-center py-3 px-2 text-xs font-medium text-muted-foreground">{c.label}</th>
+                {mustCriteria.map((c) => (
+                  <th key={c.id} className="text-center py-3 px-2 text-xs font-medium text-muted-foreground">
+                    <Tooltip>
+                      <TooltipTrigger asChild><span className="cursor-help">{c.label}</span></TooltipTrigger>
+                      <TooltipContent><p className="text-xs">來源: {c.source}{c.threshold ? ` | 閾值: ${c.threshold}` : ""}</p></TooltipContent>
+                    </Tooltip>
+                  </th>
                 ))}
+                <th className="text-center py-3 px-2 text-xs font-medium text-muted-foreground">AI</th>
                 <th className="text-center py-3 px-3 text-xs font-medium text-muted-foreground">結果</th>
               </tr>
             </thead>
@@ -927,14 +1186,35 @@ export default function Create() {
                 return (
                   <tr key={alt.id} className={`border-b transition-colors ${hasFail ? "opacity-50" : "hover:bg-muted/30"}`}>
                     <td className={`py-3 px-3 text-sm max-w-[140px] truncate ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</td>
-                    {MUST_CRITERIA.map((c) => (
-                      <td key={c.id} className="text-center py-3 px-2 cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
-                        {mustCell(alt.mustScores[c.id])}
-                      </td>
-                    ))}
+                    {mustCriteria.map((c) => {
+                      const aiResult = getAiReasoning(alt.id, c.id);
+                      return (
+                        <td key={c.id} className="text-center py-3 px-2 cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>{mustCell(alt.mustScores[c.id])}</span>
+                            </TooltipTrigger>
+                            {aiResult && (
+                              <TooltipContent className="max-w-[280px]">
+                                <p className="text-xs font-medium mb-1">AI 信心: {Math.round(aiResult.confidence * 100)}%</p>
+                                <p className="text-xs">{aiResult.reasoning}</p>
+                                {aiResult.evidence_sources.length > 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">依據: {aiResult.evidence_sources.join(", ")}</p>
+                                )}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </td>
+                      );
+                    })}
+                    <td className="text-center py-3 px-2">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAiMustEvaluate(alt.id)} disabled={aiLoading[`must-${alt.id}`]}>
+                        {aiLoading[`must-${alt.id}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      </Button>
+                    </td>
                     <td className="text-center py-3 px-3">
                       {hasFail ? <Badge variant="destructive" className="text-[10px]">淘汰</Badge>
-                        : Object.values(alt.mustScores).every((v) => v === "pass") ? <Badge className="bg-primary text-primary-foreground text-[10px]">通過</Badge>
+                        : getMustValues(alt).every((v) => v === "pass") ? <Badge className="bg-primary text-primary-foreground text-[10px]">通過</Badge>
                         : <Badge variant="secondary" className="text-[10px]">待定</Badge>}
                     </td>
                   </tr>
@@ -951,9 +1231,14 @@ export default function Create() {
             return (
               <Card key={alt.id} className={hasFail ? "opacity-50" : ""}>
                 <CardContent className="p-4 space-y-3">
-                  <p className={`text-sm font-medium ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</p>
+                  <div className="flex items-center justify-between">
+                    <p className={`text-sm font-medium ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</p>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAiMustEvaluate(alt.id)} disabled={aiLoading[`must-${alt.id}`]}>
+                      {aiLoading[`must-${alt.id}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-3 gap-2">
-                    {MUST_CRITERIA.map((c) => (
+                    {mustCriteria.map((c) => (
                       <div key={c.id} className="text-center cursor-pointer" onClick={() => cycleMust(alt.id, c.id)}>
                         <p className="text-[10px] text-muted-foreground mb-1">{c.id}</p>
                         {mustCell(alt.mustScores[c.id])}

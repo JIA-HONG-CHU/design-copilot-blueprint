@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,12 +7,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "@/components/track/KanbanBoard";
 import { UnknownFactors } from "@/components/track/UnknownFactors";
 import { TrackGate } from "@/components/track/TrackGate";
-import { mockTrackAssumptions, mockUnknownFactors } from "@/data/mockTrack";
+import {
+  useTrackAssumptions,
+  useUpdateTrackAssumptionStatus,
+  useUnknownFactors,
+  useSaveUnknownFactors,
+  useConvertUnknownToAssumption,
+} from "@/hooks/api/useTrack";
 import type { TrackAssumption, UnknownFactor, TrackGateItem } from "@/types/track";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+// TODO: Replace mockPageKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 
 type TabKey = 'kanban' | 'unknown';
@@ -26,22 +33,40 @@ export default function Track() {
   const initialTab: TabKey = ['kanban', 'unknown'].includes(hashTab) ? hashTab : 'kanban';
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  const [assumptions, setAssumptions] = useState<TrackAssumption[]>([]);
-  const [factors, setFactors] = useState<UnknownFactor[]>([]);
+  // --- API hooks ---
+  const {
+    data: assumptions,
+    isLoading: isAssumptionsLoading,
+  } = useTrackAssumptions(id);
+  const updateStatus = useUpdateTrackAssumptionStatus(id);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (id) {
-        setAssumptions(mockTrackAssumptions[id] ?? []);
-        setFactors(mockUnknownFactors[id] ?? []);
-      }
-      setIsLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [id]);
+  const {
+    data: factors,
+    isLoading: isFactorsLoading,
+    refetch: refetchFactors,
+  } = useUnknownFactors(id);
+  const saveFactors = useSaveUnknownFactors(id);
+  const convertMutation = useConvertUnknownToAssumption(id);
+
+  const isLoading = isAssumptionsLoading || isFactorsLoading;
+
+  // Local state mirrors for optimistic Kanban drag and factor updates
+  const [localAssumptions, setLocalAssumptions] = useState<TrackAssumption[] | null>(null);
+  const [localFactors, setLocalFactors] = useState<UnknownFactor[] | null>(null);
+
+  // Use local overrides when available, otherwise API data
+  const displayAssumptions = localAssumptions ?? assumptions;
+  const displayFactors = localFactors ?? factors;
+
+  // Sync local state when API data changes
+  // (reset local overrides so fresh data shows)
+  const assumptionsKey = JSON.stringify(assumptions.map((a) => `${a.id}:${a.verificationStatus}`));
+  useMemo(() => { setLocalAssumptions(null); }, [assumptionsKey]);
+
+  const factorsKey = JSON.stringify(factors.map((f) => `${f.id}:${f.status}`));
+  useMemo(() => { setLocalFactors(null); }, [factorsKey]);
 
   const handleTabChange = useCallback((tab: string) => {
     const t = tab as TabKey;
@@ -54,39 +79,35 @@ export default function Track() {
     }, 500);
   }, []);
 
-  const handleConvertToAssumption = useCallback((factor: UnknownFactor) => {
-    const code = `A-${String(assumptions.length + 1).padStart(3, '0')}`;
-    const now = new Date().toISOString();
-    const newA: TrackAssumption = {
-      id: `ta-${Date.now()}`,
-      assumptionCode: code,
-      description: factor.description,
-      riskLevel: factor.impact === 'high' ? 'H' : factor.impact === 'medium' ? 'M' : 'L',
-      verificationStatus: 'unverified',
-      experimentCount: 0,
-      source: 'unknown_convert',
-      linkedContradictionId: null,
-      aiChallenge: null,
-      worstConsequence: '',
-      verificationCost: '',
-      verificationDuration: '',
-      sourceArtifactId: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setAssumptions((prev) => [...prev, newA]);
-    // Update the factor's linkedAssumptionId to point to the new assumption
-    setFactors((prev) =>
-      prev.map((f) =>
-        f.id === factor.id ? { ...f, linkedAssumptionId: newA.id } : f
-      )
-    );
-  }, [assumptions.length]);
+  // Kanban drag: optimistically update local state + fire mutation
+  const handleUpdateAssumptions = useCallback((updated: TrackAssumption[]) => {
+    setLocalAssumptions(updated);
+
+    // Detect which assumption changed status
+    const current = displayAssumptions;
+    for (const u of updated) {
+      const prev = current.find((a) => a.id === u.id);
+      if (prev && prev.verificationStatus !== u.verificationStatus) {
+        updateStatus.mutate(u.id, u.verificationStatus);
+      }
+    }
+  }, [displayAssumptions, updateStatus]);
+
+  // Unknown factors: save to localStorage + update local state
+  const handleUpdateFactors = useCallback((updated: UnknownFactor[]) => {
+    setLocalFactors(updated);
+    saveFactors.mutate(updated);
+  }, [saveFactors]);
+
+  const handleConvertToAssumption = useCallback(async (factor: UnknownFactor) => {
+    await convertMutation.convert(factor, displayAssumptions.length);
+    refetchFactors();
+  }, [convertMutation, displayAssumptions.length, refetchFactors]);
 
   // Gate 2.1 checks
-  const totalAssumptions = assumptions.length;
-  const beyondUnverified = assumptions.filter((a) => a.verificationStatus !== 'unverified').length;
-  const highRiskAssumptions = assumptions.filter((a) => a.riskLevel === 'H' || a.riskLevel === 'H*');
+  const totalAssumptions = displayAssumptions.length;
+  const beyondUnverified = displayAssumptions.filter((a) => a.verificationStatus !== 'unverified').length;
+  const highRiskAssumptions = displayAssumptions.filter((a) => a.riskLevel === 'H' || a.riskLevel === 'H*');
   const highRiskWithExp = highRiskAssumptions.filter((a) => a.experimentCount > 0).length;
 
   const gateItems: TrackGateItem[] = useMemo(() => [
@@ -95,7 +116,7 @@ export default function Track() {
     { label: '所有高風險 (H*/H) 假設皆有實驗計畫', current: highRiskWithExp, target: Math.max(highRiskAssumptions.length, 1), passed: highRiskAssumptions.length > 0 && highRiskWithExp === highRiskAssumptions.length },
   ], [totalAssumptions, beyondUnverified, highRiskWithExp, highRiskAssumptions.length]);
 
-  const openFactors = factors.filter((f) => f.status === 'open').length;
+  const openFactors = displayFactors.filter((f) => f.status === 'open').length;
 
   if (isLoading) {
     return (
@@ -163,7 +184,7 @@ export default function Track() {
           >
             假設 Kanban
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
-              {assumptions.length}
+              {displayAssumptions.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger
@@ -179,17 +200,17 @@ export default function Track() {
 
         <TabsContent value="kanban" className="mt-5">
           <KanbanBoard
-            assumptions={assumptions}
-            onUpdateAssumptions={setAssumptions}
+            assumptions={displayAssumptions}
+            onUpdateAssumptions={handleUpdateAssumptions}
             projectId={id || ''}
           />
         </TabsContent>
 
         <TabsContent value="unknown" className="mt-5">
           <UnknownFactors
-            factors={factors}
-            assumptions={assumptions}
-            onUpdateFactors={setFactors}
+            factors={displayFactors}
+            assumptions={displayAssumptions}
+            onUpdateFactors={handleUpdateFactors}
             onConvertToAssumption={handleConvertToAssumption}
             projectId={id || ''}
           />

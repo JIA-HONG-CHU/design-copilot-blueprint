@@ -29,6 +29,11 @@ export function AITaskDefinitionCard({ data, missionReady, onRegenerate }: AITas
   const [editData, setEditData] = useState<TaskDefinition5W1H | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Reset loading when new data arrives
+  if (data && loading) {
+    setLoading(false);
+  }
+
   const handleEdit = () => {
     if (data) {
       setEditData({ ...data });
@@ -43,10 +48,7 @@ export function AITaskDefinitionCard({ data, missionReady, onRegenerate }: AITas
 
   const handleRegenerate = () => {
     setLoading(true);
-    setTimeout(() => {
-      onRegenerate();
-      setLoading(false);
-    }, 1500);
+    onRegenerate();
   };
 
   return (

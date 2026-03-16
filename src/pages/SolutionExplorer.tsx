@@ -13,8 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Sparkles, Loader2, Check, X, Minus, Eye, AlertTriangle } from "lucide-react";
-import { mockContradictions } from "@/data/mockContradictions";
-import { mockSolutions, mockConvergenceNodes, mockConvergenceEdges } from "@/data/mockSolutions";
+import { useContradictions } from "@/hooks/api";
+import { useSolutions, useCreateSolution, useUpdateSolution, useConvergenceGraph } from "@/hooks/api/useSolutions";
 import { trizParameters } from "@/data/trizParameters";
 import { Solution, MustCriteria, ConvergenceNode, ConvergenceEdge } from "@/types/solution";
 import { ContradictionSeverity } from "@/types/contradiction";
@@ -33,17 +33,23 @@ const SolutionExplorer = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  const contradictions = mockContradictions.filter((c) => c.projectId === id);
-  const [solutions, setSolutions] = useState<Solution[]>(
-    mockSolutions.filter((s) => s.projectId === id)
-  );
+  // --- API hooks ---
+  const { data: contradictions = [], isLoading: isLoadingContradictions } = useContradictions(id);
+  const { data: solutions = [], isLoading: isLoadingSolutions } = useSolutions(id);
+  const { data: convergenceData, isLoading: isLoadingGraph } = useConvergenceGraph(id);
+  const createSolution = useCreateSolution();
+  const updateSolution = useUpdateSolution();
+
+  const convergenceNodes = convergenceData?.nodes ?? [];
+  const convergenceEdges = convergenceData?.edges ?? [];
+
+  const isLoading = isLoadingContradictions || isLoadingSolutions || isLoadingGraph;
+
   const [selectedContradictionIds, setSelectedContradictionIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedSolution, setSelectedSolution] = useState<Solution | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<string>("all");
-  const [convergenceNodes] = useState<ConvergenceNode[]>(mockConvergenceNodes);
-  const [convergenceEdges] = useState<ConvergenceEdge[]>(mockConvergenceEdges);
 
   const [editForm, setEditForm] = useState<Partial<Solution>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
@@ -77,8 +83,7 @@ const SolutionExplorer = () => {
     }
     setIsGenerating(true);
     await new Promise((r) => setTimeout(r, 2000));
-    const newSol: Solution = {
-      id: `sol-${Date.now()}`,
+    const newSol: Partial<Solution> & { projectId: string; name: string } = {
       projectId: id || "",
       name: "AI 生成方案：智慧阻尼系統",
       description: "基於 MR 流體的半主動阻尼系統，可在毫秒級別調整阻尼特性。",
@@ -99,10 +104,8 @@ const SolutionExplorer = () => {
         { id: `sc-${Date.now()}`, description: "MR 流體成本較高，可能影響整體預算", severity: "major", resolved: false },
       ],
       contradictionSeverity: "major",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
-    setSolutions((prev) => [...prev, newSol]);
+    createSolution.mutate(newSol);
     setIsGenerating(false);
     toast.success("AI 已生成新方案，並完成二次矛盾掃描");
   };
@@ -124,14 +127,11 @@ const SolutionExplorer = () => {
 
   const handleSaveDetail = () => {
     if (!validateEdit() || !selectedSolution) return;
-    setSolutions((prev) =>
-      prev.map((s) =>
-        s.id === selectedSolution.id
-          ? { ...s, ...editForm, updatedAt: new Date().toISOString() }
-          : s
-      )
-    );
-    toast.success("方案已更新");
+    updateSolution.mutate({
+      id: selectedSolution.id,
+      projectId: selectedSolution.projectId,
+      ...editForm,
+    } as { id: string; projectId: string } & Partial<Solution>);
     setIsDetailOpen(false);
   };
 
@@ -159,6 +159,16 @@ const SolutionExplorer = () => {
 
   const mustPassCount = (sol: Solution) => sol.mustCriteria.filter((m) => m.passed === true).length;
   const mustTotal = (sol: Solution) => sol.mustCriteria.length;
+
+  /* ---- Loading state ---- */
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-3 text-muted-foreground">載入方案資料中...</span>
+      </div>
+    );
+  }
 
   /* ---- Detail content ---- */
   const detailContent = editForm && (
@@ -318,7 +328,10 @@ const SolutionExplorer = () => {
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button onClick={handleSaveDetail}>保存</Button>
+        <Button onClick={handleSaveDetail} disabled={updateSolution.isPending}>
+          {updateSolution.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+          保存
+        </Button>
         <Button variant="outline" onClick={() => setIsDetailOpen(false)}>取消</Button>
       </div>
     </div>

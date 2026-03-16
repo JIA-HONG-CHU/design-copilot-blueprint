@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useCreateProject } from "@/hooks/api/useProjects";
 
 interface CreateProjectModalProps {
   open: boolean;
@@ -23,6 +24,8 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
+
+  const createProject = useCreateProject();
 
   function validate() {
     const e: typeof errors = {};
@@ -36,11 +39,18 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
 
   function handleSubmit() {
     if (!validate()) return;
-    // Mock: just navigate to a new project
-    onOpenChange(false);
-    setName("");
-    setDescription("");
-    navigate("/projects/proj-001");
+
+    createProject.mutate(
+      { name, description },
+      {
+        onSuccess: (project) => {
+          onOpenChange(false);
+          setName("");
+          setDescription("");
+          navigate(`/projects/${project.id}`);
+        },
+      },
+    );
   }
 
   return (
@@ -81,7 +91,9 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleSubmit}>建立專案</Button>
+          <Button onClick={handleSubmit} disabled={createProject.isPending}>
+            {createProject.isPending ? "建立中..." : "建立專案"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

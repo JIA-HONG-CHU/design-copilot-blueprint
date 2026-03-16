@@ -1,11 +1,12 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, PenTool, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, PenTool, CheckCircle, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
-import { mockAlternatives } from "@/data/mockCreate";
+import { useAlternatives, useUpdateAlternative } from "@/hooks/api";
 
 type CadStatus = "not_started" | "in_progress" | "completed";
 
@@ -22,28 +23,46 @@ const CAD_STATUS_CONFIG: Record<CadStatus, { label: string; icon: typeof CheckCi
   completed: { label: "已完成", icon: CheckCircle, variant: "default" },
 };
 
-// Mock: simulate which alternatives passed MUST and are now in CAD
-function getMockCadItems(projectId: string): CadItem[] {
-  const alts = mockAlternatives[projectId] ?? [];
-  const passed = alts.filter(
-    (a) => !Object.values(a.mustScores).includes("fail") && Object.values(a.mustScores).some((v) => v !== null)
-  );
-  return passed.map((a, i) => ({
-    altId: a.id,
-    altName: a.name || `(未命名方案 ${i + 1})`,
-    cadStatus: i === 0 ? "completed" : i === 1 ? "in_progress" : "not_started",
-    cadNote: i === 0 ? "3D 模型已完成，BOM 已匯出" : i === 1 ? "殼體結構建模中，預計本週完成" : "",
-  }));
-}
-
 export default function CadInProgress() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const items = getMockCadItems(id ?? "");
 
-  const completedCount = items.filter((i) => i.cadStatus === "completed").length;
-  const progress = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
+  // --- API hooks ---
+  const { data: alternatives = [], isLoading } = useAlternatives(id);
+  const updateAlternative = useUpdateAlternative();
+
+  // Filter: alternatives that passed MUST (no "fail" in mustScores and at least one non-null)
+  // Then map to CadItem using the raw alternative data
+  const cadItems: CadItem[] = useMemo(() => {
+    const passed = alternatives.filter(
+      (a) => !Object.values(a.mustScores).includes("fail") && Object.values(a.mustScores).some((v) => v !== null)
+    );
+    return passed.map((a, i) => {
+      // The Alternative type from useCreate doesn't expose cadStatus,
+      // but we can access it as extended property from the raw data
+      const rawAny = a as any;
+      const cadStatus = (rawAny.cadStatus ?? rawAny.cad_status ?? "not_started") as CadStatus;
+      return {
+        altId: a.id,
+        altName: a.name || `(未命名方案 ${i + 1})`,
+        cadStatus,
+        cadNote: "",
+      };
+    });
+  }, [alternatives]);
+
+  const completedCount = cadItems.filter((i) => i.cadStatus === "completed").length;
+  const progress = cadItems.length > 0 ? Math.round((completedCount / cadItems.length) * 100) : 0;
   const canProceed = completedCount >= 1;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-3 text-muted-foreground">載入 CAD 階段資料中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -65,13 +84,13 @@ export default function CadInProgress() {
         <CardContent className="p-5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">CAD 完成進度</span>
-            <span className="text-sm text-muted-foreground">{completedCount}/{items.length} 方案</span>
+            <span className="text-sm text-muted-foreground">{completedCount}/{cadItems.length} 方案</span>
           </div>
           <Progress value={progress} className="h-2" />
         </CardContent>
       </Card>
 
-      {items.length === 0 ? (
+      {cadItems.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center space-y-3">
             <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto" />
@@ -82,7 +101,7 @@ export default function CadInProgress() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => {
+          {cadItems.map((item) => {
             const config = CAD_STATUS_CONFIG[item.cadStatus];
             const Icon = config.icon;
             return (
@@ -100,6 +119,37 @@ export default function CadInProgress() {
                   {item.cadStatus === "not_started" && (
                     <p className="text-xs text-muted-foreground italic">等待 RD 開始 CAD 建模</p>
                   )}
+                  {/* Status update buttons */}
+                  <div className="flex gap-2">
+                    {item.cadStatus !== "in_progress" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateAlternative.mutate({
+                            id: item.altId,
+                            cad_status: "in_progress",
+                          })
+                        }
+                      >
+                        <PenTool className="h-3 w-3 mr-1" /> 開始繪製
+                      </Button>
+                    )}
+                    {item.cadStatus !== "completed" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateAlternative.mutate({
+                            id: item.altId,
+                            cad_status: "completed",
+                          })
+                        }
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" /> 標記完成
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

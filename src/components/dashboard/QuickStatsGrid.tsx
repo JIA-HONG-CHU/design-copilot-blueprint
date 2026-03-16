@@ -19,7 +19,8 @@ const STAT_DEFS: {
   { key: "evidence_items_count", label: "證據數", icon: FileCheck },
 ];
 
-function formatNumber(n: number) {
+function formatNumber(n: number | undefined | null) {
+  if (n == null) return "0";
   if (n > 9999) return "9999+";
   return n.toLocaleString();
 }

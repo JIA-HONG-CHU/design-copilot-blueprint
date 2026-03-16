@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { ContradictionConvergence } from "@/data/mockDashboard";
+import type { ContradictionConvergence } from "@/types/project";
 import { GitBranch, AlertTriangle } from "lucide-react";
 
 interface ContradictionConvergenceCardProps {

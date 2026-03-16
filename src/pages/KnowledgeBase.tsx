@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Search, BookOpen, FileText, Lightbulb, Calendar, User, GitBranch, ChevronLeft, ChevronRight } from "lucide-react";
+import { useKnowledgeArticles, useKnowledgeArticle } from "@/hooks/api/useKnowledge";
 import { mockKnowledgeArticles } from "@/data/mockKnowledge";
 
 const CATEGORY_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -25,9 +27,16 @@ const KnowledgeBase = () => {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [page, setPage] = useState(1);
 
+  // Fetch articles from Supabase; fall back to mock data when empty or on error
+  const { data: liveArticles, isLoading: articlesLoading } = useKnowledgeArticles();
+  const articles = liveArticles.length > 0 ? liveArticles : mockKnowledgeArticles;
+
+  // Fetch single article by slug from Supabase
+  const { data: liveArticle, isLoading: articleLoading } = useKnowledgeArticle(slug);
+
   const filtered = useMemo(() => {
     setPage(1);
-    return mockKnowledgeArticles.filter((a) => {
+    return articles.filter((a) => {
       const matchCategory = activeCategory === "all" || a.category === activeCategory;
       const matchSearch =
         !search ||
@@ -36,14 +45,37 @@ const KnowledgeBase = () => {
         a.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
       return matchCategory && matchSearch;
     });
-  }, [search, activeCategory]);
+  }, [search, activeCategory, articles]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Use live article from Supabase if available, otherwise fall back to mock
   const selectedArticle = slug
-    ? mockKnowledgeArticles.find((a) => a.slug === slug)
+    ? (liveArticle ?? articles.find((a) => a.slug === slug) ?? null)
     : null;
+
+  // Loading state for list view
+  if (!slug && articlesLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)}
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state for detail view
+  if (slug && articleLoading && !selectedArticle) {
+    return (
+      <div className="space-y-6 max-w-4xl">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   // ── Detail view ──
   if (selectedArticle) {

@@ -13,15 +13,15 @@ interface StepDef {
 }
 
 const STEPS: StepDef[] = [
-  { key: "1.1", label: "1.1", phase: 1 },
-  { key: "1.2", label: "1.2", phase: 1 },
-  { key: "1.3", label: "1.3", phase: 1 },
-  { key: "2.1", label: "2.1", phase: 2 },
-  { key: "2.2", label: "2.2", phase: 2 },
-  { key: "2.3", label: "2.3", phase: 2 },
-  { key: "3.1", label: "3.1", phase: 3 },
-  { key: "3.2", label: "3.2", phase: 3 },
-  { key: "3.3", label: "3.3", phase: 3 },
+  { key: "1.1", label: "Brief", phase: 1 },
+  { key: "1.2", label: "Explore", phase: 1 },
+  { key: "1.3", label: "矛盾確認", phase: 1 },
+  { key: "2.1", label: "Track", phase: 2 },
+  { key: "2.2", label: "Create", phase: 2 },
+  { key: "2.3", label: "Pre-CAD", phase: 2 },
+  { key: "3.1", label: "Review", phase: 3 },
+  { key: "3.2", label: "Decide", phase: 3 },
+  { key: "3.3", label: "Feynman", phase: 3 },
 ];
 
 const PHASE_LABELS: Record<number, string> = {
@@ -72,8 +72,11 @@ export function PhaseProgressBar({ progress }: PhaseProgressBarProps) {
       <div className="flex items-center gap-0">
         {STEPS.map((step, i) => {
           const status = progress[step.key];
+          const prevStatus = i > 0 ? progress[STEPS[i - 1].key] : "not_started";
           const prevPhase = i > 0 ? STEPS[i - 1].phase : step.phase;
           const showPhaseDivider = i > 0 && step.phase !== prevPhase;
+          // Line is colored if either end is passed or in_progress
+          const lineActive = prevStatus === "passed" || status === "passed" || status === "in_progress";
 
           return (
             <div key={step.key} className="flex items-center flex-1">
@@ -81,8 +84,8 @@ export function PhaseProgressBar({ progress }: PhaseProgressBarProps) {
               {i > 0 && (
                 <div className={cn(
                   "flex-1 h-0.5",
-                  showPhaseDivider ? "bg-border" :
-                  status === "not_started" ? "bg-border" : phaseLineColor[step.phase]
+                  showPhaseDivider && !lineActive ? "bg-border" :
+                  !lineActive ? "bg-border" : phaseLineColor[step.phase]
                 )} />
               )}
 

@@ -15,6 +15,7 @@ export interface Contradiction {
   engineeringStatement: string;
   physicalContradiction: string;
   severity: ContradictionSeverity;
+  resolved: boolean;
   createdAt: string;
   updatedAt: string;
 }

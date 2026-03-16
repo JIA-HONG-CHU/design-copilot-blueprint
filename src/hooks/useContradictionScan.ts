@@ -5,6 +5,7 @@
  */
 import { useState, useCallback } from 'react';
 import type { ContradictionSeverity } from '@/types/contradiction';
+import { convergenceScan } from '@/lib/api';
 
 export interface SecondaryContradiction {
   id: string;
@@ -30,46 +31,75 @@ export function useContradictionScan() {
   });
   const [isScanning, setIsScanning] = useState(false);
 
-  const runScan = useCallback(async (solutionId: string) => {
+  const runScan = useCallback(async (solutionId: string, projectId?: string) => {
     setIsScanning(true);
 
-    // Simulate AI contradiction scan with delay
-    await new Promise((r) => setTimeout(r, 1200));
+    try {
+      const result = await convergenceScan({
+        project_id: projectId || '',
+        alternatives: [{ id: solutionId }],
+        contradictions: [],
+      });
 
-    // Mock: generate secondary contradictions based on the solution
-    const mockContradictions: SecondaryContradiction[] = [
-      {
-        id: `sc-${Date.now()}-1`,
-        description: '磁力耦合方案引入新的散熱需求 → 與輕量化目標矛盾',
-        severity: 'major',
+      const scanned: SecondaryContradiction[] = result.new_contradictions.map((c, i) => ({
+        id: `sc-${Date.now()}-${i}`,
+        description: c.description,
+        severity: c.severity as ContradictionSeverity,
         resolved: false,
         sourceSolutionId: solutionId,
-      },
-      {
-        id: `sc-${Date.now()}-2`,
-        description: '非接觸傳動降低效率 → 與續航需求矛盾',
-        severity: 'minor',
-        resolved: true,
-        sourceSolutionId: solutionId,
-      },
-    ];
+      }));
 
-    const fatal = mockContradictions.filter((c) => c.severity === 'fatal');
-    const major = mockContradictions.filter((c) => c.severity === 'major');
-    const totalFM = fatal.length + major.length;
-    const resolvedFM =
-      fatal.filter((c) => c.resolved).length + major.filter((c) => c.resolved).length;
-    const score = totalFM > 0 ? (resolvedFM / totalFM) * 100 : 100;
+      const fatal = scanned.filter((c) => c.severity === 'fatal');
+      const major = scanned.filter((c) => c.severity === 'major');
+      const totalFM = fatal.length + major.length;
+      const resolvedFM = 0;
+      const score = totalFM > 0 ? (resolvedFM / totalFM) * 100 : 100;
 
-    setScanResult({
-      contradictions: mockContradictions,
-      nodeCount: mockContradictions.length + 1, // +1 for the solution node
-      hasCircular: false,
-      confidenceScore: Math.round(score * 10) / 10,
-    });
+      setScanResult({
+        contradictions: scanned,
+        nodeCount: scanned.length + 1,
+        hasCircular: false,
+        confidenceScore: Math.round(score * 10) / 10,
+      });
 
-    setIsScanning(false);
-    return mockContradictions;
+      setIsScanning(false);
+      return scanned;
+    } catch {
+      // Fallback to mock data if backend unavailable
+      const mockContradictions: SecondaryContradiction[] = [
+        {
+          id: `sc-${Date.now()}-1`,
+          description: '磁力耦合方案引入新的散熱需求 → 與輕量化目標矛盾',
+          severity: 'major',
+          resolved: false,
+          sourceSolutionId: solutionId,
+        },
+        {
+          id: `sc-${Date.now()}-2`,
+          description: '非接觸傳動降低效率 → 與續航需求矛盾',
+          severity: 'minor',
+          resolved: true,
+          sourceSolutionId: solutionId,
+        },
+      ];
+
+      const fatal = mockContradictions.filter((c) => c.severity === 'fatal');
+      const major = mockContradictions.filter((c) => c.severity === 'major');
+      const totalFM = fatal.length + major.length;
+      const resolvedFM =
+        fatal.filter((c) => c.resolved).length + major.filter((c) => c.resolved).length;
+      const score = totalFM > 0 ? (resolvedFM / totalFM) * 100 : 100;
+
+      setScanResult({
+        contradictions: mockContradictions,
+        nodeCount: mockContradictions.length + 1,
+        hasCircular: false,
+        confidenceScore: Math.round(score * 10) / 10,
+      });
+
+      setIsScanning(false);
+      return mockContradictions;
+    }
   }, []);
 
   const resolveContradiction = useCallback((id: string) => {

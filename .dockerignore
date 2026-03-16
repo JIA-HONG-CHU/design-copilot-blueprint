@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+backend
+docs
+rd_assistant_design_system
+*.md
+__pycache__
+.vscode
+.idea

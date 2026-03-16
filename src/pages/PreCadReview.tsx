@@ -12,20 +12,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { ArrowLeft, Check, X, AlertTriangle, ClipboardCheck, Loader2, Eye, ShieldCheck, ShieldAlert } from "lucide-react";
-import { mockSolutions, mockConvergenceNodes } from "@/data/mockSolutions";
+import { usePreCadSolutions, usePreCadConvergenceStats } from "@/hooks/api/usePreCadReview";
+import { useConstraints } from "@/hooks/api";
 import { Solution } from "@/types/solution";
 import { ReviewDimension, SolutionReview } from "@/types/preCadReview";
 import { ContradictionSeverity } from "@/types/contradiction";
 
-// Mock constraint feasibility data
-const mockConstraintFeasibility = [
-  { id: "cf-1", label: "成本 ≤ 預算上限 ($50,000)", status: "verified" as const },
-  { id: "cf-2", label: "符合 IEC 61672 噪音標準 ≤ 70dB", status: "verified" as const },
-  { id: "cf-3", label: "尺寸 ≤ 400×300×200mm", status: "questionable" as const },
-  { id: "cf-4", label: "工作溫度範圍 -20°C ~ 60°C", status: "verified" as const },
-  { id: "cf-5", label: "MTBF ≥ 10,000 小時", status: "questionable" as const },
-];
-
+// Constraint feasibility — from DB constraints table
 const feasibilityStatusConfig = {
   verified: { label: "已驗證", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
   questionable: { label: "存疑", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
@@ -53,38 +46,48 @@ const PreCadReview = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const candidates = mockSolutions.filter(
-    (s) => s.projectId === id && s.mustCriteria.some((m) => m.passed === true)
-  );
+  // --- API hooks ---
+  const { data: candidates = [], isLoading: isLoadingSolutions } = usePreCadSolutions(id);
+  const { data: convergenceStats, isLoading: isLoadingStats } = usePreCadConvergenceStats(id);
+  const { data: constraints = [], isLoading: isLoadingConstraints } = useConstraints(id);
 
-  // Compute confidence score from convergence nodes
-  const { confidenceScore, fatalResolved, fatalTotal, majorResolved, majorTotal, minorResolved, minorTotal } = useMemo(() => {
-    const contradictionNodes = mockConvergenceNodes.filter((n) => n.type === "contradiction");
-    const fatal = contradictionNodes.filter((n) => n.severity === "fatal");
-    const major = contradictionNodes.filter((n) => n.severity === "major");
-    const minor = contradictionNodes.filter((n) => n.severity === "minor");
-    const fatalR = fatal.filter((n) => n.resolved).length;
-    const majorR = major.filter((n) => n.resolved).length;
-    const totalFM = fatal.length + major.length;
-    const resolvedFM = fatalR + majorR;
-    const score = totalFM > 0 ? (resolvedFM / totalFM) * 100 : 100;
-    return {
-      confidenceScore: Math.round(score * 10) / 10,
-      fatalResolved: fatalR, fatalTotal: fatal.length,
-      majorResolved: majorR, majorTotal: major.length,
-      minorResolved: minor.filter((n) => n.resolved).length, minorTotal: minor.length,
-    };
-  }, []);
+  const isLoading = isLoadingSolutions || isLoadingStats || isLoadingConstraints;
+
+  // Convergence stats
+  const confidenceScore = convergenceStats?.confidenceScore ?? 0;
+  const fatalResolved = convergenceStats?.fatalResolved ?? 0;
+  const fatalTotal = convergenceStats?.fatalTotal ?? 0;
+  const majorResolved = convergenceStats?.majorResolved ?? 0;
+  const majorTotal = convergenceStats?.majorTotal ?? 0;
+  const minorResolved = convergenceStats?.minorResolved ?? 0;
+  const minorTotal = convergenceStats?.minorTotal ?? 0;
 
   const gatePassed = confidenceScore === 100;
 
-  const [reviews, setReviews] = useState<Record<string, SolutionReview>>(() => {
-    const init: Record<string, SolutionReview> = {};
-    candidates.forEach((s) => {
-      init[s.id] = { solutionId: s.id, dimensions: createDefaultDimensions(), reviewed: false };
+  // Build constraint feasibility from DB constraints
+  const constraintFeasibility = useMemo(() => {
+    return constraints.map((c: any) => ({
+      id: c.id,
+      label: `${c.constraintCode ?? c.constraint_code ?? ''} ${c.description}`,
+      status: (c.feasibility ?? 'questionable') as 'verified' | 'questionable' | 'infeasible',
+    }));
+  }, [constraints]);
+
+  const [reviews, setReviews] = useState<Record<string, SolutionReview>>({});
+
+  // Initialize reviews when candidates change
+  useMemo(() => {
+    if (candidates.length === 0) return;
+    setReviews((prev) => {
+      const next = { ...prev };
+      candidates.forEach((s) => {
+        if (!next[s.id]) {
+          next[s.id] = { solutionId: s.id, dimensions: createDefaultDimensions(), reviewed: false };
+        }
+      });
+      return next;
     });
-    return init;
-  });
+  }, [candidates]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [conclusion, setConclusion] = useState("");
@@ -164,6 +167,16 @@ const PreCadReview = () => {
 
   const scoreColor = confidenceScore >= 100 ? "text-emerald-600" : confidenceScore >= 50 ? "text-amber-600" : "text-destructive";
   const progressColor = confidenceScore >= 100 ? "bg-emerald-500" : confidenceScore >= 50 ? "bg-amber-500" : "bg-destructive";
+
+  /* ---- Loading state ---- */
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-3 text-muted-foreground">載入審查資料中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -257,14 +270,18 @@ const PreCadReview = () => {
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-medium text-muted-foreground">約束可行性驗證</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {mockConstraintFeasibility.map((cf) => (
-                <div key={cf.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="line-clamp-1 flex-1">{cf.label}</span>
-                  <Badge variant="outline" className={`text-xs shrink-0 ${feasibilityStatusConfig[cf.status].color}`}>
-                    {feasibilityStatusConfig[cf.status].label}
-                  </Badge>
-                </div>
-              ))}
+              {constraintFeasibility.length === 0 ? (
+                <p className="text-xs text-muted-foreground">尚無約束資料</p>
+              ) : (
+                constraintFeasibility.map((cf) => (
+                  <div key={cf.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="line-clamp-1 flex-1">{cf.label}</span>
+                    <Badge variant="outline" className={`text-xs shrink-0 ${feasibilityStatusConfig[cf.status]?.color ?? ''}`}>
+                      {feasibilityStatusConfig[cf.status]?.label ?? cf.status}
+                    </Badge>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

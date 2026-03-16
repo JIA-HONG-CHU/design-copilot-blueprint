@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +12,16 @@ import { CausalLoopDiagram } from "@/components/assumption/CausalLoopDiagram";
 import { VerificationKanban } from "@/components/assumption/VerificationKanban";
 import { ContradictionTraceability } from "@/components/assumption/ContradictionTraceability";
 import {
-  mockAssumptions,
-  mockCLDNodes, mockCLDEdges, mockCLDLoops,
-  mockLinkedContradictions, mockSocraticFeedback, mockConvergenceImpact,
-} from "@/data/mockAssumptions";
+  useAssumptions,
+  useCreateAssumptionMapped,
+  useUpdateAssumption,
+  useDeleteAssumption,
+  useCldNodes,
+  useCldEdges,
+  useLinkedContradictions,
+  useSocraticFeedback,
+  useConvergenceImpact,
+} from "@/hooks/api/useAssumptions";
 import {
   ASSUMPTION_STATUS_LABELS,
   SEVERITY_LABELS,
@@ -46,93 +52,78 @@ export default function AssumptionLedger() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [assumptions, setAssumptions] = useState<Assumption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
+  // --- API hooks ---
+  const { data: assumptions, isLoading, isError } = useAssumptions(id);
+  const createAssumption = useCreateAssumptionMapped(id);
+  const updateAssumption = useUpdateAssumption(id);
+  const deleteAssumption = useDeleteAssumption(id);
+  const { data: cldNodes } = useCldNodes(id);
+  const { data: cldEdges } = useCldEdges(id);
+  const { data: allContradictions } = useLinkedContradictions(id);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAssumption, setEditingAssumption] = useState<Assumption | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (id && mockAssumptions[id]) {
-        setAssumptions(mockAssumptions[id]);
-      }
-      setIsLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [id]);
-
   const selectedAssumption = assumptions.find((a) => a.id === selectedId) ?? null;
+
+  // --- Socratic & Convergence (TODO: backed by real DB later) ---
+  const { data: socraticFeedback } = useSocraticFeedback(selectedId);
+  const { data: convergenceImpact } = useConvergenceImpact(selectedId);
+
+  // Filter contradictions linked to the selected assumption via impactScope
+  const linkedContradictions = selectedAssumption
+    ? allContradictions.filter((c) => selectedAssumption.impactScope.includes(c.id))
+    : [];
 
   const openCreate = () => { setEditingAssumption(null); setEditorOpen(true); };
   const openEdit = (assumption: Assumption) => { setEditingAssumption(assumption); setEditorOpen(true); };
 
   const handleSave = (data: AssumptionFormValues, existingId?: string) => {
     if (existingId) {
-      setAssumptions((prev) =>
-        prev.map((a) => a.id === existingId ? {
-          ...a, ...data,
-          impactScope: data.impactScope ?? a.impactScope,
-          updatedAt: new Date().toISOString(),
-        } : a)
-      );
+      updateAssumption.mutate(existingId, {
+        ...data,
+        impactScope: data.impactScope ?? undefined,
+      });
       toast({ title: "假設已更新" });
     } else {
-      const newAssumption: Assumption = {
-        id: `asm-${Date.now()}`,
-        code: `A-${String(assumptions.length + 1).padStart(3, "0")}`,
-        content: data.content,
-        source: data.source,
-        sourceType: "manual",
-        worstConsequence: data.worstConsequence,
-        worstSeverity: data.worstSeverity,
-        minValidation: data.minValidation,
-        validationCost: data.validationCost,
-        validationMethod: data.validationMethod,
-        estimatedDays: data.estimatedDays,
-        status: "pending",
-        verificationStage: "unplanned",
-        impactScope: data.impactScope ?? [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setAssumptions((prev) => [...prev, newAssumption]);
-      toast({ title: "假設已新增" });
+      if (!id) return;
+      const code = `A-${String(assumptions.length + 1).padStart(3, "0")}`;
+      createAssumption.mutate({
+        ...data,
+        projectId: id,
+        code,
+      });
     }
   };
 
   const handleStatusChange = (assumptionId: string, newStatus: AssumptionStatus) => {
-    setAssumptions((prev) =>
-      prev.map((a) => a.id === assumptionId ? { ...a, status: newStatus, updatedAt: new Date().toISOString() } : a)
-    );
+    updateAssumption.mutate(assumptionId, { status: newStatus });
     if (newStatus === "refuted") {
-      const asm = assumptions.find((a) => a.id === assumptionId);
-      const impact = mockConvergenceImpact[assumptionId];
-      if (impact) {
-        toast({ title: "⚠️ 收斂圖受影響", description: impact.message, variant: "destructive" });
-      }
+      // TODO: Once convergence_impacts table exists, query real data here
+      toast({ title: "狀態已更新為「已推翻」" });
     }
   };
 
   const handleVerificationStageChange = (assumptionId: string, newStage: VerificationStage) => {
-    setAssumptions((prev) =>
-      prev.map((a) => a.id === assumptionId ? {
-        ...a,
-        verificationStage: newStage,
-        status: newStage === "refuted" ? "refuted" : newStage === "completed" ? "validated" : newStage === "in_progress" ? "validating" : a.status,
-        updatedAt: new Date().toISOString(),
-      } : a)
-    );
+    const derivedStatus: AssumptionStatus | undefined =
+      newStage === "refuted" ? "refuted" :
+      newStage === "completed" ? "validated" :
+      newStage === "in_progress" ? "validating" :
+      undefined;
+
+    updateAssumption.mutate(assumptionId, {
+      verificationStage: newStage,
+      ...(derivedStatus ? { status: derivedStatus } : {}),
+    });
     toast({ title: "驗證階段已更新" });
   };
 
   const handleDelete = (assumptionId: string) => {
-    setAssumptions((prev) => prev.filter((a) => a.id !== assumptionId));
+    deleteAssumption.mutate({ id: assumptionId });
     if (selectedId === assumptionId) setSelectedId(null);
-    toast({ title: "假設已刪除" });
   };
 
   if (isLoading) {
@@ -158,9 +149,9 @@ export default function AssumptionLedger() {
     );
   }
 
-  const cldNodes = id ? mockCLDNodes[id] ?? [] : [];
-  const cldEdges = id ? mockCLDEdges[id] ?? [] : [];
-  const cldLoops = id ? mockCLDLoops[id] ?? [] : [];
+  // CLD loops not in DB yet — pass empty array
+  // TODO: Create cld_loops table and hook when needed
+  const cldLoops: { id: string; type: "R" | "B"; nodeIds: string[]; label: string }[] = [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -326,9 +317,9 @@ export default function AssumptionLedger() {
                 assumptionId={selectedId}
                 assumptionCode={selectedAssumption?.code}
                 isRefuted={selectedAssumption?.status === "refuted"}
-                linkedContradictions={selectedId ? mockLinkedContradictions[selectedId] ?? [] : []}
-                socraticFeedback={selectedId ? mockSocraticFeedback[selectedId] ?? [] : []}
-                convergenceImpact={selectedId ? mockConvergenceImpact[selectedId] : undefined}
+                linkedContradictions={linkedContradictions}
+                socraticFeedback={socraticFeedback}
+                convergenceImpact={convergenceImpact ?? undefined}
               />
             </div>
           </div>

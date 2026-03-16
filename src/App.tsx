@@ -24,10 +24,13 @@ import DecisionRecord from "./pages/DecisionRecord";
 import Feynman from "./pages/Feynman";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import NotFound from "./pages/NotFound";
+import DevSeed from "./pages/DevSeed";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
 const App = () => (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <TooltipProvider>
@@ -55,6 +58,7 @@ const App = () => (
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/dev/seed" element={<DevSeed />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
@@ -64,6 +68,7 @@ const App = () => (
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

@@ -10,6 +10,7 @@ import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { socraticGenerate } from "@/lib/api";
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];
@@ -104,21 +105,31 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
 
   const handleGenerateMore = async () => {
     setIsGenerating(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    const newQ: SocraticQuestion = {
-      id: `q-${Date.now()}`,
-      category: 'consequence',
-      text: '如果選擇齒輪傳動方案，對噪音和維護成本的影響是什麼？與皮帶傳動相比有哪些優劣勢？',
-      answer: null,
-      taggedAsAssumption: false,
-      taggedAsContradiction: false,
-      aiSuggestedTag: null,
-      aiTagConfirmed: false,
-      aiTagDismissed: false,
-    };
-    onUpdateQuestions([...questions, newQ]);
-    setIsGenerating(false);
-    toast.success('AI 已生成新問題');
+    try {
+      const result = await socraticGenerate({
+        project_id: projectId,
+        mission: '', // Will be enriched by backend from project context
+        existing_questions: questions.map((q) => q.text),
+      });
+      const newQuestions: SocraticQuestion[] = result.questions.map((q, i) => ({
+        id: `q-${Date.now()}-${i}`,
+        category: q.category as QuestionCategory,
+        text: q.text,
+        answer: null,
+        taggedAsAssumption: false,
+        taggedAsContradiction: false,
+        aiSuggestedTag: q.suggested_tag as 'assumption' | 'contradiction' | null,
+        aiTagConfirmed: false,
+        aiTagDismissed: false,
+      }));
+      onUpdateQuestions([...questions, ...newQuestions]);
+      toast.success(`AI 已生成 ${newQuestions.length} 個新問題`);
+    } catch (err) {
+      console.error("Socratic generation failed:", err);
+      toast.error("AI 生成問題失敗，請確認後端服務是否啟動");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (questions.length === 0) {
@@ -173,7 +184,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
       {/* Question cards */}
       <div className="space-y-4">
         {filteredQuestions.map((q) => {
-          const config = CATEGORY_CONFIG[q.category];
+          const config = CATEGORY_CONFIG[q.category] ?? { label: q.category, labelZh: q.category, color: '#6B7280' };
           const isAnswered = q.answer && q.answer.trim().length >= 5;
           const hasPendingSuggestion = q.aiSuggestedTag && !q.aiTagConfirmed && !q.aiTagDismissed;
           const hasConfirmedTag = q.aiSuggestedTag && q.aiTagConfirmed;
@@ -315,25 +326,44 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
               </p>
             </div>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 toast.success(`已確認 ${answeredCount} 題回答，AI 正在分析...`);
-                // Simulate AI auto-tagging after confirmation
-                setTimeout(() => {
+                try {
+                  const answeredTexts = questions
+                    .filter((q) => q.answer && q.answer.trim().length >= 5)
+                    .map((q) => `[${q.category}] Q: ${q.text} A: ${q.answer}`);
+                  const result = await socraticGenerate({
+                    project_id: projectId,
+                    mission: answeredTexts.join('\n'),
+                    existing_questions: questions.map((q) => q.text),
+                  });
+                  // Map returned suggested tags back onto existing questions
+                  const tagMap = new Map(result.questions.map((q) => [q.text, q.suggested_tag]));
                   const updated = questions.map((q) => {
                     if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
-                      // Simple heuristic mock: tag some answers
-                      if (q.category === 'assumption' || q.answer.includes('假設') || q.answer.includes('基於')) {
+                      const tag = tagMap.get(q.text) as 'assumption' | 'contradiction' | null;
+                      if (tag) return { ...q, aiSuggestedTag: tag };
+                    }
+                    return q;
+                  });
+                  onUpdateQuestions(updated);
+                  toast.info('AI 分析完成，請檢查標記建議');
+                } catch {
+                  // Fallback to heuristic if backend unavailable
+                  const updated = questions.map((q) => {
+                    if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
+                      if (q.category === 'assumption' || q.answer!.includes('假設') || q.answer!.includes('基於')) {
                         return { ...q, aiSuggestedTag: 'assumption' as const };
                       }
-                      if (q.category === 'counter' || q.answer.includes('矛盾') || q.answer.includes('不足')) {
+                      if (q.category === 'counter' || q.answer!.includes('矛盾') || q.answer!.includes('不足')) {
                         return { ...q, aiSuggestedTag: 'contradiction' as const };
                       }
                     }
                     return q;
                   });
                   onUpdateQuestions(updated);
-                  toast.info('AI 分析完成，請檢查標記建議');
-                }, 1500);
+                  toast.info('AI 分析完成（離線模式），請檢查標記建議');
+                }
               }}
               className="shrink-0"
             >

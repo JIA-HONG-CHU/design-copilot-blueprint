@@ -10,6 +10,7 @@ import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2, Check } from "luci
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { cldGenerate } from "@/lib/api";
 
 interface CldTabProps {
   causalLoop: CausalLoop | null;
@@ -33,14 +34,45 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId }: CldTabProp
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    // Import mock data lazily
-    const { mockCausalLoop } = await import("@/data/mockExplore");
-    if (mockCausalLoop[projectId]) {
-      onUpdateCausalLoop(mockCausalLoop[projectId]);
+    try {
+      const result = await cldGenerate({
+        project_id: projectId,
+        contradictions: [],
+        assumptions: [],
+      });
+      // Map backend response to frontend CausalLoop shape
+      const SPACING_X = 140;
+      const SPACING_Y = 80;
+      const COLS = 4;
+      const cld: CausalLoop = {
+        nodes: result.nodes.map((n, i) => ({
+          id: n.id,
+          label: n.label,
+          position: { x: (i % COLS) * SPACING_X + 30, y: Math.floor(i / COLS) * SPACING_Y + 30 },
+          isBreakpoint: result.breakpoints.includes(n.id),
+          breakpointReason: result.breakpoints.includes(n.id) ? 'AI identified breakpoint' : null,
+          relatedContradictions: [],
+        })),
+        edges: result.edges.map((e, i) => ({
+          id: `e-${i}`,
+          source: e.from_node,
+          target: e.to_node,
+          feedbackType: e.polarity === '+' ? 'positive' as const : 'negative' as const,
+        })),
+      };
+      onUpdateCausalLoop(cld);
+      toast.success('AI 已生成因果迴路圖');
+    } catch (err) {
+      console.error("CLD generation failed:", err);
+      // Fallback to mock data
+      const { mockCausalLoop } = await import("@/data/mockExplore");
+      if (mockCausalLoop[projectId]) {
+        onUpdateCausalLoop(mockCausalLoop[projectId]);
+      }
+      toast.error('AI 生成失敗，已載入範例資料');
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
-    toast.success('AI 已生成因果迴路圖');
   };
 
   const handleToggleBreakpoint = (nodeId: string) => {

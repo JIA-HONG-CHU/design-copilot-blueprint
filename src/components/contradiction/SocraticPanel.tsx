@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sparkles, ChevronDown, ChevronUp, Loader2, MessageCircleQuestion } from "lucide-react";
+import { socraticGenerate } from "@/lib/api";
 
 interface SocraticQuestion {
   type: string;
@@ -43,9 +44,23 @@ const SocraticPanel = ({ description }: SocraticPanelProps) => {
   const handleGenerate = async () => {
     if (!description || description.length < 10) return;
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setQuestions(mockSocraticQuestions);
-    setIsLoading(false);
+    try {
+      const result = await socraticGenerate({
+        project_id: "",
+        mission: description,
+        constraints: [],
+      });
+      const mapped: SocraticQuestion[] = result.questions.map((q, i) => ({
+        type: q.category,
+        typeLabel: questionTypes.find((t) => t.key === q.category)?.label ?? q.category,
+        question: q.text,
+      }));
+      setQuestions(mapped.length > 0 ? mapped : mockSocraticQuestions);
+    } catch {
+      setQuestions(mockSocraticQuestions);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getTypeStyle = (type: string) => {

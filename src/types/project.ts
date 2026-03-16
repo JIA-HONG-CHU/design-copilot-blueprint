@@ -23,6 +23,14 @@ export interface QuickStats {
   evidence_items_count: number;
 }
 
+/** MUST criterion config derived from Brief constraints/KPIs */
+export interface MustCriterionConfig {
+  id: string;
+  label: string;
+  source: string;
+  threshold?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -41,6 +49,7 @@ export interface Project {
   quick_stats: QuickStats;
   gates_passed: number;
   gates_total: number;
+  must_criteria_config?: MustCriterionConfig[];
 }
 
 export interface CriticalKPI {
@@ -48,7 +57,7 @@ export interface CriticalKPI {
   name: string;
   target: string;
   current: string;
-  status: "on_track" | "at_risk" | "off_track";
+  status: "on_track" | "at_risk" | "off_track" | "unknown";
 }
 
 export interface ProjectHistoryItem {
@@ -89,4 +98,22 @@ export interface NavCardDef {
   requiredGate?: string; // gate that must be passed to unlock
   locked: boolean;
   lockReason?: string;
+}
+
+// Dashboard gauge / convergence card types
+export interface PreCadScore {
+  score: number; // 0-100
+  fatalResolved: number;
+  fatalTotal: number;
+  majorResolved: number;
+  majorTotal: number;
+}
+
+export interface ContradictionConvergence {
+  totalNodes: number;
+  fatalCount: number;
+  majorCount: number;
+  minorCount: number;
+  hasCircularDependency: boolean;
+  healthWarning: boolean; // true if nodes > 5 or circular
 }

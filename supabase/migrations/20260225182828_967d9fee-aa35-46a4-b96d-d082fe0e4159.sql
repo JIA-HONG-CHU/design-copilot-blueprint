@@ -1,58 +1,16 @@
 
--- Profiles table
-CREATE TABLE public.profiles (
+-- Profiles table (idempotent)
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   display_name TEXT NOT NULL DEFAULT '',
   avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own profile"
-  ON public.profiles FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Experiments table
-CREATE TABLE public.experiments (
-  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  assumption_code TEXT NOT NULL,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'running', 'completed', 'failed')),
-  result TEXT,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.experiments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own experiments"
-  ON public.experiments FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own experiments"
-  ON public.experiments FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own experiments"
-  ON public.experiments FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own experiments"
-  ON public.experiments FOR DELETE
-  USING (auth.uid() = user_id);
+-- Experiments table (idempotent — already created in 001_full_schema.sql)
+-- Skipped: CREATE TABLE IF NOT EXISTS handled in 001.
 
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -63,34 +21,21 @@ SET search_path = public
 AS $$
 BEGIN
   INSERT INTO public.profiles (user_id, display_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'display_name', ''));
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'display_name', ''))
+  ON CONFLICT DO NOTHING;
   RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- Updated_at triggers
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$;
-
+-- Updated_at triggers (idempotent)
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_experiments_updated_at
-  BEFORE UPDATE ON public.experiments
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
+  EXECUTE FUNCTION update_updated_at_column();

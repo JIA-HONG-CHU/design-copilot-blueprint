@@ -1,21 +1,7 @@
-import type { Project, ProjectHistoryItem, ProjectStage, CriticalKPI } from "@/types/project";
+import type { Project, ProjectHistoryItem, ProjectStage, CriticalKPI, PreCadScore, ContradictionConvergence } from "@/types/project";
 
-export interface PreCadScore {
-  score: number; // 0-100
-  fatalResolved: number;
-  fatalTotal: number;
-  majorResolved: number;
-  majorTotal: number;
-}
-
-export interface ContradictionConvergence {
-  totalNodes: number;
-  fatalCount: number;
-  majorCount: number;
-  minorCount: number;
-  hasCircularDependency: boolean;
-  healthWarning: boolean; // true if nodes > 5 or circular
-}
+// Re-export types so existing imports from this file continue to work
+export type { PreCadScore, ContradictionConvergence };
 
 export const mockPreCadScores: Record<string, PreCadScore> = {
   "proj-001": { score: 65, fatalResolved: 1, fatalTotal: 2, majorResolved: 2, majorTotal: 3 },

@@ -61,7 +61,7 @@ export function ProjectFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">所有創建者</SelectItem>
-            {creators.map((c) => (
+            {creators.filter(Boolean).map((c) => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
           </SelectContent>

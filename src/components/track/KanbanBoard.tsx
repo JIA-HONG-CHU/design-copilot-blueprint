@@ -1,4 +1,4 @@
-import { useState, useRef, DragEvent } from "react";
+import { useState, useEffect, useRef, DragEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Sparkles, Loader2, GripVertical, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
+import { Plus, Sparkles, Loader2, GripVertical, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit } from "lucide-react";
+import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
+import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
-import { mockExperiments } from "@/data/mockTrack";
+import { useTrackExperiments } from "@/hooks/api/useTrack";
 
 interface KanbanBoardProps {
   assumptions: TrackAssumption[];
@@ -30,8 +32,9 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
 
-  // Experiment state (local, keyed by assumption id)
-  const [experiments, setExperiments] = useState<Record<string, Experiment[]>>(() => ({ ...mockExperiments }));
+  // Experiment state (local cache, keyed by assumption id)
+  // Seeded from Supabase via useTrackExperiments when a card is selected
+  const [experiments, setExperiments] = useState<Record<string, Experiment[]>>({});
   const [newExpName, setNewExpName] = useState('');
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
   const [editExpResult, setEditExpResult] = useState('');
@@ -41,8 +44,26 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
   const [newDesc, setNewDesc] = useState('');
   const [newRisk, setNewRisk] = useState<RiskLevel | ''>('');
 
+  // Evidence dialog state
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
+  const [evidenceDefaultCodes, setEvidenceDefaultCodes] = useState<string[]>([]);
+
   // Mobile column selector
   const [mobileColumn, setMobileColumn] = useState<VerificationStatus>('unverified');
+
+  // Fetch experiments from Supabase for the selected card
+  const selectedAssumptionCode = selectedCard?.assumptionCode;
+  const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
+
+  // Seed local experiment cache when DB data arrives for a selected card
+  useEffect(() => {
+    if (selectedCard && experimentsQuery.data && experimentsQuery.data.length > 0) {
+      setExperiments((prev) => ({
+        ...prev,
+        [selectedCard.id]: experimentsQuery.data,
+      }));
+    }
+  }, [selectedCard?.id, experimentsQuery.data]);
 
   const filteredAssumptions = assumptions.filter((a) => {
     if (riskFilter !== 'all' && a.riskLevel !== riskFilter) return false;
@@ -99,19 +120,41 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
 
   const handleAiChallenge = async () => {
     setIsAiLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    const updated = assumptions.map((a) => {
-      if (!a.aiChallenge && a.verificationStatus !== 'negated') {
-        return {
-          ...a,
-          aiChallenge: `AI 質疑：「${a.description.slice(0, 20)}...」的依據是否充分？若外部條件改變，此假設是否仍然成立？`,
-        };
-      }
-      return a;
-    });
-    onUpdateAssumptions(updated);
-    setIsAiLoading(false);
-    toast.success('AI 已對假設生成挑戰性問題');
+    try {
+      const unchallenged = assumptions.filter((a) => !a.aiChallenge && a.verificationStatus !== 'negated');
+      const result = await socraticGenerate({
+        project_id: projectId,
+        mission: `針對以下假設生成挑戰性問題：\n${unchallenged.map((a) => `- ${a.description}`).join('\n')}`,
+        constraints: [],
+      });
+      const challengeMap = new Map<number, string>();
+      result.questions.forEach((q, i) => challengeMap.set(i, q.text));
+      let challengeIdx = 0;
+      const updated = assumptions.map((a) => {
+        if (!a.aiChallenge && a.verificationStatus !== 'negated') {
+          const challenge = challengeMap.get(challengeIdx) ?? `AI 質疑：「${a.description.slice(0, 20)}...」的依據是否充分？`;
+          challengeIdx++;
+          return { ...a, aiChallenge: challenge };
+        }
+        return a;
+      });
+      onUpdateAssumptions(updated);
+      toast.success('AI 已對假設生成挑戰性問題');
+    } catch {
+      const updated = assumptions.map((a) => {
+        if (!a.aiChallenge && a.verificationStatus !== 'negated') {
+          return {
+            ...a,
+            aiChallenge: `AI 質疑：「${a.description.slice(0, 20)}...」的依據是否充分？若外部條件改變，此假設是否仍然成立？`,
+          };
+        }
+        return a;
+      });
+      onUpdateAssumptions(updated);
+      toast.warning('AI 質疑生成失敗，已使用預設問題');
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const toggleAiExpand = (id: string) => {
@@ -606,6 +649,20 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
                 </div>
               )}
 
+              {/* Log evidence button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setEvidenceDefaultCodes([selectedCard.assumptionCode]);
+                  setEvidenceDialogOpen(true);
+                }}
+              >
+                <ClipboardEdit className="h-4 w-4 mr-1" />
+                登錄證據
+              </Button>
+
               <div>
                 <span className="text-xs text-muted-foreground">變更驗證狀態</span>
                 <Select
@@ -633,6 +690,14 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Evidence Entry Dialog */}
+      <EvidenceEntryDialog
+        open={evidenceDialogOpen}
+        onOpenChange={setEvidenceDialogOpen}
+        projectId={projectId}
+        defaultAssumptionCodes={evidenceDefaultCodes}
+      />
     </div>
   );
 }

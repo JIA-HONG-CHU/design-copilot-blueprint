@@ -2,9 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CheckCircle, ArrowRight, RefreshCw, Star, ShieldAlert } from 'lucide-react';
 import type { BranchExploration, MinorContradiction } from '@/types/convergence';
 import type { ContradictionSeverity } from '@/types/contradiction';
+
+const SEVERITY_OPTIONS: { value: ContradictionSeverity; label: string; cls: string }[] = [
+  { value: 'fatal', label: 'Fatal', cls: 'bg-red-500 text-white hover:bg-red-600' },
+  { value: 'major', label: 'Major', cls: 'bg-orange-500 text-white hover:bg-orange-600' },
+  { value: 'minor', label: 'Minor', cls: 'bg-muted text-muted-foreground hover:bg-muted/80' },
+];
 
 interface Props {
   branches: BranchExploration[];
@@ -14,7 +21,7 @@ interface Props {
   onConfirmSeverity: (id: string, severity: ContradictionSeverity) => void;
 }
 
-export function HumanReviewPanel({ branches, riskRegister, onConfirm, onRetry }: Props) {
+export function HumanReviewPanel({ branches, riskRegister, onConfirm, onRetry, onConfirmSeverity }: Props) {
   const convergedBranches = branches.filter((b) => b.status === 'converged');
 
   return (
@@ -70,6 +77,39 @@ export function HumanReviewPanel({ branches, riskRegister, onConfirm, onRetry }:
                   </div>
                 ))}
               </div>
+
+              {/* Secondary contradictions with severity confirmation */}
+              {branch.rounds.some((r) => r.scanResult.newContradictions.length > 0) && (
+                <div className="ml-4 mt-2 space-y-1">
+                  <p className="text-[10px] text-muted-foreground font-medium">偵測到的二次矛盾（可調整 AI 分級）:</p>
+                  {branch.rounds.flatMap((r) =>
+                    r.scanResult.newContradictions.map((nc) => (
+                      <div key={nc.id} className="flex items-center gap-2 text-xs p-1.5 rounded-md bg-muted/30 border">
+                        <span className="text-muted-foreground truncate flex-1">{nc.description}</span>
+                        <div className="flex gap-1 shrink-0">
+                          {SEVERITY_OPTIONS.map((opt) => (
+                            <Tooltip key={opt.value}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
+                                    nc.severity === opt.value
+                                      ? opt.cls
+                                      : 'bg-transparent text-muted-foreground/50 hover:text-muted-foreground'
+                                  }`}
+                                  onClick={() => onConfirmSeverity(nc.id, opt.value)}
+                                >
+                                  {opt.label}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent><p className="text-xs">設定為 {opt.label}</p></TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,13 +22,33 @@ const severityLabel: Record<ContradictionSeverity, string> = {
   minor: "Minor",
 };
 
+const NODE_W = 120;
+const NODE_H = 40;
+
 const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
-  const { width, height, positioned } = useMemo(() => {
-    if (nodes.length === 0) return { width: 500, height: 200, positioned: [] };
-    const maxX = Math.max(...nodes.map((n) => n.x)) + 160;
-    const maxY = Math.max(...nodes.map((n) => n.y)) + 80;
-    return { width: Math.max(500, maxX), height: Math.max(200, maxY), positioned: nodes };
-  }, [nodes]);
+  // Local positions: override node.x/y when dragged
+  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
+  const dragRef = useRef<{ nodeId: string; startX: number; startY: number; origDx: number; origDy: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const getPos = useCallback(
+    (node: ConvergenceNode) => {
+      const o = offsets[node.id];
+      return { x: node.x + (o?.dx ?? 0), y: node.y + (o?.dy ?? 0) };
+    },
+    [offsets]
+  );
+
+  const positioned = useMemo(() => {
+    return nodes.map((n) => ({ ...n, ...getPos(n) }));
+  }, [nodes, getPos]);
+
+  const { width, height } = useMemo(() => {
+    if (positioned.length === 0) return { width: 500, height: 200 };
+    const maxX = Math.max(...positioned.map((n) => n.x)) + NODE_W + 40;
+    const maxY = Math.max(...positioned.map((n) => n.y)) + NODE_H + 40;
+    return { width: Math.max(500, maxX), height: Math.max(200, maxY) };
+  }, [positioned]);
 
   const leafNodes = useMemo(() => {
     const fromSet = new Set(edges.map((e) => e.from));
@@ -38,17 +58,57 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
   const allConverged = leafNodes.length > 0 && leafNodes.every((n) => n.resolved);
   const hasUnresolved = leafNodes.some((n) => !n.resolved);
 
+  // --- Drag handlers ---
+  const getSvgPoint = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: clientX, y: clientY };
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: clientX, y: clientY };
+    return { x: (clientX - ctm.e) / ctm.a, y: (clientY - ctm.f) / ctm.d };
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (nodeId: string, e: React.PointerEvent) => {
+      e.stopPropagation();
+      (e.target as SVGElement).setPointerCapture(e.pointerId);
+      const pt = getSvgPoint(e.clientX, e.clientY);
+      const o = offsets[nodeId] ?? { dx: 0, dy: 0 };
+      dragRef.current = { nodeId, startX: pt.x, startY: pt.y, origDx: o.dx, origDy: o.dy };
+    },
+    [offsets, getSvgPoint]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragRef.current) return;
+      const { nodeId, startX, startY, origDx, origDy } = dragRef.current;
+      const pt = getSvgPoint(e.clientX, e.clientY);
+      setOffsets((prev) => ({
+        ...prev,
+        [nodeId]: { dx: origDx + (pt.x - startX), dy: origDy + (pt.y - startY) },
+      }));
+    },
+    [getSvgPoint]
+  );
+
+  const handlePointerUp = useCallback(() => {
+    dragRef.current = null;
+  }, []);
+
   return (
     <Card className="rounded-lg" style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Contradiction Convergence Graph</CardTitle>
-          <Badge
-            variant={allConverged ? "default" : "destructive"}
-            className={`text-xs ${allConverged ? "bg-emerald-600" : ""}`}
-          >
-            {allConverged ? "✅ 已收斂" : hasUnresolved ? "⚠️ 進行中" : "— 無數據"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">可拖曳節點</span>
+            <Badge
+              variant={allConverged ? "default" : "destructive"}
+              className={`text-xs ${allConverged ? "bg-emerald-600" : ""}`}
+            >
+              {allConverged ? "✅ 已收斂" : hasUnresolved ? "⚠️ 進行中" : "— 無數據"}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -56,7 +116,15 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
           <div className="text-center py-8 text-muted-foreground text-sm">尚無收斂圖數據，請生成方案後查看。</div>
         ) : (
           <div className="overflow-x-auto">
-            <svg width={width} height={height} className="min-w-[500px]">
+            <svg
+              ref={svgRef}
+              width={width}
+              height={height}
+              className="min-w-[500px] select-none"
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+            >
               <defs>
                 <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
                   <path d="M 0 0 L 10 3 L 0 6 z" fill="hsl(var(--muted-foreground))" />
@@ -70,10 +138,10 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                 return (
                   <line
                     key={i}
-                    x1={from.x + 60}
-                    y1={from.y + 20}
+                    x1={from.x + NODE_W / 2}
+                    y1={from.y + NODE_H / 2}
                     x2={to.x}
-                    y2={to.y + 20}
+                    y2={to.y + NODE_H / 2}
                     stroke="hsl(var(--muted-foreground))"
                     strokeWidth={1.5}
                     markerEnd="url(#arrow)"
@@ -91,44 +159,52 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                   : "hsl(var(--primary))";
                 const textColor = "white";
                 const opacity = node.resolved ? 0.5 : 1;
+                const isDragging = dragRef.current?.nodeId === node.id;
                 return (
                   <g key={node.id} opacity={opacity}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <g className="cursor-pointer">
+                        <g
+                          className={isDragging ? "cursor-grabbing" : "cursor-grab"}
+                          onPointerDown={(e) => handlePointerDown(node.id, e)}
+                        >
                           <rect
                             x={node.x}
                             y={node.y}
-                            width={120}
-                            height={40}
+                            width={NODE_W}
+                            height={NODE_H}
                             rx={isContradiction ? 4 : 20}
                             fill={fill}
+                            stroke={isDragging ? "hsl(var(--primary))" : "transparent"}
+                            strokeWidth={isDragging ? 2 : 0}
                           />
                           <text
-                            x={node.x + 60}
-                            y={node.y + 22}
+                            x={node.x + NODE_W / 2}
+                            y={node.y + NODE_H / 2 + 2}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             fill={textColor}
                             fontSize={10}
                             fontWeight={500}
+                            pointerEvents="none"
                           >
                             {node.label.length > 12 ? node.label.slice(0, 12) + "…" : node.label}
                           </text>
                           {isContradiction && node.severity && (
                             <text
-                              x={node.x + 120 - 4}
+                              x={node.x + NODE_W - 4}
                               y={node.y + 10}
                               textAnchor="end"
                               fontSize={8}
                               fill={textColor}
                               fontWeight={700}
+                              pointerEvents="none"
                             >
                               {severityLabel[node.severity]}
                             </text>
                           )}
                           {node.resolved && (
-                            <text x={node.x + 6} y={node.y + 12} fontSize={10}>✓</text>
+                            <text x={node.x + 6} y={node.y + 12} fontSize={10} pointerEvents="none">✓</text>
                           )}
                         </g>
                       </TooltipTrigger>

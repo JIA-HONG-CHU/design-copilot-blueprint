@@ -1,35 +1,112 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Check, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Sparkles, Check, X, Loader2, Pencil } from "lucide-react";
 
 interface AISuggestionCardProps {
   title: string;
-  content: string;
-  onAdopt: () => void;
+  /** If content is provided, show it as the AI result (editable). If null/undefined, show loading. */
+  content?: string | null;
+  /** Hint text explaining what changed (shown below the content). */
+  changesSummary?: string;
+  /** Whether the AI is currently generating. */
+  isLoading?: boolean;
+  /** Called with the (potentially edited) content when user clicks "採用". */
+  onAdopt: (editedContent: string) => void;
   onSkip: () => void;
+  /** Number of rows for the editable textarea. Defaults to 4. */
+  rows?: number;
 }
 
-export function AISuggestionCard({ title, content, onAdopt, onSkip }: AISuggestionCardProps) {
+export function AISuggestionCard({
+  title,
+  content,
+  changesSummary,
+  isLoading,
+  onAdopt,
+  onSkip,
+  rows = 4,
+}: AISuggestionCardProps) {
+  const [editedContent, setEditedContent] = useState(content ?? "");
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Sync when content arrives from AI
+  if (content && editedContent === "" && !isEditing) {
+    setEditedContent(content);
+  }
+
+  const handleAdopt = () => {
+    onAdopt(editedContent);
+  };
+
   return (
-    <Card className="bg-muted/50 border-dashed">
+    <Card className="bg-muted/50 border-dashed border-primary/20">
       <CardContent className="pt-4 pb-3 space-y-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-accent" />
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4 text-accent" />
+          )}
           <span className="text-sm font-medium">{title}</span>
           <Badge variant="secondary" className="text-xs">AI</Badge>
         </div>
-        <p className="text-sm">{content}</p>
-        <div className="flex gap-2">
-          <Button size="sm" variant="default" onClick={onAdopt}>
-            <Check className="h-3 w-3 mr-1" />
-            採用
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onSkip}>
-            <X className="h-3 w-3 mr-1" />
-            跳過
-          </Button>
-        </div>
+
+        {isLoading ? (
+          <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            AI 正在分析並產出建議...
+          </div>
+        ) : content != null ? (
+          <>
+            {isEditing ? (
+              <Textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                rows={rows}
+                className="text-sm bg-background"
+                autoFocus
+              />
+            ) : (
+              <div
+                className="text-sm leading-relaxed whitespace-pre-wrap p-2 rounded-md bg-background/50 border border-transparent hover:border-primary/20 cursor-pointer transition-colors group relative"
+                onClick={() => setIsEditing(true)}
+              >
+                {editedContent}
+                <Pencil className="h-3 w-3 text-muted-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+
+            {changesSummary && (
+              <p className="text-xs text-muted-foreground italic">
+                {changesSummary}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="default" onClick={handleAdopt}>
+                <Check className="h-3 w-3 mr-1" />
+                採用
+              </Button>
+              {isEditing ? (
+                <Button size="sm" variant="outline" onClick={() => { setIsEditing(false); setEditedContent(content); }}>
+                  還原
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3 w-3 mr-1" />
+                  編輯
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={onSkip}>
+                <X className="h-3 w-3 mr-1" />
+                跳過
+              </Button>
+            </div>
+          </>
+        ) : null}
       </CardContent>
     </Card>
   );

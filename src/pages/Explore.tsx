@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,11 +8,18 @@ import { SocraticTab } from "@/components/explore/SocraticTab";
 import { ContradictionTab } from "@/components/explore/ContradictionTab";
 import { CldTab } from "@/components/explore/CldTab";
 import { ExploreGates } from "@/components/explore/ExploreGates";
-import { mockSocraticQuestions, mockExploreContradictions, mockCausalLoop } from "@/data/mockExplore";
+import {
+  useSocraticQuestions,
+  useUpdateSocraticQuestion,
+  useExploreContradictions,
+  useCldNodes,
+  useCldEdges,
+} from "@/hooks/api/useExplore";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+// TODO: Replace mockPageKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 
 type TabKey = 'socratic' | 'contradictions' | 'cld';
@@ -27,26 +34,44 @@ export default function Explore() {
   const initialTab: TabKey = ['socratic', 'contradictions', 'cld'].includes(hashTab) ? hashTab : 'socratic';
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // Data state
-  const [questions, setQuestions] = useState<SocraticQuestion[]>([]);
-  const [contradictions, setContradictions] = useState<ExploreContradiction[]>([]);
-  const [causalLoop, setCausalLoop] = useState<CausalLoop | null>(null);
+  // --- API hooks ---
+  const { data: questions = [], isLoading: isLoadingQuestions } = useSocraticQuestions(id);
+  const { data: contradictions = [], isLoading: isLoadingContradictions } = useExploreContradictions(id);
+  const { data: cldNodes = [], isLoading: isLoadingNodes } = useCldNodes(id);
+  const { data: cldEdges = [], isLoading: isLoadingEdges } = useCldEdges(id);
+  const updateQuestion = useUpdateSocraticQuestion();
 
-  // Load mock data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (id) {
-        setQuestions(mockSocraticQuestions[id] ?? []);
-        setContradictions(mockExploreContradictions[id] ?? []);
-        setCausalLoop(mockCausalLoop[id] ?? null);
+  const isLoading = isLoadingQuestions || isLoadingContradictions || isLoadingNodes || isLoadingEdges;
+
+  // Compose CausalLoop object from separate nodes + edges
+  const causalLoop: CausalLoop | null = useMemo(() => {
+    if (cldNodes.length === 0 && cldEdges.length === 0) return null;
+    return { id: `cld-${id}`, nodes: cldNodes, edges: cldEdges };
+  }, [cldNodes, cldEdges, id]);
+
+  // Wrapper to let child components update questions via the mutation hook
+  const handleUpdateQuestions = useCallback((updated: SocraticQuestion[]) => {
+    // Find changed questions and persist them
+    for (const q of updated) {
+      const original = questions.find((oq) => oq.id === q.id);
+      if (!original) continue;
+      const changed =
+        original.answer !== q.answer ||
+        original.taggedAsAssumption !== q.taggedAsAssumption ||
+        original.taggedAsContradiction !== q.taggedAsContradiction;
+      if (changed) {
+        updateQuestion.mutate({
+          id: q.id,
+          projectId: id || '',
+          answer: q.answer,
+          taggedAsAssumption: q.taggedAsAssumption,
+          taggedAsContradiction: q.taggedAsContradiction,
+        });
       }
-      setIsLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [id]);
+    }
+  }, [questions, updateQuestion, id]);
 
   // Update URL hash on tab change
   const handleTabChange = useCallback((tab: string) => {
@@ -161,7 +186,7 @@ export default function Explore() {
         <TabsContent value="socratic" className="mt-5">
           <SocraticTab
             questions={questions}
-            onUpdateQuestions={setQuestions}
+            onUpdateQuestions={handleUpdateQuestions}
             projectId={id || ''}
           />
         </TabsContent>
@@ -169,7 +194,7 @@ export default function Explore() {
         <TabsContent value="contradictions" className="mt-5">
           <ContradictionTab
             contradictions={contradictions}
-            onUpdateContradictions={setContradictions}
+            onUpdateContradictions={() => { /* mutations handled inside tab; query auto-refreshes */ }}
             hasAnswers={answeredCount > 0}
             projectId={id || ''}
           />
@@ -178,7 +203,7 @@ export default function Explore() {
         <TabsContent value="cld" className="mt-5">
           <CldTab
             causalLoop={causalLoop}
-            onUpdateCausalLoop={setCausalLoop}
+            onUpdateCausalLoop={() => { /* mutations handled inside tab; query auto-refreshes */ }}
             projectId={id || ''}
           />
         </TabsContent>

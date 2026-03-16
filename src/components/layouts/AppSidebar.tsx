@@ -3,6 +3,8 @@ import logoImg from "@/assets/logo-delta.svg";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";
+import { useProject } from "@/hooks/api/useProjects";
+import type { PhaseProgress } from "@/types/project";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,15 +42,37 @@ const phaseLabels: Record<number, string> = {
   3: "Converge",
 };
 
-function getStepStatus(pathname: string, route: string, projectId: string): "active" | "completed" | "not_started" {
+/** Map each sidebar step to the phase_progress keys it covers */
+const stepProgressKeys: Record<string, (keyof PhaseProgress)[]> = {
+  brief:   ["1.1"],
+  explore: ["1.2", "1.3"],
+  track:   ["2.1"],
+  create:  ["2.2"],
+  "pre-cad": ["2.3"],
+  review:  ["3.1"],
+  decide:  ["3.2"],
+  feynman: ["3.3"],
+};
+
+function getStepStatus(
+  pathname: string,
+  route: string,
+  projectId: string,
+  progress?: PhaseProgress,
+): "active" | "completed" | "not_started" {
   const fullPath = `/projects/${projectId}/${route}`;
   if (pathname === fullPath || pathname.startsWith(fullPath + "/")) return "active";
+  if (progress) {
+    const keys = stepProgressKeys[route];
+    if (keys && keys.every((k) => progress[k] === "passed")) return "completed";
+    if (keys && keys.some((k) => progress[k] === "in_progress")) return "active";
+  }
   return "not_started";
 }
 
 function StatusDot({ status }: { status: "active" | "completed" | "not_started" }) {
-  if (status === "completed") return <span className="text-[10px]">●</span>;
-  if (status === "active") return <span className="text-[10px] animate-pulse">◉</span>;
+  if (status === "completed") return <span className="text-[10px] text-primary">✓</span>;
+  if (status === "active") return <span className="text-[10px] animate-pulse text-primary">◉</span>;
   return <span className="text-[10px] text-muted-foreground">○</span>;
 }
 
@@ -60,6 +84,7 @@ export function AppSidebar() {
   const { theme, setTheme } = useTheme();
 
   const isInsideProject = !!projectId && location.pathname.startsWith(`/projects/${projectId}`);
+  const { data: project } = useProject(isInsideProject ? projectId : undefined);
 
   const initials = user?.user_metadata?.display_name
     ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
@@ -140,7 +165,7 @@ export function AppSidebar() {
                   Phase {phase} · {phaseLabels[phase]}
                 </p>
                 {projectSteps.filter(s => s.phase === phase).map(step => {
-                  const status = getStepStatus(location.pathname, step.route, projectId!);
+                  const status = getStepStatus(location.pathname, step.route, projectId!, project?.phase_progress);
                   const isActive = status === "active";
                   return (
                     <NavLink

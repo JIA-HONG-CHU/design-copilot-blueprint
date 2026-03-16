@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,9 @@ import {
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+// TODO: Replace mockPageKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
+import { useKnowledgeEntries, useUpdateKnowledgeEntry } from "@/hooks/api/useKnowledge";
 
 /** 6 asset categories per E2E spec (WBS 4.7.1) */
 type KnowledgeAssetType =
@@ -45,13 +47,18 @@ interface KnowledgeEntry {
 export default function Feynman() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
+  const [localEntries, setLocalEntries] = useState<KnowledgeEntry[]>([]);
+  const [mockLoaded, setMockLoaded] = useState(false);
 
+  // Fetch knowledge entries from Supabase
+  const { data: liveEntries, isLoading: liveLoading } = useKnowledgeEntries(id);
+  const updateEntry = useUpdateKnowledgeEntry();
+
+  // Mock data as fallback — loaded via timer to preserve original UX
   useEffect(() => {
     const timer = setTimeout(() => {
-      setEntries([
+      setLocalEntries([
         {
           id: 'ke-001',
           title: '磁力耦合傳動系統設計要點',
@@ -107,10 +114,28 @@ export default function Feynman() {
           createdAt: '2026-02-24T12:30:00Z',
         },
       ]);
-      setIsLoading(false);
+      setMockLoaded(true);
     }, 600);
     return () => clearTimeout(timer);
   }, [id]);
+
+  // Derive entries: prefer live Supabase data, fall back to local mock
+  // Map live entries to the page's KnowledgeEntry shape
+  const livePageEntries: KnowledgeEntry[] = useMemo(() =>
+    liveEntries.map((e) => ({
+      id: e.id,
+      title: e.title,
+      summary: e.content,
+      source: '',
+      assetType: e.assetType as KnowledgeAssetType,
+      status: (e.reviewed ? 'reviewed' : 'written') as KnowledgeEntry['status'],
+      createdAt: e.createdAt,
+    })),
+    [liveEntries],
+  );
+
+  const entries = livePageEntries.length > 0 ? livePageEntries : localEntries;
+  const isLoading = liveLoading && !mockLoaded;
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -124,13 +149,18 @@ export default function Feynman() {
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
-    setEntries(prev => [...prev, newEntry]);
+    setLocalEntries(prev => [...prev, newEntry]);
     setIsGenerating(false);
     toast.success('AI 已生成新知識條目');
   };
 
   const handleMarkReviewed = (entryId: string) => {
-    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: 'reviewed' as const } : e));
+    // If using live data, call the update mutation
+    if (livePageEntries.length > 0) {
+      updateEntry.mutate({ id: entryId, reviewed: true });
+    } else {
+      setLocalEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: 'reviewed' as const } : e));
+    }
     toast.success('已標記為已審閱');
   };
 

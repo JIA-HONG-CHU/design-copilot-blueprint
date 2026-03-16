@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
+// TODO: Replace mockPageKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockPageKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList,
@@ -31,46 +32,169 @@ import type {
   WantCriterion, WantScore, KtDecision, Signature, ActionItem, DecideGateItem, SignatureStatus
 } from "@/types/decisionRecord";
 import { DEFAULT_WANT_TEMPLATE } from "@/types/decisionRecord";
-import {
-  mockDecideAlternatives, mockWantCriteria, mockWantScores, mockKtDecision, mockSignatures, mockAdverseConsequences
-} from "@/data/mockDecisionRecord";
 import type { AdverseConsequence, ACProbability, ACSeverity } from "@/types/decisionRecord";
 import { computeACLevel } from "@/types/decisionRecord";
-
-/* ── Mock data for MUST results, risks, convergence ── */
-const mockMustResults = [
-  { alternative: '磁力耦合 + 可變轉速方案', passed: true, reason: '所有 MUST 條件通過' },
-  { alternative: '同軸直連 + 漸變壁厚方案', passed: true, reason: '所有 MUST 條件通過' },
-  { alternative: '齒輪傳動 + 固定壁厚方案', passed: false, reason: '未通過 MUST-3: 噪音 < 65dB' },
-];
-
-const mockRiskAssessment = [
-  { id: 'R-001', description: '磁力耦合器高溫退磁風險', severity: '高', probability: '中', level: '重大', mitigation: '增加散熱鰭片設計', monitor: '溫度感測器監控' },
-  { id: 'R-002', description: '碳纖維殼體疲勞破裂', severity: '高', probability: '低', level: '中等', mitigation: '增加安全係數至 2.5', monitor: '應變計監控' },
-  { id: 'R-003', description: '變頻器 EMI 干擾', severity: '中', probability: '中', level: '中等', mitigation: '增加屏蔽層', monitor: 'EMI 測試' },
-];
-
-const mockConvergenceSummary = {
-  confidenceScore: 100,
-  fatal: { resolved: 2, total: 2 },
-  major: { resolved: 3, total: 3 },
-  minor: { resolved: 1, total: 2 },
-};
+import {
+  useDecision,
+  useUpsertDecision,
+  useWantCriteria,
+  useCreateWantCriterion,
+  useUpdateWantCriterion,
+  useDeleteWantCriterion,
+  useWantScores,
+  useUpsertWantScore,
+  useAdverseConsequences,
+  useSignatures,
+  useCreateSignature,
+  useUpdateSignature,
+  useActionItems,
+  useCreateActionItem,
+  useUpdateActionItem,
+  useDeleteActionItem,
+  useRisks,
+  usePreCadSolutions,
+  usePreCadConvergenceStats,
+  useAlternatives,
+} from "@/hooks/api";
 
 export default function DecisionRecord() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const alternatives = mockDecideAlternatives;
 
-  const [criteria, setCriteria] = useState<WantCriterion[]>(mockWantCriteria);
-  const [scores, setScores] = useState<WantScore[]>(mockWantScores);
-  const [decision, setDecision] = useState<KtDecision>({ ...mockKtDecision });
-  const [signatures, setSignatures] = useState<Signature[]>([...mockSignatures]);
+  // ── API hooks ──
+  const { data: alternativesData, isLoading: altLoading } = useAlternatives(id);
+  const { data: preCadSolutions, isLoading: mustLoading } = usePreCadSolutions(id);
+  const { data: convergenceStats, isLoading: convergenceLoading } = usePreCadConvergenceStats(id);
+  const { data: risksData, isLoading: risksLoading } = useRisks(id);
+  const { data: decisionData, isLoading: decisionLoading } = useDecision(id);
+  const { data: criteriaData, isLoading: criteriaLoading } = useWantCriteria(id);
+  const { data: scoresData, isLoading: scoresLoading } = useWantScores(id);
+  const { data: acData, isLoading: acLoading } = useAdverseConsequences(id);
+  const { data: signaturesData, isLoading: signaturesLoading } = useSignatures(id);
+  const { data: actionItemsData, isLoading: actionItemsLoading } = useActionItems(id, decisionData?.id);
+
+  const upsertDecision = useUpsertDecision();
+  const createWantCriterion = useCreateWantCriterion();
+  const updateWantCriterionMut = useUpdateWantCriterion();
+  const deleteWantCriterionMut = useDeleteWantCriterion();
+  const upsertWantScore = useUpsertWantScore();
+  const createSignatureMut = useCreateSignature();
+  const updateSignatureMut = useUpdateSignature();
+  const createActionItemMut = useCreateActionItem();
+  const updateActionItemMut = useUpdateActionItem();
+  const deleteActionItemMut = useDeleteActionItem();
+
+  // ── Derived data from hooks ──
+  const alternatives = useMemo(() =>
+    (alternativesData ?? []).map(a => ({ id: a.id, name: a.name })),
+    [alternativesData]
+  );
+
+  // MUST results: derived from pre-cad solutions (alternatives with mustCriteria)
+  const mustResults = useMemo(() => {
+    if (!alternativesData) return [];
+    return alternativesData.map(alt => {
+      const mustCriteria = alt.mustScores ? Object.values(alt.mustScores) : [];
+      const allPass = mustCriteria.length > 0 && mustCriteria.every(v => v === 'pass');
+      const failedKey = mustCriteria.length > 0
+        ? Object.entries(alt.mustScores ?? {}).find(([, v]) => v === 'fail')?.[0]
+        : undefined;
+      return {
+        alternative: alt.name,
+        passed: alt.overallPass ?? allPass,
+        reason: (alt.overallPass ?? allPass) ? '所有 MUST 條件通過' : `未通過 ${failedKey ?? 'MUST 條件'}`,
+      };
+    });
+  }, [alternativesData]);
+
+  // Risk assessment: from useRisks hook
+  const riskAssessment = useMemo(() => {
+    if (!risksData) return [];
+    return risksData.map(r => {
+      const score = r.probability * r.severity;
+      const level = score >= 20 ? '重大' : score >= 10 ? '中等' : '低';
+      const sevLabel = r.severity >= 4 ? '高' : r.severity >= 2 ? '中' : '低';
+      const probLabel = r.probability >= 4 ? '高' : r.probability >= 2 ? '中' : '低';
+      return {
+        id: r.id,
+        description: r.description,
+        severity: sevLabel,
+        probability: probLabel,
+        level,
+        mitigation: r.mitigation,
+        monitor: r.failureMode || '',
+      };
+    });
+  }, [risksData]);
+
+  // Convergence summary: from usePreCadConvergenceStats
+  const convergenceSummary = useMemo(() => {
+    if (!convergenceStats) {
+      return { confidenceScore: 0, fatal: { resolved: 0, total: 0 }, major: { resolved: 0, total: 0 }, minor: { resolved: 0, total: 0 } };
+    }
+    return {
+      confidenceScore: convergenceStats.confidenceScore,
+      fatal: { resolved: convergenceStats.fatalResolved, total: convergenceStats.fatalTotal },
+      major: { resolved: convergenceStats.majorResolved, total: convergenceStats.majorTotal },
+      minor: { resolved: convergenceStats.minorResolved, total: convergenceStats.minorTotal },
+    };
+  }, [convergenceStats]);
+
+  // ── Local state synced from hooks ──
+  const [criteria, setCriteria] = useState<WantCriterion[]>([]);
+  const [scores, setScores] = useState<WantScore[]>([]);
+  const [decision, setDecision] = useState<KtDecision>({
+    selectedAlternativeId: '',
+    selectedAlternativeName: '',
+    rationale: '',
+    riskAcceptance: '',
+    actionItems: [],
+    decisionDate: new Date().toISOString().split('T')[0],
+    status: 'draft',
+  });
+  const [decisionId, setDecisionId] = useState<string | undefined>();
+  const [signatures, setSignatures] = useState<(Signature & { id?: string; decisionId?: string })[]>([]);
   const [exported, setExported] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [wantExpanded, setWantExpanded] = useState(false);
-  const [adverseConsequences, setAdverseConsequences] = useState<AdverseConsequence[]>(mockAdverseConsequences);
+  const [adverseConsequences, setAdverseConsequences] = useState<AdverseConsequence[]>([]);
+
+  // Sync hook data into local state
+  useEffect(() => {
+    if (criteriaData) setCriteria(criteriaData);
+  }, [criteriaData]);
+
+  useEffect(() => {
+    if (scoresData) setScores(scoresData);
+  }, [scoresData]);
+
+  useEffect(() => {
+    if (decisionData) {
+      setDecisionId(decisionData.id);
+      setDecision({
+        selectedAlternativeId: decisionData.selectedAlternativeId,
+        selectedAlternativeName: decisionData.selectedAlternativeName,
+        rationale: decisionData.rationale,
+        riskAcceptance: decisionData.riskAcceptance,
+        actionItems: actionItemsData ?? [],
+        decisionDate: decisionData.decisionDate,
+        status: decisionData.status,
+      });
+    }
+  }, [decisionData, actionItemsData]);
+
+  useEffect(() => {
+    if (signaturesData) setSignatures(signaturesData);
+  }, [signaturesData]);
+
+  useEffect(() => {
+    if (acData) setAdverseConsequences(acData);
+  }, [acData]);
+
+  // Loading state
+  const isPageLoading = altLoading || mustLoading || convergenceLoading || risksLoading ||
+    decisionLoading || criteriaLoading || scoresLoading || acLoading || signaturesLoading || actionItemsLoading;
 
   // ── WANT helpers ──
   const calcWeightedTotal = useCallback((altScores: Record<string, number>) => {
@@ -242,6 +366,15 @@ export default function DecisionRecord() {
     return <Badge variant="secondary" className="text-xs">草稿</Badge>;
   };
 
+  if (isPageLoading) {
+    return (
+      <div className="mx-auto max-w-5xl flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">載入決策記錄...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* Phase header */}
@@ -340,7 +473,7 @@ export default function DecisionRecord() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockMustResults.map((m, i) => (
+                {mustResults.map((m, i) => (
                   <TableRow key={i}>
                     <TableCell className="font-medium text-sm">{m.alternative}</TableCell>
                     <TableCell className="text-center">
@@ -513,7 +646,7 @@ export default function DecisionRecord() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockRiskAssessment.map(r => (
+                  {riskAssessment.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs">{r.id}</TableCell>
                       <TableCell className="text-sm">{r.description}</TableCell>
@@ -591,23 +724,23 @@ export default function DecisionRecord() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="text-center p-3 rounded-lg bg-primary/5">
-                <p className="text-2xl font-bold text-primary">{mockConvergenceSummary.confidenceScore}%</p>
+                <p className="text-2xl font-bold text-primary">{convergenceSummary.confidenceScore}%</p>
                 <p className="text-xs text-muted-foreground">Confidence Score</p>
               </div>
               <div className="text-center p-3 rounded-lg bg-destructive/5">
-                <p className="text-lg font-semibold">{mockConvergenceSummary.fatal.resolved}/{mockConvergenceSummary.fatal.total}</p>
+                <p className="text-lg font-semibold">{convergenceSummary.fatal.resolved}/{convergenceSummary.fatal.total}</p>
                 <p className="text-xs text-muted-foreground">Fatal 已解決</p>
-                <Progress value={(mockConvergenceSummary.fatal.resolved / mockConvergenceSummary.fatal.total) * 100} className="mt-1 h-1.5" />
+                <Progress value={(convergenceSummary.fatal.resolved / convergenceSummary.fatal.total) * 100} className="mt-1 h-1.5" />
               </div>
               <div className="text-center p-3 rounded-lg bg-orange-500/5">
-                <p className="text-lg font-semibold">{mockConvergenceSummary.major.resolved}/{mockConvergenceSummary.major.total}</p>
+                <p className="text-lg font-semibold">{convergenceSummary.major.resolved}/{convergenceSummary.major.total}</p>
                 <p className="text-xs text-muted-foreground">Major 已解決</p>
-                <Progress value={(mockConvergenceSummary.major.resolved / mockConvergenceSummary.major.total) * 100} className="mt-1 h-1.5" />
+                <Progress value={(convergenceSummary.major.resolved / convergenceSummary.major.total) * 100} className="mt-1 h-1.5" />
               </div>
               <div className="text-center p-3 rounded-lg bg-muted">
-                <p className="text-lg font-semibold">{mockConvergenceSummary.minor.resolved}/{mockConvergenceSummary.minor.total}</p>
+                <p className="text-lg font-semibold">{convergenceSummary.minor.resolved}/{convergenceSummary.minor.total}</p>
                 <p className="text-xs text-muted-foreground">Minor 已解決</p>
-                <Progress value={(mockConvergenceSummary.minor.resolved / mockConvergenceSummary.minor.total) * 100} className="mt-1 h-1.5" />
+                <Progress value={(convergenceSummary.minor.resolved / convergenceSummary.minor.total) * 100} className="mt-1 h-1.5" />
               </div>
             </div>
           </CardContent>

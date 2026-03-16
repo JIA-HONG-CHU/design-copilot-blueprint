@@ -9,12 +9,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Pencil, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { trizParameters } from "@/data/trizParameters";
-import { mockContradictions } from "@/data/mockContradictions";
+import {
+  useContradictions,
+  useCreateContradiction,
+  useUpdateContradiction,
+  useDeleteContradiction,
+} from "@/hooks/api/useContradictions";
 import { Contradiction, ContradictionSeverity } from "@/types/contradiction";
 import SocraticPanel from "@/components/contradiction/SocraticPanel";
+import { trizSolve } from "@/lib/api";
 
 interface FormErrors {
   naturalDescription?: string;
@@ -54,9 +61,12 @@ const ContradictionIdentification = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [contradictions, setContradictions] = useState<Contradiction[]>(
-    mockContradictions.filter((c) => c.projectId === id)
-  );
+  // --- API hooks ---
+  const { data: contradictions = [], isLoading: isLoadingList } = useContradictions(id);
+  const createContradiction = useCreateContradiction();
+  const updateContradiction = useUpdateContradiction();
+  const deleteContradiction = useDeleteContradiction();
+
   const [form, setForm] = useState({ ...emptyForm });
   const [errors, setErrors] = useState<FormErrors>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,17 +107,9 @@ const ContradictionIdentification = () => {
 
   const handleSubmit = () => {
     if (!validate()) return;
-    const now = new Date().toISOString();
     if (editingId) {
-      setContradictions((prev) =>
-        prev.map((c) =>
-          c.id === editingId ? { ...c, ...form, severity: form.severity as ContradictionSeverity, updatedAt: now } : c
-        )
-      );
-      toast.success("矛盾已更新");
-    } else {
-      const newContradiction: Contradiction = {
-        id: `cont-${Date.now()}`,
+      updateContradiction.mutate({
+        id: editingId,
         projectId: id || "",
         naturalDescription: form.naturalDescription,
         improvingParam: form.improvingParam,
@@ -115,11 +117,17 @@ const ContradictionIdentification = () => {
         engineeringStatement: form.engineeringStatement,
         physicalContradiction: form.physicalContradiction,
         severity: form.severity as ContradictionSeverity,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setContradictions((prev) => [...prev, newContradiction]);
-      toast.success("矛盾已新增");
+      });
+    } else {
+      createContradiction.mutate({
+        projectId: id || "",
+        naturalDescription: form.naturalDescription,
+        improvingParam: form.improvingParam,
+        worseningParam: form.worseningParam,
+        engineeringStatement: form.engineeringStatement,
+        physicalContradiction: form.physicalContradiction,
+        severity: form.severity as ContradictionSeverity,
+      });
     }
     resetForm();
     setIsMobileEditOpen(false);
@@ -140,8 +148,7 @@ const ContradictionIdentification = () => {
   };
 
   const handleDelete = (cId: string) => {
-    setContradictions((prev) => prev.filter((c) => c.id !== cId));
-    toast.success("矛盾已刪除");
+    deleteContradiction.mutate({ id: cId, projectId: id || "" });
     if (editingId === cId) resetForm();
   };
 
@@ -151,16 +158,40 @@ const ContradictionIdentification = () => {
       return;
     }
     setIsAiLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setForm((prev) => ({
-      ...prev,
-      improvingParam: 9,
-      worseningParam: 1,
-      engineeringStatement: `當改善「${trizParameters[8].nameZh}」時，「${trizParameters[0].nameZh}」隨之惡化，需要在兩者之間找到平衡。`,
-      severity: "major",
-    }));
-    setIsAiLoading(false);
-    toast.info("AI 已生成建議的 TRIZ 矛盾句，請檢查並調整。");
+    try {
+      const result = await trizSolve({
+        project_id: id || "",
+        contradiction_id: editingId || `new-${Date.now()}`,
+        natural_description: form.naturalDescription,
+        improving_param: form.improvingParam,
+        worsening_param: form.worseningParam,
+        physical_contradiction: form.physicalContradiction || undefined,
+        type: form.physicalContradiction ? "PC" : "TC",
+      });
+      setForm((prev) => ({
+        ...prev,
+        improvingParam: result.mapped_improving ?? prev.improvingParam,
+        worseningParam: result.mapped_worsening ?? prev.worseningParam,
+        engineeringStatement: result.suggestions.length > 0
+          ? result.suggestions[0].suggestion
+          : prev.engineeringStatement,
+        severity: "major",
+      }));
+      toast.info("AI 已生成建議的 TRIZ 矛盾句，請檢查並調整。");
+    } catch (err) {
+      console.error("TRIZ transform failed:", err);
+      // Fallback to heuristic
+      setForm((prev) => ({
+        ...prev,
+        improvingParam: 9,
+        worseningParam: 1,
+        engineeringStatement: `當改善「${trizParameters[8].nameZh}」時，「${trizParameters[0].nameZh}」隨之惡化，需要在兩者之間找到平衡。`,
+        severity: "major",
+      }));
+      toast.warning("AI 轉化失敗，已使用預設建議。請確認後端服務是否啟動。");
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const getParamLabel = (paramId: number | null) => {
@@ -168,6 +199,24 @@ const ContradictionIdentification = () => {
     const p = trizParameters.find((t) => t.id === paramId);
     return p ? `${p.id}. ${p.nameZh}` : "—";
   };
+
+  if (isLoadingList) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10" />
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <Skeleton className="lg:col-span-2 h-96" />
+          <Skeleton className="lg:col-span-3 h-96" />
+        </div>
+      </div>
+    );
+  }
 
   const formContent = (
     <div className="space-y-4">

@@ -17,6 +17,7 @@ export interface AntiAnchorRoute {
   id: string;
   name: string;
   description: string;
+  createdAt?: string;
 }
 
 // TRIZ solutions
@@ -31,6 +32,7 @@ export interface TrizSolution {
   principleName: string;
   suggestion: string;
   status: TrizActionStatus;
+  createdAt?: string;
 }
 
 // Subsystem
@@ -45,6 +47,7 @@ export interface Subsystem {
   parentId?: string | null;
   interfaces?: string[];
   source: SubsystemSource;
+  createdAt?: string;
 }
 
 // SCAMPER
@@ -73,6 +76,7 @@ export interface ScamperVariant {
   description: string;
   adopted: boolean;
   newContradictions?: ScamperNewContradiction[];
+  createdAt?: string;
 }
 
 // Interface Contract — 6 Dimensions (E2E Spec)
@@ -117,16 +121,33 @@ export interface Alternative {
     mvpCadEffort: number | null;
   };
   overallPass: boolean | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export const MUST_CRITERIA = [
-  { id: 'M1', label: 'M1 空間' },
-  { id: 'M2', label: 'M2 成本' },
-  { id: 'M3', label: 'M3 安全餘裕' },
-  { id: 'M4', label: 'M4 解耦' },
-  { id: 'M5', label: 'M5 供應' },
-  { id: 'M6', label: 'M6 製造路徑' },
+/** Dynamic MUST criteria — derived from Brief constraints/KPIs per project. */
+export interface MustCriterion {
+  id: string;        // "M1", "M2", ...
+  label: string;     // e.g. "效率 ≥ 95%"
+  source: string;    // which constraint/KPI
+  threshold?: string;
+}
+
+/**
+ * Fallback MUST criteria for projects without must_criteria_config.
+ * New projects should derive MUST from Brief constraints/KPIs.
+ */
+export const DEFAULT_MUST_CRITERIA: MustCriterion[] = [
+  { id: 'M1', label: 'M1 空間', source: '通用' },
+  { id: 'M2', label: 'M2 成本', source: '通用' },
+  { id: 'M3', label: 'M3 安全餘裕', source: '通用' },
+  { id: 'M4', label: 'M4 解耦', source: '通用' },
+  { id: 'M5', label: 'M5 供應', source: '通用' },
+  { id: 'M6', label: 'M6 製造路徑', source: '通用' },
 ];
+
+/** @deprecated Use DEFAULT_MUST_CRITERIA for backward compat */
+export const MUST_CRITERIA = DEFAULT_MUST_CRITERIA;
 
 export const PRECAD_DIMENSIONS = [
   { key: 'must', label: 'MUST 硬限制', labels: ['不滿足', '', '勉強', '', '全數通過'] },

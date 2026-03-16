@@ -247,8 +247,7 @@ export function MissionSummaryCard({
                                 >
                                   改標籤
                                 </Button>
-                              ) : null
-                              )}
+                              ) : null}
                             </div>
                           </li>
                         );

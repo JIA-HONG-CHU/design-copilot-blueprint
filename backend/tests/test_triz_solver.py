@@ -11,7 +11,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from app.models.schemas import TrizLookupRequest, TrizLookupResponse
+from app.models.schemas import TrizLookupRequest, TrizLookupResponse, SuFieldRequest, SuFieldResponse
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +35,31 @@ _TC_LLM_RESPONSE = json.dumps({
             "suggestion": "Change the cooling medium temperature",
             "affected_modules": ["cooling_system"],
             "secondary_contradictions": ["May increase weight"],
+        },
+    ]
+})
+
+_SUFIELD_LLM_RESPONSE = json.dumps({
+    "su_field": {"S1": "Battery cell", "S2": "Cooling plate", "F": "Thermal (conduction)"},
+    "system_state": "insufficient",
+    "matched_solutions": [
+        {
+            "standard_id": "1.1.2",
+            "standard_name": "Add Internal Additive",
+            "class_name": "Class 1",
+            "suggestion": "Add thermally conductive filler between battery cell and cooling plate to improve heat transfer efficiency. "
+                          "This addresses the insufficient thermal coupling by introducing an internal additive that bridges "
+                          "micro-gaps between the contact surfaces, increasing effective thermal conductivity by 2-3x.",
+            "affected_modules": ["battery_pack", "thermal_management"],
+            "secondary_contradictions": ["Added filler may increase assembly complexity"],
+        },
+        {
+            "standard_id": "2.2.1",
+            "standard_name": "Replace Mechanical Field with Thermal Field",
+            "class_name": "Class 2",
+            "suggestion": "Replace passive conduction with active liquid cooling loop that circulates coolant directly against cell surfaces.",
+            "affected_modules": ["thermal_management", "power_electronics"],
+            "secondary_contradictions": ["Liquid cooling adds weight and leak risk"],
         },
     ]
 })
@@ -188,6 +213,49 @@ class TestSolveTrizInvalidInput:
 
 
 # ---------------------------------------------------------------------------
+# Su-Field Analysis tests
+# ---------------------------------------------------------------------------
+
+
+class TestAnalyzeSuField:
+    """Su-Field model analysis + 76 standard solutions matching."""
+
+    @patch("app.agents.triz_solver.call_llm_json", return_value=_SUFIELD_LLM_RESPONSE)
+    @patch("app.agents.triz_solver.build_sufield_context", return_value="<sufield_kb>")
+    def test_sufield_returns_structured_result(self, mock_ctx, mock_llm):
+        from app.agents.triz_solver import analyze_sufield
+
+        req = SuFieldRequest(
+            project_id="p1",
+            system_description="Battery cell cooled by aluminium plate via conduction",
+            current_issues=["Heat transfer insufficient at high discharge rate"],
+        )
+        result = analyze_sufield(req)
+
+        assert isinstance(result, SuFieldResponse)
+        assert result.system_state == "insufficient"
+        assert result.su_field["S1"] == "Battery cell"
+        assert result.su_field["F"] == "Thermal (conduction)"
+        assert len(result.matched_solutions) == 2
+        assert result.matched_solutions[0].standard_id == "1.1.2"
+        mock_llm.assert_called_once()
+
+    @patch("app.agents.triz_solver.call_llm_json", return_value=_SUFIELD_LLM_RESPONSE)
+    @patch("app.agents.triz_solver.build_sufield_context", return_value="<sufield_kb>")
+    def test_sufield_no_issues_still_works(self, mock_ctx, mock_llm):
+        from app.agents.triz_solver import analyze_sufield
+
+        req = SuFieldRequest(
+            project_id="p1",
+            system_description="Generic system description",
+            current_issues=[],
+        )
+        result = analyze_sufield(req)
+        assert isinstance(result, SuFieldResponse)
+        mock_llm.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # Router endpoint tests via TestClient
 # ---------------------------------------------------------------------------
 
@@ -228,4 +296,24 @@ class TestTrizSolveEndpoint:
     def test_post_triz_solve_missing_fields_422(self, client):
         """Missing required fields => 422."""
         resp = client.post("/api/v1/triz/solve", json={})
+        assert resp.status_code == 422
+
+
+class TestSuFieldEndpoint:
+    @patch("app.agents.triz_solver.call_llm_json", return_value=_SUFIELD_LLM_RESPONSE)
+    @patch("app.agents.triz_solver.build_sufield_context", return_value="<kb>")
+    def test_post_triz_sufield(self, mock_ctx, mock_llm, client):
+        resp = client.post("/api/v1/triz/sufield", json={
+            "project_id": "p1",
+            "system_description": "Battery cooled by plate",
+            "current_issues": ["Insufficient heat transfer"],
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["system_state"] == "insufficient"
+        assert len(body["matched_solutions"]) == 2
+        assert body["su_field"]["S1"] == "Battery cell"
+
+    def test_post_triz_sufield_missing_fields_422(self, client):
+        resp = client.post("/api/v1/triz/sufield", json={})
         assert resp.status_code == 422

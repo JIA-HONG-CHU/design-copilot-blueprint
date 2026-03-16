@@ -1,9 +1,12 @@
-"""Step 5a — TRIZ Solver: contradiction matrix lookup + principle instantiation."""
+"""Step 5a — TRIZ Solver: contradiction matrix lookup + principle instantiation + Su-Field."""
 
 from fastapi import APIRouter
 
-from app.models.schemas import TrizLookupRequest, TrizLookupResponse
-from app.agents.triz_solver import solve_triz
+from app.models.schemas import (
+    TrizLookupRequest, TrizLookupResponse,
+    SuFieldRequest, SuFieldResponse,
+)
+from app.agents.triz_solver import solve_triz, analyze_sufield
 
 router = APIRouter()
 
@@ -12,3 +15,9 @@ router = APIRouter()
 async def triz_solve(req: TrizLookupRequest):
     """TRIZ Solver Agent resolves contradiction via TC or PC path."""
     return solve_triz(req)
+
+
+@router.post("/triz/sufield", response_model=SuFieldResponse)
+async def triz_sufield(req: SuFieldRequest):
+    """Su-Field analysis: model the system and match 76 standard solutions."""
+    return analyze_sufield(req)

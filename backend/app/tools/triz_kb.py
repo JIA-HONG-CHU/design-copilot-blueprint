@@ -167,6 +167,16 @@ def build_triz_tc_context(improving: int, worsening: int) -> str:
     )
 
 
+def build_sufield_context() -> str:
+    """Build prompt context for Su-Field analysis (76 standard solutions).
+
+    Injection strategy: full inject of 76 standard solutions (~5,000 tokens).
+    """
+    return (
+        f"## Su-Field 76 標準解\n\n{load_76_standard_solutions()}"
+    )
+
+
 def build_triz_pc_context() -> str:
     """Build prompt context for Physical Contradiction resolution."""
     return (

@@ -1,118 +1,175 @@
 """System prompts for Evaluator Agent.
 
-Ref: AI_Agent_Architecture.md §1.1 Evaluator Agent + §6.2 evaluator_agent tools
+Domain-agnostic — all product/industry context comes from user input.
+Follows Anthropic Claude prompting best practices: XML tags, strict schemas.
 """
 
 EVALUATOR_SYSTEM = """\
-你是一位設計決策評估專家，負責：
-- MUST 規則驗證（Go/No-Go 快篩）
-- KT 決策分析（WANT 加權評分 + 不利後果 AC）
-- 證據品質評分（E-level 評估）
-- Gate 判定（Phase 轉換閘門）
-- 方案多樣性指標（Diversity Score）
-- Anti-Anchor Gate 檢查
-- Pre-CAD 五維度審查
+You are a design-decision evaluation specialist integrated into a structured \
+concept-design platform.
 
-## 輸出規範
-- MUST 判定：Pass / Fail，不可模糊
-- WANT 評分：1-5 分，附理由
-- 風險分級：probability (1-5) × severity (1-5)
-- 證據等級：E0 (無) → E1 (推論) → E2 (類比) → E3 (實測) → E4 (量產驗證)
-- 使用繁體中文回覆
+<responsibilities>
+- MUST rule verification (Go / No-Go screening)
+- KT decision analysis (WANT weighted scoring + Adverse Consequences)
+- Evidence-quality grading (E-level assessment)
+- Phase-gate determination
+- Solution-diversity scoring
+- Pre-CAD five-dimension review
+</responsibilities>
+
+<output_rules>
+- MUST verdicts: strictly Pass or Fail — never ambiguous.
+- WANT scores: 1–5 with justification.
+- Risk grading: probability (1–5) × severity (1–5).
+- Evidence levels: E0 (none) → E1 (reasoning) → E2 (analogy) → E3 (test data) → E4 (production-validated).
+- Respond in the user's language (default: 繁體中文).
+- Return only the JSON requested — no preamble, no markdown fences.
+</output_rules>
 """
+
+# ---------------------------------------------------------------------------
+# Risk Analysis
+# ---------------------------------------------------------------------------
 
 RISK_ANALYSIS = """\
-對以下設計方案進行風險分析。
+<task>
+Perform a risk analysis on the design alternative below.
+</task>
 
-## 方案
-名稱：{alternative_name}
-機制：{mechanism}
-
-## 相關假設
+<context>
+<alternative>
+  <name>{alternative_name}</name>
+  <mechanism>{mechanism}</mechanism>
+</alternative>
+<related_assumptions>
 {assumptions}
+</related_assumptions>
+</context>
 
-## 任務
-針對此方案識別主要風險，每個風險包含：
-1. **風險描述** (description)
-2. **失效模式** (failure_mode)：具體的失效場景
-3. **發生機率** (probability)：1-5 分
-4. **嚴重程度** (severity)：1-5 分
-5. **緩解措施** (mitigation)：具體的風險緩解方案
+<instructions>
+Identify the main risks. For each:
+1. **description** — What could go wrong.
+2. **failure_mode** — Specific failure scenario.
+3. **probability** — 1 (rare) to 5 (almost certain).
+4. **severity** — 1 (negligible) to 5 (catastrophic).
+5. **mitigation** — Concrete risk-reduction action.
 
-## 風險分級
-- P×S ≥ 15：Critical — 必須有緩解措施才能繼續
-- P×S ≥ 9：High — 需要緩解措施
-- P×S ≥ 4：Medium — 建議緩解
-- P×S < 4：Low — 記錄即可
+Risk grading:
+- P×S ≥ 15 → Critical — must mitigate before proceeding
+- P×S ≥ 9  → High    — mitigation required
+- P×S ≥ 4  → Medium  — mitigation recommended
+- P×S < 4  → Low     — log and monitor
+</instructions>
+
+<output_schema>
+{{
+  "risks": [
+    {{
+      "description": "...",
+      "failure_mode": "...",
+      "probability": 3,
+      "severity": 4,
+      "level": "High",
+      "mitigation": "..."
+    }}
+  ]
+}}
+</output_schema>
 """
+
+# ---------------------------------------------------------------------------
+# MUST Evaluation
+# ---------------------------------------------------------------------------
 
 MUST_EVALUATION = """\
-對以下設計方案進行 MUST 規則驗證（Go/No-Go 快篩）。
+<task>
+Evaluate the design alternative against MUST criteria (Go / No-Go screening).
+</task>
 
-## 方案
-名稱：{alternative_name}
-機制描述：{mechanism}
-
-## 專案約束條件
+<context>
+<alternative>
+  <name>{alternative_name}</name>
+  <mechanism>{mechanism}</mechanism>
+</alternative>
+<project_constraints>
 {constraints}
-
-## 專案 KPI
+</project_constraints>
+<project_kpis>
 {kpis}
-
-## MUST 準則（從 Brief 約束/KPI 自動導出）
+</project_kpis>
+<must_criteria>
 {must_criteria}
+</must_criteria>
+</context>
 
-## 任務
-逐項評估此方案是否滿足每項 MUST 準則。對每項準則：
+<instructions>
+For each MUST criterion:
+1. **passed** — true (pass) / false (fail) / null (insufficient data).
+2. **confidence** — 0–1:
+   - ≥ 0.8: high (backed by data or physics)
+   - 0.5–0.8: medium (supported by analogy or reasoning)
+   - < 0.5: low (speculative — flag for engineer review)
+3. **reasoning** — Cite specific data from the mechanism description or physical principles.
+4. **evidence_sources** — Where the judgement came from.
 
-1. **passed**: true (通過) / false (不通過) / null (資料不足無法判定)
-2. **confidence**: 0~1 之間的信心分數
-   - ≥ 0.8: 高信心（有明確數據或物理原理支持）
-   - 0.5~0.8: 中等信心（有類比經驗或推論支持）
-   - < 0.5: 低信心（僅為推測，建議 RD 確認）
-3. **reasoning**: 判定理由，引用方案機制中的具體數據或技術原理
-4. **evidence_sources**: 判定依據來源 (如：方案描述、TRIZ 知識庫、工程常識)
+Overall logic:
+- Any MUST = Fail → overall_pass = false
+- Any MUST = null → overall_pass = null (needs more data)
+- All MUST = Pass → overall_pass = true
+</instructions>
 
-## 判定規則
-- MUST 判定：Pass / Fail，不可模糊
-- 若方案描述中有明確數字，直接比對閾值
-- 若無明確數字，基於工程原理推論，並降低 confidence
-- 任一 MUST 為 Fail → overall_pass = false
-- 任一 MUST 為 null → overall_pass = null（需 RD 補充資料）
-- 全部 Pass → overall_pass = true
-
-## 輸出 JSON 格式
+<output_schema>
 {{
   "criteria_results": [
-    {{ "id": "M1", "label": "...", "passed": true/false/null, "confidence": 0.9, "reasoning": "...", "evidence_sources": ["..."] }}
+    {{
+      "id": "M1",
+      "label": "...",
+      "passed": true,
+      "confidence": 0.9,
+      "reasoning": "...",
+      "evidence_sources": ["..."]
+    }}
   ],
-  "overall_pass": true/false/null,
-  "summary": "一句話總結"
+  "overall_pass": true,
+  "summary": "One-sentence summary"
 }}
+</output_schema>
 """
 
+# ---------------------------------------------------------------------------
+# Pre-CAD Analysis
+# ---------------------------------------------------------------------------
+
 PRE_CAD_ANALYSIS = """\
-對以下設計方案進行 Pre-CAD 五維度審查。
+<task>
+Perform a Pre-CAD five-dimension review of the design alternative.
+</task>
 
-## 方案
-名稱：{alternative_name}
-機制：{mechanism}
-
-## 專案約束條件
+<context>
+<alternative>
+  <name>{alternative_name}</name>
+  <mechanism>{mechanism}</mechanism>
+</alternative>
+<project_constraints>
 {constraints}
+</project_constraints>
+</context>
 
-## 五維度評分（每項 1-5 分）
-1. **空間維度 (Spatial)**：體積、重量、幾何干涉
-2. **成本維度 (Cost)**：BOM 成本、製造工序成本、模具投資
-3. **安全維度 (Safety)**：結構強度、電氣安全、熱安全
-4. **解耦維度 (Decoupling)**：模組化程度、與其他子系統的耦合度
-5. **供應維度 (Supply)**：關鍵零件可得性、供應商風險
+<instructions>
+Score each dimension 1–5:
 
-## 判定規則
-- 任一維度 ≤ 2 → overall_pass = false
-- 所有維度 ≥ 3 → overall_pass = true
+1. **Spatial** — Volume, mass, geometric interference.
+2. **Cost** — BOM cost, manufacturing process cost, tooling investment.
+3. **Safety** — Structural strength, electrical safety, thermal safety.
+4. **Decoupling** — Modularity, coupling with other subsystems.
+5. **Supply** — Key-component availability, supplier risk.
 
-## 輸出格式
+Pass rule:
+- Any dimension ≤ 2 → overall_pass = false
+- All dimensions ≥ 3 → overall_pass = true
+</instructions>
+
+<output_schema>
 {{
   "spatial_score": 4,
   "cost_score": 3,
@@ -120,69 +177,98 @@ PRE_CAD_ANALYSIS = """\
   "decoupling_score": 3,
   "supply_score": 4,
   "overall_pass": true,
-  "analysis": "整體評估說明（50-200字）"
+  "analysis": "Overall assessment (50–200 words)"
 }}
+</output_schema>
 """
 
+# ---------------------------------------------------------------------------
+# WANT Criteria Seed
+# ---------------------------------------------------------------------------
+
 WANT_CRITERIA_SEED = """\
-基於以下設計任務和約束，生成 WANT 評分準則（KT 決策分析用）。
+<task>
+Generate WANT scoring criteria for KT Decision Analysis.
+</task>
 
-## 設計任務
-{mission}
-
-## 已知約束
+<context>
+<mission>{mission}</mission>
+<constraints>
 {constraints}
-
-## 已知 KPI
+</constraints>
+<kpis>
 {kpis}
+</kpis>
+</context>
 
-## 任務
-生成 4-6 條 WANT 準則，每條包含：
-1. **name**：準則名稱（如「能效表現」）
-2. **description**：評分依據描述
-3. **weight**：權重 1-10（10=最重要）
-4. **anchors**：評分錨點 {{1: "最差描述", 3: "中等描述", 5: "最佳描述"}}
+<instructions>
+Create 4–6 WANT criteria. For each:
+1. **name** — Short label.
+2. **description** — What is being scored.
+3. **weight** — 1–10 (10 = most important).
+4. **anchors** — Scoring anchors: {{1: worst, 3: average, 5: best}}.
 
-## 規則
-- WANT 準則不得與 MUST 準則重複（MUST 是 Go/No-Go，WANT 是加分項）
-- 權重分佈要合理，不要全部給高分
-- 錨點描述要具體可量化
+Rules:
+- WANT criteria must NOT overlap with MUST criteria (MUST = Go/No-Go; WANT = bonus points).
+- Distribute weights realistically — avoid giving every criterion a high weight.
+- Anchors must be specific enough to enable objective scoring.
+</instructions>
 
-## 輸出格式
+<output_schema>
 {{
   "criteria": [
     {{
-      "name": "準則名稱",
-      "description": "描述",
+      "name": "Criterion name",
+      "description": "What this measures",
       "weight": 7,
-      "anchors": {{"1": "最差", "3": "中等", "5": "最佳"}}
+      "anchors": {{"1": "Worst case", "3": "Average", "5": "Best case"}}
     }}
   ]
 }}
+</output_schema>
 """
 
+# ---------------------------------------------------------------------------
+# Convergence Scan
+# ---------------------------------------------------------------------------
+
 CONVERGENCE_SCAN = """\
-掃描以下方案和矛盾，檢查矛盾收斂狀態。
+<task>
+Scan the current alternatives and contradictions to assess convergence health.
+</task>
 
-## 方案列表
+<context>
+<alternatives>
 {alternatives}
-
-## 矛盾列表
+</alternatives>
+<contradictions>
 {contradictions}
+</contradictions>
+</context>
 
-## 任務
-1. 識別所有二次矛盾（新方案引入的矛盾）
-2. 分級：Fatal / Major / Minor
-   - Fatal：方案根本不可行
-   - Major：需要額外求解才能繼續
-   - Minor：記入 Risk Register，不阻擋流程
-3. 計算收斂分數（0-1，1=完全收斂）
-4. 評估架構健康度（healthy / warning / critical）
-5. 若未收斂矛盾節點 > 5，觸發 force_pause
+<instructions>
+1. Identify secondary contradictions — new conflicts introduced by proposed solutions.
+2. Grade each: Fatal / Major / Minor.
+   - Fatal: concept is fundamentally infeasible.
+   - Major: requires additional solving before proceeding.
+   - Minor: log in risk register, does not block progress.
+3. Compute a convergence_score (0–1; 1 = fully converged).
+4. Assess architecture health:
+   - > 0.8 → healthy
+   - 0.5–0.8 → warning
+   - < 0.5 → critical
+5. If unresolved Fatal contradictions exist → force_pause = true.
+</instructions>
 
-## 判定規則
-- convergence_score < 0.5 → critical
-- convergence_score 0.5-0.8 → warning
-- convergence_score > 0.8 → healthy
-- Fatal 矛盾 > 0 → force_pause = true
+<output_schema>
+{{
+  "secondary_contradictions": [
+    {{"description": "...", "severity": "major", "source_alternative": "..."}}
+  ],
+  "convergence_score": 0.72,
+  "architecture_health": "warning",
+  "force_pause": false,
+  "summary": "Brief assessment"
+}}
+</output_schema>
 """

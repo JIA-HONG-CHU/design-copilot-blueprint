@@ -37,8 +37,8 @@ async def retrieve_constraint_evidence(
     Searches for: safety standards, regulations, physical limits relevant to the mission.
     """
     queries = [
-        f"E-Bike 電動自行車 {mission} 安全標準 法規 ISO EN",
-        f"E-Bike drivetrain safety standards regulations ISO 4210 EN 15194",
+        f"{mission} 安全標準 法規 ISO EN 認證",
+        f"{mission} safety standards regulations certification",
     ]
     return await _multi_query_retrieve(queries, max_per_query=3)
 
@@ -53,8 +53,8 @@ async def retrieve_kpi_evidence(
     """
     constraint_text = " ".join(constraints[:3]) if constraints else ""
     queries = [
-        f"E-Bike 電動自行車 {mission} KPI benchmark 測試標準",
-        f"E-Bike motor drivetrain performance test standard IEC {constraint_text}",
+        f"{mission} KPI benchmark 測試標準 performance metrics",
+        f"{mission} test standard specification {constraint_text}",
     ]
     return await _multi_query_retrieve(queries, max_per_query=3)
 
@@ -67,7 +67,7 @@ async def retrieve_5w1h_evidence(
     Searches for: design methodology, project planning best practices.
     """
     queries = [
-        f"E-Bike 電動自行車 驅動系統設計 開發流程 milestone",
+        f"{mission} 設計開發流程 milestone 專案規劃",
     ]
     return await _multi_query_retrieve(queries, max_per_query=3)
 
@@ -80,7 +80,7 @@ async def retrieve_mission_rewrite_evidence(
     Searches for: engineering specification writing standards.
     """
     queries = [
-        f"E-Bike drivetrain {mission} specification requirements",
+        f"{mission} specification requirements engineering",
     ]
     return await _multi_query_retrieve(queries, max_per_query=3)
 

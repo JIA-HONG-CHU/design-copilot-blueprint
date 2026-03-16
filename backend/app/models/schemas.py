@@ -236,6 +236,32 @@ class TrizLookupResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Step 5a-3: Su-Field Analysis (76 Standard Solutions)
+# ---------------------------------------------------------------------------
+
+class SuFieldRequest(BaseModel):
+    """Su-Field model analysis + 76 standard solutions matching."""
+    project_id: str
+    system_description: str
+    current_issues: list[str] = Field(default_factory=list)
+
+
+class MatchedStandardSolution(BaseModel):
+    standard_id: str          # e.g. "1.1.1"
+    standard_name: str        # e.g. "Build Complete Su-Field"
+    class_name: str           # e.g. "Class 1"
+    suggestion: str
+    affected_modules: list[str] = Field(default_factory=list)
+    secondary_contradictions: list[str] = Field(default_factory=list)
+
+
+class SuFieldResponse(BaseModel):
+    su_field: dict             # {S1, S2, F}
+    system_state: str          # incomplete | effective | harmful | insufficient
+    matched_solutions: list[MatchedStandardSolution]
+
+
+# ---------------------------------------------------------------------------
 # Step 5c: SCAMPER
 # ---------------------------------------------------------------------------
 

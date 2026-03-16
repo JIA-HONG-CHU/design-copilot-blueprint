@@ -10,17 +10,21 @@ from app.prompts.triz_solver import (
     TRIZ_SOLVER_SYSTEM,
     TRIZ_TC_INSTANTIATION,
     TRIZ_PC_INSTANTIATION,
+    SUFIELD_ANALYSIS,
     SCAMPER_TRANSFORM,
     SUBSYSTEM_SUGGESTION,
 )
 from app.tools.triz_kb import (
     build_triz_tc_context,
     build_triz_pc_context,
+    build_sufield_context,
     lookup_matrix,
 )
 from app.models.schemas import (
     TrizLookupRequest,
     TrizLookupResponse,
+    SuFieldRequest,
+    SuFieldResponse,
     ScamperRequest,
     ScamperResponse,
     SubsystemSuggestRequest,
@@ -72,6 +76,25 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
 
     return TrizLookupResponse(
         suggestions=data.get("suggestions", []),
+    )
+
+
+def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
+    """Analyse a technical system using Su-Field modelling + 76 standard solutions."""
+    triz_context = build_sufield_context()
+
+    prompt = SUFIELD_ANALYSIS.format(
+        system_description=req.system_description,
+        current_issues="\n".join(f"- {i}" for i in req.current_issues) or "（未指定）",
+        triz_context=triz_context,
+    )
+    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt, max_tokens=4096)
+    data = json.loads(raw)
+
+    return SuFieldResponse(
+        su_field=data.get("su_field", {}),
+        system_state=data.get("system_state", "unknown"),
+        matched_solutions=data.get("matched_solutions", []),
     )
 
 

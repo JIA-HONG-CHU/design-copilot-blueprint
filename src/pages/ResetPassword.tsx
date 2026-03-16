@@ -49,7 +49,7 @@ export default function ResetPassword() {
 
   if (!isRecovery) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="auth-shell">
         <Card className="w-full max-w-sm">
           <CardContent className="p-6 text-center space-y-3">
             <p className="text-muted-foreground">無效的重設連結</p>
@@ -61,7 +61,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="auth-shell">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <img src={logoImg} alt="RD Design Copilot" className="h-12 w-12 rounded-2xl mx-auto shadow-card" />

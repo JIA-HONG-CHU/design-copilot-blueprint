@@ -120,7 +120,7 @@ export default function Track() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="page-shell-wide">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-10 w-full" />
         <div className="flex gap-3">
@@ -133,7 +133,7 @@ export default function Track() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="page-shell-wide">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

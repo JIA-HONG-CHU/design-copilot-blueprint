@@ -58,7 +58,7 @@ const KnowledgeBase = () => {
   // Loading state for list view
   if (!slug && articlesLoading) {
     return (
-      <div className="space-y-6">
+      <div className="page-shell-kb">
         <Skeleton className="h-8 w-48" />
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)}
@@ -70,7 +70,7 @@ const KnowledgeBase = () => {
   // Loading state for detail view
   if (slug && articleLoading && !selectedArticle) {
     return (
-      <div className="space-y-6 max-w-4xl">
+      <div className="page-shell-kb">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -80,7 +80,7 @@ const KnowledgeBase = () => {
   // ── Detail view ──
   if (selectedArticle) {
     return (
-      <div className="space-y-6 max-w-4xl">
+      <div className="page-shell-kb">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/knowledge-base")}>
             <ArrowLeft className="h-5 w-5" />
@@ -149,7 +149,7 @@ const KnowledgeBase = () => {
 
   // ── List view ──
   return (
-    <div className="space-y-6">
+    <div className="page-shell-kb">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">知識庫</h1>
         <p className="text-sm text-muted-foreground">瀏覽 Playbook、歷史案例、決策模板與矛盾收斂模式</p>

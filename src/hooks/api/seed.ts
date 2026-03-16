@@ -50,12 +50,12 @@ async function getUserId(): Promise<string> {
 }
 
 // ============================================================================
-//  PROJECT 1 — 🏆 馬達控制器升級 (Phase III COMPLETED — all 28 tables)
+//  PROJECT 1 — 馬達控制器升級 (Phase III COMPLETED — all 28 tables)
 // ============================================================================
 
 async function seedProject1(uid: string): Promise<string> {
   const [project] = await insRet('projects', {
-    name: '🏆 E-Bike 馬達控制器升級',
+    name: 'E-Bike 馬達控制器升級',
     description: '【完整案例】馬達控制器從 Si MOSFET 升級至 GaN 拓撲，達成 95%+ 效率目標。展示從問題定義到決策簽核的完整 TRIZ 流程。',
     status: 'completed', phase: 'Phase III', progress: 100,
     mission: '重新設計馬達控制器，在峰值負載下達到 95%+ 效率，同時降低 30% 散熱量。',
@@ -410,12 +410,12 @@ async function seedProject1(uid: string): Promise<string> {
 }
 
 // ============================================================================
-//  PROJECT 2 — 🔋 電池管理系統 BMS (Phase II in progress)
+//  PROJECT 2 — 電池管理系統 BMS (Phase II in progress)
 // ============================================================================
 
 async function seedProject2(uid: string): Promise<string> {
   const [project] = await insRet('projects', {
-    name: '🔋 E-Bike 電池管理系統 BMS',
+    name: 'E-Bike 電池管理系統 BMS',
     description: '【進行中案例】鋰電池 BMS 設計，解決均衡充電效率與安全監控的矛盾。展示 Phase I 完成、Phase II 進行中的流程。',
     status: 'in_progress', phase: 'Phase II', progress: 55,
     mission: '設計新一代 48V/20Ah 鋰電池 BMS，實現 ≥98% 均衡效率且滿足 UN38.3 安全認證。',
@@ -596,12 +596,12 @@ async function seedProject2(uid: string): Promise<string> {
 }
 
 // ============================================================================
-//  PROJECT 3 — 🚴 車架結構輕量化 (Phase I early stage)
+//  PROJECT 3 — 車架結構輕量化 (Phase I early stage)
 // ============================================================================
 
 async function seedProject3(uid: string): Promise<string> {
   const [project] = await insRet('projects', {
-    name: '🚴 E-Bike 車架結構輕量化',
+    name: 'E-Bike 車架結構輕量化',
     description: '【初期案例】碳纖維/鋁合金複合車架設計，探索輕量化與剛性的矛盾。展示 Phase I 定義與探索階段。',
     status: 'in_progress', phase: 'Phase I', progress: 30,
     mission: '將車架重量從 2.8kg 降至 2.0kg 以下，同時維持 ISO 4210 剛性與疲勞測試標準。',
@@ -705,7 +705,7 @@ export async function clearDemoData(projectId: string): Promise<void> {
 }
 
 export async function clearAllShowcaseData(): Promise<void> {
-  const names = ['🏆 E-Bike 馬達控制器升級', '🔋 E-Bike 電池管理系統 BMS', '🚴 E-Bike 車架結構輕量化'];
+  const names = ['E-Bike 馬達控制器升級', 'E-Bike 電池管理系統 BMS', 'E-Bike 車架結構輕量化'];
   for (const name of names) {
     await getAdminDb().from('projects').delete().eq('name', name);
   }

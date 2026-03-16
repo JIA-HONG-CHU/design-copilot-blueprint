@@ -202,7 +202,7 @@ const ContradictionIdentification = () => {
 
   if (isLoadingList) {
     return (
-      <div className="space-y-6">
+      <div className="page-shell-wide">
         <div className="flex items-center gap-3">
           <Skeleton className="h-10 w-10" />
           <div className="space-y-2">
@@ -358,7 +358,7 @@ const ContradictionIdentification = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell-wide">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${id}`)}>

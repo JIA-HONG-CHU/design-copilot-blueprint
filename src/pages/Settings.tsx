@@ -74,7 +74,7 @@ export default function Settings() {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="page-shell-narrow max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">設定</h1>
         <p className="text-sm text-muted-foreground mt-1">管理您的帳號資訊與系統偏好</p>

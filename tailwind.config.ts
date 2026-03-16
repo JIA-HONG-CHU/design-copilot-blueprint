@@ -7,21 +7,21 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "1.25rem",
       screens: {
         "2xl": "1400px",
       },
     },
     extend: {
       fontFamily: {
-        sans: ['"Noto Sans TC"', '"Helvetica Neue"', 'Arial', '"Segoe UI"', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"PingFang TC"', '"Noto Sans TC"', '"Helvetica Neue"', 'Arial', '"Segoe UI"', 'sans-serif'],
       },
       fontSize: {
-        "h1": ["2.441rem", { lineHeight: "1.2", fontWeight: "700" }],
-        "h2": ["1.953rem", { lineHeight: "1.2", fontWeight: "700" }],
-        "h3": ["1.563rem", { lineHeight: "1.2", fontWeight: "600" }],
-        "body": ["1rem", { lineHeight: "1.5", fontWeight: "400" }],
-        "small": ["0.8rem", { lineHeight: "1.5", fontWeight: "400" }],
+        "h1": ["2.125rem", { lineHeight: "1.2", fontWeight: "700" }],
+        "h2": ["1.75rem", { lineHeight: "1.25", fontWeight: "650" }],
+        "h3": ["1.375rem", { lineHeight: "1.3", fontWeight: "600" }],
+        "body": ["1rem", { lineHeight: "1.45", fontWeight: "400" }],
+        "small": ["0.875rem", { lineHeight: "1.4", fontWeight: "400" }],
       },
       colors: {
         border: "hsl(var(--border))",

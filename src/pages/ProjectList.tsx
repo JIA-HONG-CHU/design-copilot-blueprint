@@ -77,26 +77,26 @@ export default function ProjectList() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="page-shell-list">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">專案列表</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+      <div className="space-y-1">
+        <h1 className="text-h2 tracking-tight">專案列表</h1>
+        <p className="text-sm text-muted-foreground">
           管理您的概念設計專案，追蹤進度與決策。
         </p>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {statCards.map((s) => (
-          <Card key={s.label} className="overflow-hidden">
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className={`rounded-lg bg-muted p-2 ${s.color}`}>
+          <Card key={s.label} className="overflow-hidden rounded-xl border">
+            <CardContent className="flex items-center gap-3 p-3.5">
+              <div className={`rounded-md bg-muted p-2 ${s.color}`}>
                 <s.icon className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold leading-none">{s.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+                <p className="text-xl font-semibold leading-none">{s.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -117,7 +117,7 @@ export default function ProjectList() {
 
       {/* Results count */}
       {!isLoading && !isError && filteredProjects.length > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           顯示 {filteredProjects.length} 個專案
           {(search || phaseFilter !== "all" || creatorFilter !== "all") && (
             <span>（共 {projects.length} 個）</span>

@@ -131,6 +131,9 @@ export const queryKeys = {
     all: ['knowledge_entries'] as const,
     byProject: (projectId: string) => ['knowledge_entries', projectId] as const,
   },
+  constraint_labels: {
+    byProject: (projectId: string) => ['constraint_labels', projectId] as const,
+  },
 
   // Evidence entries (structured measurement logs)
   evidence_entries: {

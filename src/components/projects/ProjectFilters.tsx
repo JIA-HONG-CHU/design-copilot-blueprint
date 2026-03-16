@@ -31,9 +31,10 @@ export function ProjectFilters({
   onCreateProject,
 }: ProjectFiltersProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-sm">
+    <div className="rounded-xl border bg-card p-3 md:p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-2.5 sm:flex-row sm:items-center">
+          <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="搜尋專案名稱或描述..."
@@ -44,7 +45,7 @@ export function ProjectFilters({
           />
         </div>
         <Select value={phaseFilter} onValueChange={onPhaseFilterChange}>
-          <SelectTrigger className="w-full sm:w-[150px]">
+          <SelectTrigger className="w-full sm:w-[168px]">
             <SelectValue placeholder="所有階段" />
           </SelectTrigger>
           <SelectContent>
@@ -56,7 +57,7 @@ export function ProjectFilters({
           </SelectContent>
         </Select>
         <Select value={creatorFilter} onValueChange={onCreatorFilterChange}>
-          <SelectTrigger className="w-full sm:w-[140px]">
+          <SelectTrigger className="w-full sm:w-[168px]">
             <SelectValue placeholder="所有創建者" />
           </SelectTrigger>
           <SelectContent>
@@ -66,11 +67,12 @@ export function ProjectFilters({
             ))}
           </SelectContent>
         </Select>
+        </div>
+        <Button onClick={onCreateProject} className="shrink-0 min-w-[120px]">
+          <Plus className="h-4 w-4" />
+          新增專案
+        </Button>
       </div>
-      <Button onClick={onCreateProject} className="shrink-0">
-        <Plus className="h-4 w-4" />
-        新增專案
-      </Button>
     </div>
   );
 }

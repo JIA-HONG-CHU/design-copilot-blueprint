@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.models.schemas import AiReviewResult
+
 
 # ---------------------------------------------------------------------------
 # Helpers — mock Supabase query builder chain
@@ -259,3 +261,93 @@ class TestGatePG3:
         body = resp.json()
         assert body["passed"] is False
         assert len(body["failed_reasons"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# AI Review — backward compatibility + integration
+# ---------------------------------------------------------------------------
+
+
+class TestAiReviewBackwardCompat:
+    @patch("app.routers.gates.get_supabase")
+    def test_ai_review_null_by_default(self, mock_sb, client):
+        """Without include_ai_review, ai_review should be null."""
+        briefs_chain = _make_chain(_sb_response(data={"mission": "OK"}))
+        kpis_chain = _make_chain(_sb_response(data=[
+            {"id": "k1", "measurement_method": "m1"},
+            {"id": "k2", "measurement_method": "m2"},
+            {"id": "k3", "measurement_method": "m3"},
+        ]))
+        sb = _build_sb_mock({"briefs": briefs_chain, "kpis": kpis_chain})
+        mock_sb.return_value = sb
+
+        resp = client.get("/api/v1/gates/1.1/check", params={"project_id": "p1"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ai_review"] is None
+
+    @patch("app.routers.gates.get_supabase")
+    def test_ai_review_null_for_gate_without_evaluator(self, mock_sb, client):
+        """Gate 1.1 has no AI evaluator — ai_review stays null even when requested."""
+        briefs_chain = _make_chain(_sb_response(data={"mission": "OK"}))
+        kpis_chain = _make_chain(_sb_response(data=[
+            {"id": "k1", "measurement_method": "m1"},
+            {"id": "k2", "measurement_method": "m2"},
+            {"id": "k3", "measurement_method": "m3"},
+        ]))
+        sb = _build_sb_mock({"briefs": briefs_chain, "kpis": kpis_chain})
+        mock_sb.return_value = sb
+
+        resp = client.get("/api/v1/gates/1.1/check", params={
+            "project_id": "p1",
+            "include_ai_review": "true",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ai_review"] is None
+
+
+class TestAiReviewIntegration:
+    @patch("app.routers.gates._run_ai_review")
+    @patch("app.routers.gates.get_supabase")
+    def test_ai_review_called_for_gate_22(self, mock_sb, mock_ai, client):
+        """Gate 2.2 has ai_evaluator='must' — should call _run_ai_review when requested."""
+        alts = [{"id": f"alt{i}", "must_scores": {}, "overall_pass": True} for i in range(3)]
+        alt_chain = _make_chain(_sb_response(data=alts))
+        sb = _build_sb_mock({"alternatives": alt_chain})
+        mock_sb.return_value = sb
+
+        mock_ai.return_value = AiReviewResult(
+            evaluator="must",
+            summary="All MUST criteria passed",
+            confidence=0.9,
+            details={"overall_pass": True},
+        )
+
+        resp = client.get("/api/v1/gates/2.2/check", params={
+            "project_id": "p1",
+            "include_ai_review": "true",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ai_review"] is not None
+        assert body["ai_review"]["evaluator"] == "must"
+        mock_ai.assert_called_once_with("must", sb, "p1")
+
+    @patch("app.routers.gates._run_ai_review", side_effect=Exception("LLM failed"))
+    @patch("app.routers.gates.get_supabase")
+    def test_ai_review_failure_returns_error_result(self, mock_sb, mock_ai, client):
+        """AI review failure should not crash — returns error AiReviewResult."""
+        alts = [{"id": f"alt{i}", "must_scores": {}, "overall_pass": True} for i in range(3)]
+        alt_chain = _make_chain(_sb_response(data=alts))
+        sb = _build_sb_mock({"alternatives": alt_chain})
+        mock_sb.return_value = sb
+
+        resp = client.get("/api/v1/gates/2.2/check", params={
+            "project_id": "p1",
+            "include_ai_review": "true",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ai_review"]["evaluator"] == "must"
+        assert "失敗" in body["ai_review"]["summary"]

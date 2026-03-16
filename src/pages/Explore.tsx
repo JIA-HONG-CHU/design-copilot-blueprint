@@ -110,7 +110,7 @@ export default function Explore() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="page-shell-kb">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-10 w-full" />
         {Array.from({ length: 3 }).map((_, i) => (
@@ -121,7 +121,7 @@ export default function Explore() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="page-shell-kb">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

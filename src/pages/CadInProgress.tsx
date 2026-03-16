@@ -65,7 +65,7 @@ export default function CadInProgress() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="page-shell-narrow">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard

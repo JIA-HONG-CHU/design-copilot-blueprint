@@ -531,7 +531,7 @@ export default function Create() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 py-8">
+      <div className="page-shell-narrow py-8">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-12 w-full" />
@@ -1474,7 +1474,7 @@ export default function Create() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="page-shell-narrow">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Dashboard

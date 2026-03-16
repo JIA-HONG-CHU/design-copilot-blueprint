@@ -39,7 +39,7 @@ export default function DevSeed() {
   };
 
   return (
-    <div className="container mx-auto py-10 max-w-lg">
+    <div className="page-shell-narrow py-10">
       <Card>
         <CardHeader>
           <CardTitle>Dev Seed Tool</CardTitle>

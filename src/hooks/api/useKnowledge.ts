@@ -41,6 +41,9 @@ interface KnowledgeEntryDbRow {
   updated_at: string;
 }
 
+export const CONSTRAINT_LABEL_ASSET_TYPE = 'constraint_label_map';
+export const HARD_CONSTRAINT_LABEL_TITLE = 'hard_constraints';
+
 // ---------------------------------------------------------------------------
 // Frontend types for knowledge_entries
 // ---------------------------------------------------------------------------
@@ -175,7 +178,7 @@ export function useKnowledgeEntries(projectId: string | undefined) {
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq' as const, value: projectId }]
       : [],
-    orderBy: { column: 'created_at', ascending: true },
+    orderBy: { column: 'created_at', ascending: false },
     enabled: !!projectId,
   });
 
@@ -214,5 +217,75 @@ export function useUpdateKnowledgeEntry() {
     type: 'update',
     invalidateKeys: [queryKeys.knowledge_entries.all],
     successMessage: '知識條目已更新',
+  });
+}
+
+export function useConstraintLabelMap(projectId: string | undefined) {
+  const result = useSupabaseQuery<KnowledgeEntryDbRow[]>({
+    table: 'knowledge_entries',
+    queryKey: queryKeys.constraint_labels.byProject(projectId ?? ''),
+    filters: projectId
+      ? [
+          { column: 'project_id', operator: 'eq' as const, value: projectId },
+          { column: 'asset_type', operator: 'eq' as const, value: CONSTRAINT_LABEL_ASSET_TYPE },
+          { column: 'title', operator: 'eq' as const, value: HARD_CONSTRAINT_LABEL_TITLE },
+        ]
+      : [],
+    orderBy: { column: 'created_at', ascending: true },
+    limit: 1,
+    enabled: !!projectId,
+  });
+
+  const entry = result.data?.[0];
+  let labelMap: Record<string, string> = {};
+  if (entry?.content) {
+    try {
+      const parsed = JSON.parse(entry.content);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        labelMap = parsed as Record<string, string>;
+      }
+    } catch {
+      labelMap = {};
+    }
+  }
+
+  return {
+    ...result,
+    entryId: entry?.id,
+    labelMap,
+  };
+}
+
+export function useCreateConstraintLabelMap(projectId: string | undefined) {
+  return useSupabaseMutation<KnowledgeEntryDbRow, {
+    project_id: string;
+    asset_type: string;
+    title: string;
+    content: string;
+    reviewed?: boolean;
+  }>({
+    table: 'knowledge_entries',
+    type: 'insert',
+    invalidateKeys: projectId
+      ? [queryKeys.constraint_labels.byProject(projectId), queryKeys.knowledge_entries.byProject(projectId)]
+      : [queryKeys.knowledge_entries.all],
+    successMessage: false,
+    errorMessage: false,
+  });
+}
+
+export function useUpdateConstraintLabelMap(projectId: string | undefined) {
+  return useSupabaseMutation<KnowledgeEntryDbRow, {
+    id: string;
+    content: string;
+    reviewed?: boolean;
+  }>({
+    table: 'knowledge_entries',
+    type: 'update',
+    invalidateKeys: projectId
+      ? [queryKeys.constraint_labels.byProject(projectId), queryKeys.knowledge_entries.byProject(projectId)]
+      : [queryKeys.knowledge_entries.all],
+    successMessage: false,
+    errorMessage: false,
   });
 }

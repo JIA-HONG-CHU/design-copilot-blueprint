@@ -29,9 +29,9 @@ const statusConfig: Record<Exclude<FeasibilityStatus, "idle" | "checking">, {
   variant: "default" | "secondary" | "destructive";
   color: string;
 }> = {
-  pass: { icon: CheckCircle, label: "✅ 通過", variant: "default", color: "text-success" },
-  warning: { icon: AlertTriangle, label: "⚠️ 警告", variant: "secondary", color: "text-warning" },
-  conflict: { icon: XCircle, label: "❌ 衝突", variant: "destructive", color: "text-destructive" },
+  pass: { icon: CheckCircle, label: "通過", variant: "default", color: "text-success" },
+  warning: { icon: AlertTriangle, label: "警告", variant: "secondary", color: "text-warning" },
+  conflict: { icon: XCircle, label: "衝突", variant: "destructive", color: "text-destructive" },
 };
 
 export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }: FeasibilityValidationProps) {

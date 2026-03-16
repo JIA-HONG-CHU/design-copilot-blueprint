@@ -54,7 +54,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="auth-shell">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo */}
         <div className="text-center space-y-3">

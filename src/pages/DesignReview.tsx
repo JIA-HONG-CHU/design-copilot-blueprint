@@ -352,7 +352,7 @@ export default function DesignReview() {
   // --- Loading / Error states ---
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl flex items-center justify-center py-24 gap-3">
+      <div className="page-shell-medium flex items-center justify-center py-24 gap-3">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <span className="text-muted-foreground">載入設計審查資料中...</span>
       </div>
@@ -361,7 +361,7 @@ export default function DesignReview() {
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-5xl flex flex-col items-center justify-center py-24 gap-3">
+      <div className="page-shell-medium flex flex-col items-center justify-center py-24 gap-3">
         <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-destructive">載入失敗：{loadError.message}</p>
         <Button variant="outline" size="sm" onClick={() => window.location.reload()}>重新載入</Button>
@@ -370,7 +370,7 @@ export default function DesignReview() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="page-shell-medium">
       {/* Phase header */}
       <div className="h-1 w-full rounded-full bg-primary" />
       <div className="flex items-center justify-between">

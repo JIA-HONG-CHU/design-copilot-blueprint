@@ -39,6 +39,7 @@ import {
   useUpdateKpi,
   useDeleteKpi,
 } from "@/hooks/api/useBrief";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
 import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,7 @@ export default function TaskDefinition() {
   // Form state
   const [mission, setMission] = useState("");
   const [constraints, setConstraints] = useState<BriefConstraint[]>([
-    { id: "c-new", constraint_code: "M1", description: "", source: "" },
+    { id: "c-new", constraint_code: "C-01", description: "", source: "" },
   ]);
   const [kpis, setKpis] = useState<BriefKPI[]>([
     { id: "k-new", kpi_name: "", target_value: "", unit: "", measurement_method: "" },
@@ -203,6 +204,11 @@ export default function TaskDefinition() {
   // Constraint suggestion — triggered by button click
   const handleConstraintSuggest = async () => {
     if (!id) return;
+    if (mission.trim().length < 10) {
+      toast.error("請先填寫 Mission（至少 10 字）再使用 AI 建議約束");
+      return;
+    }
+    if (isConstraintSuggesting) return;
     setShowConstraintSuggestions(true);
     setConstraintSuggestionList([]);
     setIsConstraintSuggesting(true);
@@ -214,6 +220,11 @@ export default function TaskDefinition() {
       });
       setConstraintSuggestionList(res.suggestions);
       setConstraintEvidenceRefs(res.evidence_references ?? []);
+      if (res.suggestions.length === 0) {
+        toast.info("AI 未產出約束建議，請補充更具體的 Mission 或上下文");
+      } else {
+        toast.success(`AI 已產生 ${res.suggestions.length} 項約束建議`);
+      }
     } catch (err) {
       console.error("Constraint suggestion failed:", err);
       toast.error(getApiErrorMessage(err, "AI 約束建議"));
@@ -295,7 +306,7 @@ export default function TaskDefinition() {
         {
           project_id: id,
           mission,
-          task_definition_5w1h: taskDef5W1H as unknown as Record<string, unknown>,
+          task_definition_5w1h: taskDef5W1H as unknown as TablesInsert<"briefs">["task_definition_5w1h"],
         },
         {
           onSuccess: () => {
@@ -327,6 +338,61 @@ export default function TaskDefinition() {
 
   // Handlers
 
+  type ConstraintCodePattern = {
+    prefix: string;
+    separator: string;
+    width: number;
+    nextNumber: number;
+  };
+
+  const inferConstraintCodePattern = (items: BriefConstraint[]): ConstraintCodePattern => {
+    const parsed = items
+      .map((c) => c.constraint_code.trim())
+      .filter(Boolean)
+      .map((code) => {
+        const m = code.match(/^([A-Za-z]+)([-_]?)(\d+)$/);
+        if (!m) return null;
+        return {
+          prefix: m[1],
+          separator: m[2],
+          number: Number(m[3]),
+          width: m[3].length,
+        };
+      })
+      .filter((v): v is { prefix: string; separator: string; number: number; width: number } => v !== null);
+
+    if (parsed.length === 0) {
+      return {
+        prefix: "C",
+        separator: "-",
+        width: 2,
+        nextNumber: 1,
+      };
+    }
+
+    const base = parsed[0];
+    const maxNumber = Math.max(
+      ...parsed
+        .filter((p) => p.prefix === base.prefix && p.separator === base.separator)
+        .map((p) => p.number),
+    );
+
+    return {
+      prefix: base.prefix,
+      separator: base.separator,
+      width: base.width,
+      nextNumber: maxNumber + 1,
+    };
+  };
+
+  const buildNextConstraintCodes = (count: number): string[] => {
+    const pattern = inferConstraintCodePattern(constraints.filter((c) => c.description.trim()));
+    return Array.from({ length: count }, (_, idx) => {
+      const n = pattern.nextNumber + idx;
+      return `${pattern.prefix}${pattern.separator}${String(n).padStart(pattern.width, "0")}`;
+    });
+  };
+
   const handleExtract = async () => {
     if (!id) return;
     setIsExtracting(true);
@@ -334,7 +400,7 @@ export default function TaskDefinition() {
       const result: BriefExtractResponse = await briefExtract({
         project_id: id,
         raw_text: mission,
-        file_urls: uploadedFiles.map((f) => f.url).filter(Boolean) as string[],
+        file_urls: [],
       });
       const items: ExtractedItem[] = [
         ...result.constraints.map((c, i) => ({
@@ -343,13 +409,15 @@ export default function TaskDefinition() {
           content: c.description,
           source: c.source,
           accepted: false,
+          editing: false,
         })),
         ...result.kpis.map((k, i) => ({
           id: `ext-k-${i}`,
-          type: "kpi" as const,
+          type: "data" as const,
           content: `${k.name}: ${k.target_value} ${k.unit}`,
           source: k.measurement_method || "AI extracted",
           accepted: false,
+          editing: false,
         })),
         ...result.assumptions.map((a, i) => ({
           id: `ext-a-${i}`,
@@ -357,6 +425,7 @@ export default function TaskDefinition() {
           content: a,
           source: "AI extracted",
           accepted: false,
+          editing: false,
         })),
       ];
       setExtractedItems(items);
@@ -381,8 +450,9 @@ export default function TaskDefinition() {
     const newConstraintItems = accepted.filter((i) => i.type === "constraint");
 
     if (newConstraintItems.length > 0 && id) {
+      const newCodes = buildNextConstraintCodes(newConstraintItems.length);
       newConstraintItems.forEach((item, idx) => {
-        const code = `M${constraints.filter((c) => c.description.trim()).length + idx + 1}`;
+        const code = newCodes[idx];
         createConstraint.mutate({
           project_id: id,
           constraint_code: code,
@@ -394,7 +464,7 @@ export default function TaskDefinition() {
       // Also update local state for immediate UI feedback
       const newConstraints = newConstraintItems.map((i, idx) => ({
         id: `c-ext-${idx}`,
-        constraint_code: `M${constraints.filter((c) => c.description.trim()).length + idx + 1}`,
+        constraint_code: newCodes[idx],
         description: i.content,
         source: i.source,
       }));
@@ -428,7 +498,7 @@ export default function TaskDefinition() {
   };
 
   const handleAdoptConstraintSuggestion = (desc: string, source: string) => {
-    const code = `M${constraints.length + 1}`;
+    const code = buildNextConstraintCodes(1)[0];
     const tempId = `c-ai-${Date.now()}`;
     // Optimistic local update
     setConstraints([...constraints, { id: tempId, constraint_code: code, description: desc, source }]);
@@ -483,7 +553,7 @@ export default function TaskDefinition() {
       await upsertBrief.mutateAsync({
         project_id: id,
         mission,
-        task_definition_5w1h: taskDef5W1H as unknown as Record<string, unknown>,
+        task_definition_5w1h: taskDef5W1H as unknown as TablesInsert<"briefs">["task_definition_5w1h"],
       });
 
       // 2. Sync constraints — persist any new local-only constraints
@@ -545,7 +615,7 @@ export default function TaskDefinition() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="page-shell-narrow">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
         {Array.from({ length: 4 }).map((_, i) => (
@@ -573,7 +643,7 @@ export default function TaskDefinition() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="page-shell-narrow">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -754,17 +824,15 @@ export default function TaskDefinition() {
                 <AISuggestionCard
                   key={i}
                   title={`建議約束 #${i + 1}`}
-                  content={`${s.description}\n來源: ${s.source}`}
+                  content={`約束描述: ${s.description}\n來源依據: ${s.source}`}
                   changesSummary={s.rationale}
                   isAdopting={activeConstraintActionIndex === i}
                   disableActions={activeConstraintActionIndex !== null && activeConstraintActionIndex !== i}
-                  onAdopt={async (edited) => {
+                  onAdopt={async () => {
                     if (activeConstraintActionIndex !== null) return;
                     setActiveConstraintActionIndex(i);
-                    const desc = edited.split("\n")[0];
-                    const source = edited.includes("來源:") ? edited.split("來源:")[1]?.trim() ?? s.source : s.source;
                     try {
-                      handleAdoptConstraintSuggestion(desc, source);
+                      handleAdoptConstraintSuggestion(s.description, s.source);
                       setConstraintSuggestionList((prev) => {
                         const next = prev.filter((_, idx) => idx !== i);
                         if (next.length === 0) {

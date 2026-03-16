@@ -171,7 +171,7 @@ export default function Feynman() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 py-8">
+      <div className="page-shell-narrow py-8">
         <Skeleton className="h-8 w-48" />
         {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
       </div>
@@ -179,7 +179,7 @@ export default function Feynman() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="page-shell-narrow">
       {/* Header */}
       <div className="h-1 w-full rounded-full bg-[#10B981]" />
       <div className="flex items-center gap-3">

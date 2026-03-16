@@ -528,11 +528,20 @@ class GateCheckItem(BaseModel):
     detail: str = ""
 
 
+class AiReviewResult(BaseModel):
+    """AI evaluator result attached to a gate check (optional)."""
+    evaluator: str          # "must" | "pre_cad" | "convergence"
+    summary: str
+    confidence: float = 0.0
+    details: dict = Field(default_factory=dict)
+
+
 class GateCheckResponse(BaseModel):
     gate_id: str
     passed: bool
     failed_reasons: list[str] = Field(default_factory=list)
     checklist_items: list[GateCheckItem] = Field(default_factory=list)
+    ai_review: AiReviewResult | None = None
 
 
 # ---------------------------------------------------------------------------

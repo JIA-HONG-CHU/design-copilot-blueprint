@@ -306,7 +306,7 @@ export default function ProjectDashboard() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="page-shell-wide">
         <div className="space-y-3">
           <Skeleton className="h-8 w-32" />
           <div className="flex items-center gap-3">
@@ -362,7 +362,7 @@ export default function ProjectDashboard() {
   const isZeroData = Object.values(quickStats).every((v) => v === 0);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="page-shell-wide">
       {/* Header */}
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="text-muted-foreground -ml-2">
@@ -398,9 +398,16 @@ export default function ProjectDashboard() {
         <div className="space-y-3">
           <h2 className="text-base font-semibold">專案概覽</h2>
           <MissionSummaryCard
+            projectId={id}
             mission={brief?.mission ?? project.mission ?? ''}
-            hardConstraints={constraints?.filter(c => c.type === 'hard').map(c => c.description).join('、')}
-            softObjectives={constraints?.filter(c => c.type === 'soft').map(c => c.description).join('、')}
+            hardConstraints={
+              constraints?.filter(c => c.type === 'hard').map(c => c.description)
+              ?? project.hardConstraints
+            }
+            softObjectives={
+              constraints?.filter(c => c.type === 'soft').map(c => c.description)
+              ?? project.softObjectives
+            }
           />
           {criticalKPIs.length > 0 && (
             <KpiCards kpis={criticalKPIs} onLogEvidence={handleLogEvidence} />

@@ -54,7 +54,7 @@ export function ProjectCard({ project, onDelete, isDeleting = false }: ProjectCa
 
   return (
     <Card
-      className="cursor-pointer transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 overflow-hidden group"
+      className="cursor-pointer transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 overflow-hidden group rounded-xl"
       onClick={() => navigate(`/projects/${project.id}`)}
     >
       {/* Phase color band top */}
@@ -72,9 +72,9 @@ export function ProjectCard({ project, onDelete, isDeleting = false }: ProjectCa
         })}
       </div>
 
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-1.5">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base font-bold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+          <CardTitle className="text-[15px] font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
             {project.name}
           </CardTitle>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -95,31 +95,31 @@ export function ProjectCard({ project, onDelete, isDeleting = false }: ProjectCa
             </Badge>
           </div>
         </div>
-        <CardDescription className="line-clamp-2 text-sm mt-1">
+        <CardDescription className="line-clamp-2 text-[13px] mt-1.5 min-h-[2.5rem]">
           {project.description}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-1">
         {/* Progress bar */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground">進度</span>
             <span className="font-medium">{project.progress}%</span>
           </div>
           <Progress value={project.progress} className="h-1.5" />
         </div>
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <User className="h-3 w-3" />
             {project.createdBy}
           </span>
-          <Badge variant="outline" className="text-xs font-normal">
+          <Badge variant="outline" className="text-[11px] font-normal">
             {project.gates_passed}/{project.gates_total} Gates
           </Badge>
         </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{project.phase}</span>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <Badge variant="secondary" className="font-normal text-[11px]">{project.phase}</Badge>
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {formattedDate}

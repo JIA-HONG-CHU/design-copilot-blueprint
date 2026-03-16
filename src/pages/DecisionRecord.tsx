@@ -368,7 +368,7 @@ export default function DecisionRecord() {
 
   if (isPageLoading) {
     return (
-      <div className="mx-auto max-w-5xl flex items-center justify-center py-20">
+      <div className="page-shell-medium flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="ml-3 text-muted-foreground">載入決策記錄...</span>
       </div>
@@ -376,7 +376,7 @@ export default function DecisionRecord() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="page-shell-medium">
       {/* Phase header */}
       <div className="h-1 w-full rounded-full bg-primary" />
       <div className="flex items-center justify-between">

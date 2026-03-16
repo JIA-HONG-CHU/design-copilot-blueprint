@@ -128,7 +128,7 @@ export default function AssumptionLedger() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="page-shell-wide">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
         <Skeleton className="h-64 w-full" />
@@ -154,7 +154,7 @@ export default function AssumptionLedger() {
   const cldLoops: { id: string; type: "R" | "B"; nodeIds: string[]; label: string }[] = [];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="page-shell-wide">
       {/* Header */}
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">

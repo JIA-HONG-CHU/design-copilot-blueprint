@@ -10,6 +10,10 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { queryKeys } from './useQueryConfig';
 import type { KnowledgeArticle } from '@/types/knowledge';
+import {
+  CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+  CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+} from '@/lib/constraintLabeling';
 
 // ---------------------------------------------------------------------------
 // Row types (DB snake_case)
@@ -43,6 +47,13 @@ interface KnowledgeEntryDbRow {
 
 export const CONSTRAINT_LABEL_ASSET_TYPE = 'constraint_label_map';
 export const HARD_CONSTRAINT_LABEL_TITLE = 'hard_constraints';
+
+export interface ConstraintLabelMapPayload {
+  schemaVersion: number;
+  classifierVersion: string;
+  labels: Record<string, string>;
+  updatedAt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Frontend types for knowledge_entries
@@ -231,28 +242,72 @@ export function useConstraintLabelMap(projectId: string | undefined) {
           { column: 'title', operator: 'eq' as const, value: HARD_CONSTRAINT_LABEL_TITLE },
         ]
       : [],
-    orderBy: { column: 'created_at', ascending: true },
+    orderBy: { column: 'created_at', ascending: false },
     limit: 1,
     enabled: !!projectId,
   });
 
   const entry = result.data?.[0];
-  let labelMap: Record<string, string> = {};
+  let payload: ConstraintLabelMapPayload = {
+    schemaVersion: CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+    classifierVersion: CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+    labels: {},
+    updatedAt: new Date(0).toISOString(),
+  };
+
   if (entry?.content) {
     try {
       const parsed = JSON.parse(entry.content);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        labelMap = parsed as Record<string, string>;
+        const maybePayload = parsed as Partial<ConstraintLabelMapPayload>;
+        if (maybePayload.labels && typeof maybePayload.labels === 'object' && !Array.isArray(maybePayload.labels)) {
+          payload = {
+            schemaVersion: maybePayload.schemaVersion ?? CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+            classifierVersion: maybePayload.classifierVersion ?? CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+            labels: maybePayload.labels,
+            updatedAt: maybePayload.updatedAt ?? entry.updated_at,
+          };
+        } else {
+          // Backward compatibility: legacy content was plain Record<string, string>.
+          payload = {
+            schemaVersion: CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+            classifierVersion: CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+            labels: parsed as Record<string, string>,
+            updatedAt: entry.updated_at,
+          };
+        }
       }
     } catch {
-      labelMap = {};
+      payload = {
+        schemaVersion: CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+        classifierVersion: CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+        labels: {},
+        updatedAt: entry.updated_at,
+      };
     }
   }
 
   return {
     ...result,
     entryId: entry?.id,
-    labelMap,
+    payload,
+    labelMap: payload.labels,
+    classifierVersion: payload.classifierVersion,
+    schemaVersion: payload.schemaVersion,
+    isLegacyPayload: payload.classifierVersion !== CONSTRAINT_LABEL_CLASSIFIER_VERSION
+      || payload.schemaVersion !== CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+  };
+}
+
+export function buildConstraintLabelPayload(
+  labels: Record<string, string>,
+  classifierVersion = CONSTRAINT_LABEL_CLASSIFIER_VERSION,
+): ConstraintLabelMapPayload {
+  return {
+    schemaVersion: CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION,
+    classifierVersion,
+    labels,
+    updatedAt: new Date().toISOString(),
   };
 }
 

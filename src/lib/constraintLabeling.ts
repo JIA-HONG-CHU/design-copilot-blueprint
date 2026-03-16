@@ -3,6 +3,9 @@ interface ConstraintLabelRule {
   keywords: string[];
 }
 
+export const CONSTRAINT_LABEL_PAYLOAD_SCHEMA_VERSION = 1;
+export const CONSTRAINT_LABEL_CLASSIFIER_VERSION = "rule-based-v1";
+
 export interface ConstraintGroup {
   label: string;
   items: string[];
@@ -19,11 +22,24 @@ const CONSTRAINT_LABEL_RULES: ConstraintLabelRule[] = [
   { label: "安全與風險", keywords: ["安全", "風險", "失效", "危害", "爆裂", "保護", "防護"] },
 ];
 
-function normalizeConstraintKey(input: string): string {
+export function normalizeConstraintKey(input: string): string {
   return input.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function inferConstraintLabel(input: string): string {
+export function splitConstraintItems(content?: string | string[]): string[] {
+  if (!content) return [];
+  const rawItems = Array.isArray(content) ? content : [content];
+  return rawItems
+    .flatMap((item) =>
+      item
+        .split(/[；;。]/)
+        .flatMap((segment) => segment.split("、"))
+        .map((part) => part.trim()),
+    )
+    .filter(Boolean);
+}
+
+export function inferConstraintLabel(input: string): string {
   const normalized = input.toLowerCase();
   let bestLabel = "其他";
   let bestScore = 0;
@@ -42,17 +58,31 @@ function inferConstraintLabel(input: string): string {
   return bestLabel;
 }
 
+export function getConstraintLabelSuggestions(existingLabelMap: Record<string, string>): string[] {
+  const base = CONSTRAINT_LABEL_RULES.map((rule) => rule.label);
+  const dynamic = Array.from(new Set(Object.values(existingLabelMap)));
+  const merged = Array.from(new Set([...base, ...dynamic, "其他"]));
+  return merged.sort((a, b) => a.localeCompare(b, "zh-Hant"));
+}
+
 export function classifyHardConstraints(
   items: string[],
   existingLabelMap: Record<string, string>,
-): { groups: ConstraintGroup[]; nextLabelMap: Record<string, string>; hasUpdates: boolean } {
+): {
+  groups: ConstraintGroup[];
+  nextLabelMap: Record<string, string>;
+  itemLabels: Record<string, string>;
+  hasUpdates: boolean;
+} {
   const nextLabelMap: Record<string, string> = { ...existingLabelMap };
+  const itemLabels: Record<string, string> = {};
   let hasUpdates = false;
   const grouped = new Map<string, string[]>();
 
   for (const item of items) {
     const key = normalizeConstraintKey(item);
     const label = nextLabelMap[key] ?? inferConstraintLabel(item);
+    itemLabels[key] = label;
 
     if (!nextLabelMap[key]) {
       nextLabelMap[key] = label;
@@ -67,6 +97,7 @@ export function classifyHardConstraints(
   return {
     groups: Array.from(grouped.entries()).map(([label, groupItems]) => ({ label, items: groupItems })),
     nextLabelMap,
+    itemLabels,
     hasUpdates,
   };
 }

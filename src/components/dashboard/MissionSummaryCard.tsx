@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target, Lock, Star } from "lucide-react";
 import {
+  CONSTRAINT_LABEL_CLASSIFIER_VERSION,
   classifyHardConstraints,
+  getConstraintLabelSuggestions,
+  normalizeConstraintKey,
+  splitConstraintItems,
 } from "@/lib/constraintLabeling";
 import {
   CONSTRAINT_LABEL_ASSET_TYPE,
   HARD_CONSTRAINT_LABEL_TITLE,
+  buildConstraintLabelPayload,
   useConstraintLabelMap,
   useCreateConstraintLabelMap,
   useUpdateConstraintLabelMap,
@@ -19,28 +27,18 @@ interface MissionSummaryCardProps {
   softObjectives?: string | string[];
 }
 
-function normalizeToBulletItems(content?: string | string[]): string[] {
-  if (!content) return [];
-
-  const rawItems = Array.isArray(content) ? content : [content];
-
-  return rawItems
-    .flatMap((item) =>
-      item
-        .split(/[；;。]/)
-        .flatMap((segment) => segment.split("、"))
-        .map((part) => part.trim()),
-    )
-    .filter(Boolean);
-}
-
 export function MissionSummaryCard({ projectId, mission, hardConstraints, softObjectives }: MissionSummaryCardProps) {
-  const hardConstraintItems = normalizeToBulletItems(hardConstraints);
-  const softObjectiveItems = normalizeToBulletItems(softObjectives);
+  const hardConstraintItems = splitConstraintItems(hardConstraints);
+  const softObjectiveItems = splitConstraintItems(softObjectives);
   const [constraintLabelMap, setConstraintLabelMap] = useState<Record<string, string>>({});
   const [initialized, setInitialized] = useState(false);
+  const [overrideTargetKey, setOverrideTargetKey] = useState<string | null>(null);
 
-  const { entryId, labelMap: dbLabelMap, isLoading: isLabelMapLoading } = useConstraintLabelMap(projectId);
+  const {
+    entryId,
+    labelMap: dbLabelMap,
+    isLoading: isLabelMapLoading,
+  } = useConstraintLabelMap(projectId);
   const createLabelMap = useCreateConstraintLabelMap(projectId);
   const updateLabelMap = useUpdateConstraintLabelMap(projectId);
 
@@ -58,18 +56,18 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
     () => classifyHardConstraints(hardConstraintItems, constraintLabelMap),
     [hardConstraintItems, constraintLabelMap],
   );
+  const labelOptions = useMemo(
+    () => getConstraintLabelSuggestions(hardConstraintClassifyResult.nextLabelMap),
+    [hardConstraintClassifyResult.nextLabelMap],
+  );
 
-  useEffect(() => {
-    if (!initialized || !hardConstraintClassifyResult.hasUpdates) return;
-
-    setConstraintLabelMap(hardConstraintClassifyResult.nextLabelMap);
-
+  const persistLabelMap = (nextMap: Record<string, string>, classifierVersion = CONSTRAINT_LABEL_CLASSIFIER_VERSION) => {
     if (!projectId) return;
-    const serialized = JSON.stringify(hardConstraintClassifyResult.nextLabelMap);
+    const serialized = JSON.stringify(buildConstraintLabelPayload(nextMap, classifierVersion));
 
     if (entryId) {
       if (updateLabelMap.isPending) return;
-      updateLabelMap.mutate({ id: entryId, content: serialized });
+      updateLabelMap.mutate({ id: entryId, content: serialized, reviewed: true });
       return;
     }
 
@@ -81,6 +79,12 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
       content: serialized,
       reviewed: true,
     });
+  };
+
+  useEffect(() => {
+    if (!initialized || !hardConstraintClassifyResult.hasUpdates) return;
+    setConstraintLabelMap(hardConstraintClassifyResult.nextLabelMap);
+    persistLabelMap(hardConstraintClassifyResult.nextLabelMap);
   }, [
     initialized,
     hardConstraintClassifyResult,
@@ -91,6 +95,13 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
   ]);
 
   const hardConstraintGroups = hardConstraintClassifyResult.groups;
+  const handleOverrideLabel = (item: string, label: string) => {
+    const key = normalizeConstraintKey(item);
+    const nextMap = { ...constraintLabelMap, [key]: label };
+    setConstraintLabelMap(nextMap);
+    persistLabelMap(nextMap);
+    setOverrideTargetKey(null);
+  };
 
   if (!mission && hardConstraintItems.length === 0 && softObjectiveItems.length === 0) return null;
 
@@ -113,15 +124,61 @@ export function MissionSummaryCard({ projectId, mission, hardConstraints, softOb
           <div className="flex gap-2">
             <Lock className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-0.5">Hard Constraints</div>
+              <div className="mb-1 flex items-center gap-2">
+                <div className="text-xs font-medium text-muted-foreground">Hard Constraints</div>
+                {projectId && (
+                  <Button asChild size="sm" variant="ghost" className="h-5 px-1.5 text-[11px]">
+                    <Link to={`/projects/${projectId}/constraint-labels`}>管理標籤字典</Link>
+                  </Button>
+                )}
+              </div>
               <div className="space-y-2">
                 {hardConstraintGroups.map((group) => (
                   <div key={group.label} className="space-y-1">
                     <p className="text-xs font-medium text-foreground/80">{group.label}</p>
                     <ul className="list-disc pl-5 space-y-1 text-sm leading-relaxed">
-                      {group.items.map((item, index) => (
-                        <li key={`${group.label}-${item}-${index}`}>{item}</li>
-                      ))}
+                      {group.items.map((item, index) => {
+                        const itemKey = normalizeConstraintKey(item);
+                        const currentLabel = hardConstraintClassifyResult.itemLabels[itemKey] ?? group.label;
+                        const isEditing = overrideTargetKey === itemKey;
+                        return (
+                          <li key={`${group.label}-${item}-${index}`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{item}</span>
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {currentLabel}
+                              </span>
+                              {isEditing ? (
+                                <Select
+                                  value={currentLabel}
+                                  onValueChange={(value) => handleOverrideLabel(item, value)}
+                                >
+                                  <SelectTrigger className="h-7 w-[160px] text-xs">
+                                    <SelectValue placeholder="選擇標籤" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {labelOptions.map((labelOption) => (
+                                      <SelectItem key={labelOption} value={labelOption}>
+                                        {labelOption}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-[11px] text-muted-foreground"
+                                  onClick={() => setOverrideTargetKey(itemKey)}
+                                >
+                                  改標籤
+                                </Button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ))}

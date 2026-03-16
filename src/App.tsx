@@ -23,6 +23,7 @@ import DesignReview from "./pages/DesignReview";
 import DecisionRecord from "./pages/DecisionRecord";
 import Feynman from "./pages/Feynman";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import ConstraintLabelDictionary from "./pages/ConstraintLabelDictionary";
 import NotFound from "./pages/NotFound";
 import DevSeed from "./pages/DevSeed";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -55,6 +56,7 @@ const App = () => (
                 <Route path="/projects/:id/review" element={<DesignReview />} />
                 <Route path="/projects/:id/decide" element={<DecisionRecord />} />
                 <Route path="/projects/:id/feynman" element={<Feynman />} />
+                <Route path="/projects/:id/constraint-labels" element={<ConstraintLabelDictionary />} />
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
                 <Route path="/settings" element={<Settings />} />

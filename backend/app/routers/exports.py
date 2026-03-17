@@ -187,7 +187,7 @@ def _section_to_markdown(section: str, rows: list[dict]) -> str:
 
 
 @router.post("/export", response_model=ExportResponse)
-async def export_project(req: ExportRequest):
+def export_project(req: ExportRequest):
     """Export project artifacts to Markdown or JSON format."""
     sb = get_supabase()
 

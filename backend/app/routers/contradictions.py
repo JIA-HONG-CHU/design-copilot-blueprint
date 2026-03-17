@@ -15,6 +15,6 @@ router = APIRouter()
 
 
 @router.post("/contradictions/{cid}/formalize", response_model=ContradictionFormalizeResponse)
-async def contradictions_formalize(cid: str, req: ContradictionFormalizeRequest):
+def contradictions_formalize(cid: str, req: ContradictionFormalizeRequest):
     """Analyst Agent formalizes natural-language contradiction into TRIZ sentence."""
     return formalize_contradiction(req)

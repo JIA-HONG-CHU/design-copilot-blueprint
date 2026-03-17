@@ -15,6 +15,6 @@ router = APIRouter()
 
 
 @router.post("/want/criteria/seed", response_model=WantSeedResponse)
-async def want_criteria_seed(req: WantSeedRequest):
+def want_criteria_seed(req: WantSeedRequest):
     """Evaluator Agent generates W1-W6 WANT criteria from mission context."""
     return seed_want_criteria(req)

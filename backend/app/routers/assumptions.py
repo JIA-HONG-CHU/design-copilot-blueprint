@@ -16,6 +16,6 @@ router = APIRouter()
 
 
 @router.post("/assumptions/extract", response_model=AssumptionExtractResponse)
-async def assumptions_extract(req: AssumptionExtractRequest):
+def assumptions_extract(req: AssumptionExtractRequest):
     """Analyst Agent extracts assumptions from Socratic question answers."""
     return extract_assumptions(req)

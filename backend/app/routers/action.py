@@ -12,6 +12,6 @@ router = APIRouter()
 
 
 @router.post("/actions/suggest", response_model=ActionSuggestResponse)
-async def actions_suggest(req: ActionSuggestRequest):
+def actions_suggest(req: ActionSuggestRequest):
     """Knowledge Agent suggests action items based on decision outcome."""
     return suggest_actions(req)

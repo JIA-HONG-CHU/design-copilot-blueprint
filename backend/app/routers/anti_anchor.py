@@ -12,6 +12,6 @@ router = APIRouter()
 
 
 @router.post("/alternatives/anti-anchor", response_model=AntiAnchorResponse)
-async def alternatives_anti_anchor(req: AntiAnchorRequest):
+def alternatives_anti_anchor(req: AntiAnchorRequest):
     """Analyst Agent generates 3+ non-typical architecture concepts."""
     return generate_anti_anchor(req)

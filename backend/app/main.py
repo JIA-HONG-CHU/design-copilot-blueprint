@@ -24,12 +24,15 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     # Warm up TRIZ KB cache on startup
     from app.tools.triz_kb import load_39_parameters, load_40_principles, load_76_standard_solutions
+    import logging as _log
     try:
         load_39_parameters()
         load_40_principles()
         load_76_standard_solutions()
     except FileNotFoundError:
-        pass  # KB files may not exist in test/CI
+        _log.getLogger(__name__).warning(
+            "TRIZ KB files not found — TRIZ endpoints will return degraded results"
+        )
     yield
 
 

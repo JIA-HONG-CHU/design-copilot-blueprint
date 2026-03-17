@@ -42,6 +42,8 @@ def _reset_llm_client():
     """Reset the cached LLM client between tests so mocks take effect."""
     import app.agents.base as base_mod
 
-    base_mod._client = None
+    base_mod._anthropic_client = None
+    base_mod._openai_compat_clients.clear()
     yield
-    base_mod._client = None
+    base_mod._anthropic_client = None
+    base_mod._openai_compat_clients.clear()

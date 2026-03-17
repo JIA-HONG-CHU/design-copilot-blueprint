@@ -31,3 +31,5 @@ dist-ssr
 *.sw?
 .env
 __pycache__/
+*.egg-info/
+supabase/.temp/

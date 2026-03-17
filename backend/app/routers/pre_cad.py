@@ -15,6 +15,6 @@ router = APIRouter()
 
 
 @router.post("/pre-cad-reviews/{rid}/ai-analyze", response_model=PreCadAnalyzeResponse)
-async def pre_cad_ai_analyze(rid: str, req: PreCadAnalyzeRequest):
+def pre_cad_ai_analyze(rid: str, req: PreCadAnalyzeRequest):
     """Evaluator Agent performs 5D Pre-CAD analysis with scoring."""
     return analyze_pre_cad(req)

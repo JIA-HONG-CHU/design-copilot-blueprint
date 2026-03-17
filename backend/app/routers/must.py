@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.post("/must/evaluate", response_model=MustEvaluationResponse)
-async def must_evaluate(req: MustEvaluationRequest):
+def must_evaluate(req: MustEvaluationRequest):
     """Evaluator Agent pre-judges MUST pass/fail with confidence + reasoning.
 
     RD engineer reviews AI results and confirms or overrides on frontend.

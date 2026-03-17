@@ -12,6 +12,6 @@ router = APIRouter()
 
 
 @router.post("/causal-loops/generate", response_model=CldGenerationResponse)
-async def causal_loops_generate(req: CldGenerationRequest):
+def causal_loops_generate(req: CldGenerationRequest):
     """Analyst Agent generates causal loop diagram with breakpoints."""
     return generate_cld(req)

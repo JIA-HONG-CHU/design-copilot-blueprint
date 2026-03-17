@@ -25,7 +25,7 @@ router = APIRouter()
 
 
 @router.get("/gates/{gate_id}/check", response_model=GateCheckResponse)
-async def gates_check(
+def gates_check(
     gate_id: str,
     project_id: str,
     include_ai_review: bool = False,
@@ -108,7 +108,11 @@ def _ai_must_review(sb, project_id: str) -> AiReviewResult:
     # Build MUST criteria from config or default
     must_config = (project.data or {}).get("must_criteria_config") or []
     if isinstance(must_config, str):
-        must_config = json.loads(must_config)
+        try:
+            must_config = json.loads(must_config)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Malformed must_criteria_config for project %s", project_id)
+            must_config = []
     must_criteria = [MustCriterion(**c) for c in must_config] if must_config else []
 
     if not alts.data or not must_criteria:

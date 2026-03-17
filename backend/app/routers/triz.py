@@ -12,12 +12,12 @@ router = APIRouter()
 
 
 @router.post("/triz/solve", response_model=TrizLookupResponse)
-async def triz_solve(req: TrizLookupRequest):
+def triz_solve(req: TrizLookupRequest):
     """TRIZ Solver Agent resolves contradiction via TC or PC path."""
     return solve_triz(req)
 
 
 @router.post("/triz/sufield", response_model=SuFieldResponse)
-async def triz_sufield(req: SuFieldRequest):
+def triz_sufield(req: SuFieldRequest):
     """Su-Field analysis: model the system and match 76 standard solutions."""
     return analyze_sufield(req)

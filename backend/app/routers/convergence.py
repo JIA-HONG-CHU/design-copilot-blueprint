@@ -9,6 +9,6 @@ router = APIRouter()
 
 
 @router.post("/convergence/scan", response_model=ConvergenceScanResponse)
-async def convergence_do_scan(req: ConvergenceScanRequest):
+def convergence_do_scan(req: ConvergenceScanRequest):
     """Evaluator Agent scans for secondary contradictions and architecture health."""
     return scan_convergence(req)

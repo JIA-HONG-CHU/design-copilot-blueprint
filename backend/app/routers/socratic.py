@@ -12,6 +12,6 @@ router = APIRouter()
 
 
 @router.post("/questions/generate", response_model=SocraticResponse)
-async def questions_generate(req: SocraticRequest):
+def questions_generate(req: SocraticRequest):
     """Analyst Agent generates Socratic questions across 7 categories."""
     return generate_socratic_questions(req)

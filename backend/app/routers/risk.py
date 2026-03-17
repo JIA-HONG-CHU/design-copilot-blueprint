@@ -12,6 +12,6 @@ router = APIRouter()
 
 
 @router.post("/risks/analyze", response_model=RiskAnalysisResponse)
-async def risks_analyze(req: RiskAnalysisRequest):
+def risks_analyze(req: RiskAnalysisRequest):
     """Evaluator Agent identifies risks with probability × severity scoring."""
     return analyze_risk(req)

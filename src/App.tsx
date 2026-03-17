@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,28 +6,32 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ArtifactProvider } from "@/contexts/ArtifactContext";
-import PreCadReview from "./pages/PreCadReview";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+// Critical path — eager
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
-import Settings from "./pages/Settings";
 import ProjectList from "./pages/ProjectList";
 import ProjectDashboard from "./pages/ProjectDashboard";
-import TaskDefinition from "./pages/TaskDefinition";
-import Track from "./pages/Track";
-import Explore from "./pages/Explore";
-import Create from "./pages/Create";
-import CadInProgress from "./pages/CadInProgress";
-import DesignReview from "./pages/DesignReview";
-import DecisionRecord from "./pages/DecisionRecord";
-import Feynman from "./pages/Feynman";
-import KnowledgeBase from "./pages/KnowledgeBase";
-import ConstraintLabelDictionary from "./pages/ConstraintLabelDictionary";
 import NotFound from "./pages/NotFound";
-import DevSeed from "./pages/DevSeed";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+// Non-critical — lazy loaded
+const Settings = lazy(() => import("./pages/Settings"));
+const TaskDefinition = lazy(() => import("./pages/TaskDefinition"));
+const Track = lazy(() => import("./pages/Track"));
+const Explore = lazy(() => import("./pages/Explore"));
+const Create = lazy(() => import("./pages/Create"));
+const PreCadReview = lazy(() => import("./pages/PreCadReview"));
+const CadInProgress = lazy(() => import("./pages/CadInProgress"));
+const DesignReview = lazy(() => import("./pages/DesignReview"));
+const DecisionRecord = lazy(() => import("./pages/DecisionRecord"));
+const Feynman = lazy(() => import("./pages/Feynman"));
+const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
+const ConstraintLabelDictionary = lazy(() => import("./pages/ConstraintLabelDictionary"));
+const DevSeed = lazy(() => import("./pages/DevSeed"));
 
 const queryClient = new QueryClient();
 
@@ -40,6 +45,7 @@ const App = () => (
         <AuthProvider>
           <ArtifactProvider>
           <BrowserRouter>
+            <Suspense fallback={<div style={{ padding: 32 }}>Loading…</div>}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -60,10 +66,13 @@ const App = () => (
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/knowledge-base/:slug" element={<KnowledgeBase />} />
                 <Route path="/settings" element={<Settings />} />
-                <Route path="/dev/seed" element={<DevSeed />} />
+                {import.meta.env.DEV && (
+                  <Route path="/dev/seed" element={<DevSeed />} />
+                )}
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
           </ArtifactProvider>
         </AuthProvider>

@@ -37,22 +37,27 @@ const ArtifactContext = createContext<ArtifactContextValue | null>(null);
 export function ArtifactProvider({ children }: { children: ReactNode }) {
   const [artifacts, setArtifacts] = useState<CoreArtifact[]>([]);
 
+  const addArtifactRef = { current: null as CoreArtifact | null };
   const addArtifact = useCallback((input: Omit<CoreArtifact, 'artifactId' | 'stateHistory'> & { artifactId?: string }) => {
     const now = new Date().toISOString();
-    const existingIds = artifacts.map(a => a.artifactId); // captured at call time is fine for demo
-    const artifactId = input.artifactId || generateArtifactId(input.artifactType, existingIds);
 
-    const newArtifact = {
-      ...input,
-      artifactId,
-      stateHistory: [],
-      createdAt: input.createdAt || now,
-      updatedAt: now,
-    } as CoreArtifact;
+    setArtifacts(prev => {
+      const existingIds = prev.map(a => a.artifactId);
+      const artifactId = input.artifactId || generateArtifactId(input.artifactType, existingIds);
 
-    setArtifacts(prev => [...prev, newArtifact]);
-    return newArtifact;
-  }, [artifacts]);
+      const newArtifact = {
+        ...input,
+        artifactId,
+        stateHistory: [],
+        createdAt: input.createdAt || now,
+        updatedAt: now,
+      } as CoreArtifact;
+
+      addArtifactRef.current = newArtifact;
+      return [...prev, newArtifact];
+    });
+    return addArtifactRef.current!;
+  }, []);
 
   const updateArtifact = useCallback((artifactId: string, updates: Partial<CoreArtifact>) => {
     setArtifacts(prev =>
@@ -68,8 +73,9 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
     setArtifacts(prev => prev.filter(a => a.artifactId !== artifactId));
   }, []);
 
+  const transitionResultRef = { current: false };
   const transitionState = useCallback((artifactId: string, to: ArtifactState, triggeredBy: string): boolean => {
-    let success = false;
+    transitionResultRef.current = false;
     setArtifacts(prev =>
       prev.map(a => {
         if (a.artifactId !== artifactId) return a;
@@ -81,7 +87,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
           triggeredBy,
           timestamp: new Date().toISOString(),
         };
-        success = true;
+        transitionResultRef.current = true;
         return {
           ...a,
           artifactState: to,
@@ -90,14 +96,15 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         } as CoreArtifact;
       })
     );
-    return success;
+    return transitionResultRef.current;
   }, []);
 
+  const gateCountRef = { current: 0 };
   const applyGateTransition = useCallback((gateId: string): number => {
     const mapping = GATE_ARTIFACT_TRANSITIONS[gateId];
     if (!mapping) return 0;
 
-    let count = 0;
+    gateCountRef.current = 0;
     const now = new Date().toISOString();
 
     setArtifacts(prev =>
@@ -111,7 +118,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
           triggeredBy: gateId,
           timestamp: now,
         };
-        count++;
+        gateCountRef.current++;
         return {
           ...a,
           artifactState: mapping.to,
@@ -120,7 +127,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         } as CoreArtifact;
       })
     );
-    return count;
+    return gateCountRef.current;
   }, []);
 
   const getByType = useCallback((type: ArtifactType) => artifacts.filter(a => a.artifactType === type), [artifacts]);

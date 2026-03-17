@@ -24,13 +24,13 @@ router = APIRouter()
 
 
 @router.post("/scamper/perform", response_model=ScamperResponse)
-async def scamper_perform(req: ScamperRequest):
+def scamper_perform(req: ScamperRequest):
     """TRIZ Solver Agent applies SCAMPER 7-action transformation."""
     return scamper_transform(req)
 
 
 @router.post("/scamper/subsystem-suggestions", response_model=SubsystemSuggestResponse)
-async def scamper_subsystem_suggestions(req: SubsystemSuggestRequest):
+def scamper_subsystem_suggestions(req: SubsystemSuggestRequest):
     """AI suggests subsystems suitable for SCAMPER analysis."""
     return suggest_subsystems(req)
 

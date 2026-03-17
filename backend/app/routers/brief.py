@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 @router.post("/definitions/extract", response_model=BriefExtractionResponse)
-async def definitions_extract(req: BriefExtractionRequest):
+def definitions_extract(req: BriefExtractionRequest):
     """Analyst Agent extracts structured brief from raw text."""
     return extract_brief(req)
 

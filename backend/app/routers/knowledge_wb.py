@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.post("/knowledge/writeback", response_model=KnowledgeWritebackResponse)
-async def knowledge_writeback(req: KnowledgeWritebackRequest):
+def knowledge_writeback(req: KnowledgeWritebackRequest):
     """Auto-assetize 6 artifact types to knowledge base."""
     asset_types = req.asset_types if req.asset_types else None
     return writeback_knowledge(req.project_id, asset_types=asset_types)

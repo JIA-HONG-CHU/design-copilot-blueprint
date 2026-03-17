@@ -48,8 +48,8 @@ def get_current_user(
 
     token = credentials.credentials
 
-    # Dev bypass: when jwt_secret is empty, accept the dev-bypass-token
-    if not settings.jwt_secret and token == _DEV_BYPASS_TOKEN:
+    # Dev bypass: only when debug mode AND jwt_secret is empty
+    if settings.debug and not settings.jwt_secret and token == _DEV_BYPASS_TOKEN:
         return dict(_DEV_USER)
 
     if not settings.jwt_secret:
@@ -63,6 +63,7 @@ def get_current_user(
             token,
             settings.jwt_secret,
             algorithms=["HS256"],
+            audience="authenticated",
             options={"require": ["exp", "sub"]},
         )
     except jwt.ExpiredSignatureError:

@@ -757,10 +757,10 @@ BEGIN
   FOREACH tbl IN ARRAY tables LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
 
+    -- SELECT: all authenticated users can read all project data
     EXECUTE format('DROP POLICY IF EXISTS "rls_%s_select" ON %I', tbl, tbl);
     EXECUTE format(
-      'CREATE POLICY "rls_%s_select" ON %I FOR SELECT TO authenticated
-       USING (project_id IN (SELECT id FROM projects WHERE created_by = auth.uid()::text))',
+      'CREATE POLICY "rls_%s_select" ON %I FOR SELECT TO authenticated USING (true)',
       tbl, tbl);
 
     EXECUTE format('DROP POLICY IF EXISTS "rls_%s_insert" ON %I', tbl, tbl);

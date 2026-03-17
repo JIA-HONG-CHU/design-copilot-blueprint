@@ -604,9 +604,14 @@ export interface GateCheckResponse {
 }
 
 async function requestGet<T>(path: string): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = await getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
+    headers,
   });
   if (!res.ok) {
     const errorBody = await res.text().catch(() => "unknown error");

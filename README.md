@@ -91,35 +91,35 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 #### 3. 環境變數
 
-在專案根目錄建立 `.env`：
+在專案根目錄建立 `.env`（前後端共用同一份）：
+
+```bash
+cp .env.example .env
+```
+
+填入以下必要變數：
 
 ```env
 # ── Supabase ──
+VITE_SUPABASE_PROJECT_ID="<project-ref>"
 VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="<anon-key>"
 VITE_SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
 
-# ── 後端 API 位址（前端呼叫用）──
-VITE_API_BASE_URL="http://localhost:8000/api/v1"
+# ── Auth（正式流程）──
+VITE_DEV_BYPASS_AUTH="false"
+JWT_SECRET=<your-jwt-secret>
 
 # ── LLM ──
 ANTHROPIC_API_KEY=sk-ant-...
 
-# ── 開發模式（跳過登入）──
-VITE_DEV_BYPASS_AUTH="true"
-```
-
-在 `backend/` 目錄建立 `backend/.env`：
-
-```env
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=<service-role-key>
-ANTHROPIC_API_KEY=sk-ant-...
+# ── TRIZ ──
 TRIZ_KB_PATH=../rd_assistant_design_system/triz_knowledge_base
-
-# 正式環境需設定 JWT Secret（Supabase Dashboard > Settings > API）
-# JWT_SECRET=<your-jwt-secret>
 ```
+
+> **JWT_SECRET 取得方式**：Supabase Dashboard → Settings → API → JWT Secret（點 Reveal）
+>
+> **注意**：不需要建 `backend/.env`，後端 config 直接讀取根目錄 `.env`。
 
 ### 方式二：Docker 一鍵部署
 
@@ -145,19 +145,24 @@ docker-compose up --build
 
 ---
 
-## 本地開發繞過認證
+## 認證流程
 
-設定 `VITE_DEV_BYPASS_AUTH="true"` 後重啟前端，即可免登入：
+系統使用 Supabase Auth 進行認證，所有頁面（含 `/dev/seed`）和後端 API 都需要登入。
 
-| 欄位 | 值 |
-|------|-----|
-| 名稱 | Dev Admin |
-| Email | admin@dev.local |
-| Role | admin |
+### 首次使用
 
-後端在 `JWT_SECRET` 未設定時，自動接受 `dev-bypass-token`，與前端 bypass 模式配合。
+1. 啟動前端後會被導向 `/auth` 登入頁
+2. 使用 Supabase Auth 註冊/登入（Email + Password）
+3. 登入後取得的 JWT 會自動帶入所有後端 API 請求
 
-將 `VITE_DEV_BYPASS_AUTH` 改為 `"false"` 並設定 `JWT_SECRET`，即恢復正式認證流程。
+### 環境變數設定
+
+| 變數 | 說明 |
+|------|------|
+| `VITE_DEV_BYPASS_AUTH` | 必須設為 `"false"`（正式流程） |
+| `JWT_SECRET` | Supabase JWT Secret，後端用來驗證 token |
+
+> **`JWT_SECRET` 未設定時**，後端所有 AI 端點會回傳 500 錯誤。
 
 ---
 

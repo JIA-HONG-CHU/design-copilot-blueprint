@@ -41,10 +41,10 @@ class _SampleModel(BaseModel):
 
 
 class TestCallLlmJsonBasic:
-    @patch("app.agents.base.get_llm")
-    def test_returns_parsed_content(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_returns_parsed_content(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response('{"ok": true}')
 
         result = call_llm_json("system prompt", "user prompt")
@@ -59,10 +59,10 @@ class TestCallLlmJsonBasic:
 
 class TestRetryOnRateLimitError:
     @patch("app.agents.base.time.sleep")
-    @patch("app.agents.base.get_llm")
-    def test_retries_on_rate_limit(self, mock_get_llm, mock_sleep):
+    @patch("app.agents.base._get_anthropic")
+    def test_retries_on_rate_limit(self, mock_get_anthropic, mock_sleep):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
 
         # Fail twice with RateLimitError, then succeed
         rate_err = anthropic.RateLimitError.__new__(anthropic.RateLimitError)
@@ -93,10 +93,10 @@ class TestRetryOnRateLimitError:
 
 class TestRetryOnAPIConnectionError:
     @patch("app.agents.base.time.sleep")
-    @patch("app.agents.base.get_llm")
-    def test_retries_on_connection_error(self, mock_get_llm, mock_sleep):
+    @patch("app.agents.base._get_anthropic")
+    def test_retries_on_connection_error(self, mock_get_anthropic, mock_sleep):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
 
         conn_err = anthropic.APIConnectionError.__new__(anthropic.APIConnectionError)
         conn_err.message = "connection failed"
@@ -121,10 +121,10 @@ class TestRetryOnAPIConnectionError:
 
 class TestNoRetryOnBadRequest:
     @patch("app.agents.base.time.sleep")
-    @patch("app.agents.base.get_llm")
-    def test_no_retry_on_bad_request(self, mock_get_llm, mock_sleep):
+    @patch("app.agents.base._get_anthropic")
+    def test_no_retry_on_bad_request(self, mock_get_anthropic, mock_sleep):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
 
         bad_req = anthropic.BadRequestError.__new__(anthropic.BadRequestError)
         bad_req.status_code = 400
@@ -147,10 +147,10 @@ class TestNoRetryOnBadRequest:
 
 
 class TestJsonCodeFenceStripping:
-    @patch("app.agents.base.get_llm")
-    def test_strips_json_code_fences(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_strips_json_code_fences(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response(
             '```json\n{"clean": true}\n```'
         )
@@ -158,10 +158,10 @@ class TestJsonCodeFenceStripping:
         result = call_llm_json("sys", "usr")
         assert result == '{"clean": true}'
 
-    @patch("app.agents.base.get_llm")
-    def test_strips_plain_code_fences(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_strips_plain_code_fences(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response(
             '```\n{"clean": true}\n```'
         )
@@ -169,10 +169,10 @@ class TestJsonCodeFenceStripping:
         result = call_llm_json("sys", "usr")
         assert result == '{"clean": true}'
 
-    @patch("app.agents.base.get_llm")
-    def test_no_fences_unchanged(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_no_fences_unchanged(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response('{"raw": true}')
 
         result = call_llm_json("sys", "usr")
@@ -185,10 +185,10 @@ class TestJsonCodeFenceStripping:
 
 
 class TestCallLlmJsonParsed:
-    @patch("app.agents.base.get_llm")
-    def test_returns_pydantic_model(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_returns_pydantic_model(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response(
             '{"name": "test", "score": 0.95}'
         )
@@ -198,10 +198,10 @@ class TestCallLlmJsonParsed:
         assert result.name == "test"
         assert result.score == 0.95
 
-    @patch("app.agents.base.get_llm")
-    def test_parsed_strips_fences(self, mock_get_llm):
+    @patch("app.agents.base._get_anthropic")
+    def test_parsed_strips_fences(self, mock_get_anthropic):
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         mock_client.messages.create.return_value = _make_response(
             '```json\n{"name": "fenced", "score": 1.0}\n```'
         )
@@ -259,11 +259,11 @@ class TestRetryOn5xxApiStatusError:
 
 
 class TestTokenWarning:
-    @patch("app.agents.base.get_llm")
-    def test_warns_on_high_token_usage(self, mock_get_llm, caplog):
+    @patch("app.agents.base._get_anthropic")
+    def test_warns_on_high_token_usage(self, mock_get_anthropic, caplog):
         """When input is large relative to max_tokens, a warning is logged."""
         mock_client = MagicMock()
-        mock_get_llm.return_value = mock_client
+        mock_get_anthropic.return_value = mock_client
         # Create a large prompt: 4000 chars => ~1000 tokens, with max_tokens=1024
         # 80% of 1024 = ~819 tokens; 1000 > 819 so should warn
         large_text = "x" * 4000

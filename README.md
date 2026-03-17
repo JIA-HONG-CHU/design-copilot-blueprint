@@ -166,6 +166,32 @@ docker-compose up --build
 
 ---
 
+## Supabase 資料庫遷移（單一 SQL）
+
+專案採用**單一 migration 檔**策略：
+
+- 來源檔案：`supabase/migrations/000_full_deploy.sql`
+- 用途：完整建立資料表、trigger、RLS、storage policy
+- 適用情境：新環境初始化 / 測試環境重建
+
+### 套用到既有遠端資料庫（不清資料）
+
+```bash
+# Linux
+npx supabase db push
+```
+
+### 直接重建遠端資料庫（會清空現有資料）
+
+```bash
+# Linux
+npx supabase db reset --linked --yes
+```
+
+> `db reset --linked` 會刪除遠端既有資料後重建，請只在可重建環境使用。
+
+---
+
 ## 可用指令
 
 ### 前端
@@ -215,7 +241,8 @@ design-copilot-blueprint/
 │   └── pyproject.toml
 │
 ├── supabase/
-│   └── migrations/               # SQL migration 檔案
+│   └── migrations/
+│       └── 000_full_deploy.sql   # 單一來源：完整 schema + RLS + triggers
 │
 ├── docs/
 │   ├── SOW_v1.0_開發說明書.md     # 完整開發說明書

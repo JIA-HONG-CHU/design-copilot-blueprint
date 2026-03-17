@@ -531,6 +531,47 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Converge legacy schema to display_name-only profile naming.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'username'
+  ) THEN
+    EXECUTE $sql$
+      UPDATE profiles
+      SET display_name = COALESCE(
+        NULLIF(BTRIM(display_name), ''),
+        NULLIF(BTRIM(username), ''),
+        'user'
+      )
+      WHERE display_name IS NULL OR BTRIM(display_name) = ''
+    $sql$;
+
+    BEGIN
+      ALTER TABLE profiles DROP COLUMN username;
+    EXCEPTION
+      WHEN dependent_objects_still_exist THEN
+        RAISE WARNING
+          'Skipped dropping profiles.username because dependent objects still exist. Remove dependencies and re-run migration.';
+    END;
+  ELSE
+    UPDATE profiles
+    SET display_name = COALESCE(NULLIF(BTRIM(display_name), ''), 'user')
+    WHERE display_name IS NULL OR BTRIM(display_name) = '';
+  END IF;
+END;
+$$;
+
+ALTER TABLE profiles ALTER COLUMN display_name SET DEFAULT '';
+UPDATE profiles SET display_name = '' WHERE display_name IS NULL;
+ALTER TABLE profiles ALTER COLUMN display_name SET NOT NULL;
+
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON profiles
@@ -542,11 +583,24 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  profile_name TEXT;
 BEGIN
+  profile_name := COALESCE(
+    NULLIF(BTRIM(NEW.raw_user_meta_data->>'display_name'), ''),
+    NULLIF(SPLIT_PART(COALESCE(NEW.email, ''), '@', 1), ''),
+    'user'
+  );
+
   INSERT INTO profiles (user_id, display_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'display_name', ''))
+  VALUES (NEW.id, profile_name)
   ON CONFLICT DO NOTHING;
+
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user: profile insert skipped for user %, reason: %', NEW.id, SQLERRM;
+    RETURN NEW;
 END;
 $$;
 

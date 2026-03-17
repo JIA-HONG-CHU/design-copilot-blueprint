@@ -57,27 +57,28 @@ app.add_middleware(
 # To apply per-router instead:
 #   router = APIRouter(dependencies=[Depends(get_current_user)])
 _auth = [Depends(get_current_user)]
+API_PREFIX = "/api/v1"
 
 # Register routers — aligned with SOW module naming
-app.include_router(brief.router, prefix="/api/v1", tags=["任務定義 definitions"], dependencies=_auth)
-app.include_router(socratic.router, prefix="/api/v1", tags=["索克拉底問答 questions"], dependencies=_auth)
-app.include_router(cld.router, prefix="/api/v1", tags=["因果迴路 causal-loops"], dependencies=_auth)
-app.include_router(contradictions.router, prefix="/api/v1", tags=["矛盾管理 contradictions"], dependencies=_auth)
-app.include_router(assumptions.router, prefix="/api/v1", tags=["假設台帳 assumptions"], dependencies=_auth)
-app.include_router(anti_anchor.router, prefix="/api/v1", tags=["方案管理 alternatives"], dependencies=_auth)
-app.include_router(triz.router, prefix="/api/v1", tags=["TRIZ 求解 triz"], dependencies=_auth)
-app.include_router(scamper.router, prefix="/api/v1", tags=["SCAMPER scamper"], dependencies=_auth)
-app.include_router(risk.router, prefix="/api/v1", tags=["風險登錄 risks"], dependencies=_auth)
-app.include_router(action.router, prefix="/api/v1", tags=["行動建議 actions"], dependencies=_auth)
-app.include_router(convergence.router, prefix="/api/v1", tags=["收斂掃描 convergence"], dependencies=_auth)
-app.include_router(must.router, prefix="/api/v1", tags=["MUST 篩選 must"], dependencies=_auth)
-app.include_router(pre_cad.router, prefix="/api/v1", tags=["Pre-CAD 審查 pre-cad-reviews"], dependencies=_auth)
-app.include_router(want.router, prefix="/api/v1", tags=["WANT 評分 want"], dependencies=_auth)
-app.include_router(gates.router, prefix="/api/v1", tags=["Gate 檢查 gates"], dependencies=_auth)
-app.include_router(exports.router, prefix="/api/v1", tags=["匯出 export"], dependencies=_auth)
-app.include_router(knowledge_wb.router, prefix="/api/v1", tags=["知識回寫 knowledge"], dependencies=_auth)
+app.include_router(brief.router, prefix=API_PREFIX, tags=["任務定義 definitions"], dependencies=_auth)
+app.include_router(socratic.router, prefix=API_PREFIX, tags=["索克拉底問答 questions"], dependencies=_auth)
+app.include_router(cld.router, prefix=API_PREFIX, tags=["因果迴路 causal-loops"], dependencies=_auth)
+app.include_router(contradictions.router, prefix=API_PREFIX, tags=["矛盾管理 contradictions"], dependencies=_auth)
+app.include_router(assumptions.router, prefix=API_PREFIX, tags=["假設台帳 assumptions"], dependencies=_auth)
+app.include_router(anti_anchor.router, prefix=API_PREFIX, tags=["方案管理 alternatives"], dependencies=_auth)
+app.include_router(triz.router, prefix=API_PREFIX, tags=["TRIZ 求解 triz"], dependencies=_auth)
+app.include_router(scamper.router, prefix=API_PREFIX, tags=["SCAMPER scamper"], dependencies=_auth)
+app.include_router(risk.router, prefix=API_PREFIX, tags=["風險登錄 risks"], dependencies=_auth)
+app.include_router(action.router, prefix=API_PREFIX, tags=["行動建議 actions"], dependencies=_auth)
+app.include_router(convergence.router, prefix=API_PREFIX, tags=["收斂掃描 convergence"], dependencies=_auth)
+app.include_router(must.router, prefix=API_PREFIX, tags=["MUST 篩選 must"], dependencies=_auth)
+app.include_router(pre_cad.router, prefix=API_PREFIX, tags=["Pre-CAD 審查 pre-cad-reviews"], dependencies=_auth)
+app.include_router(want.router, prefix=API_PREFIX, tags=["WANT 評分 want"], dependencies=_auth)
+app.include_router(gates.router, prefix=API_PREFIX, tags=["Gate 檢查 gates"], dependencies=_auth)
+app.include_router(exports.router, prefix=API_PREFIX, tags=["匯出 export"], dependencies=_auth)
+app.include_router(knowledge_wb.router, prefix=API_PREFIX, tags=["知識回寫 knowledge"], dependencies=_auth)
 
 
-@app.get("/health")
+@app.get(f"{API_PREFIX}/health")
 async def health():
     return {"status": "ok"}

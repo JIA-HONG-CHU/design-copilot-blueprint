@@ -385,7 +385,7 @@ WP-1.1 → WP-1.2 → WP-2.2 → WP-2.3 → WP-2.4 → WP-3.3 (TRIZ) → WP-3.4 
 | RAG 搜尋 | 2 | `GET /knowledge/rag/search`, `GET /knowledge/cross-domain` |
 | Web 搜尋 | 1 | `GET /knowledge/web/search` |
 | 認證 | — | Supabase Auth (JWT，前端直接處理) |
-| 系統 | 1 | `GET /health` |
+| 系統 | 1 | `GET /api/v1/health` |
 
 ---
 
@@ -537,7 +537,7 @@ Day 3 (03-13) ████████████████████  M6: 
 |---------|--------|---------|
 | `test_error_handling.py` | 3 | Health, 404 格式, X-Request-ID |
 | `test_middleware.py` | 2 | UUID hex 格式, context variable |
-| `test_auth.py` | 6 | JWT 驗證 (401/valid/expired), public endpoints (/health, /docs) |
+| `test_auth.py` | 6 | JWT 驗證 (401/valid/expired), public endpoints (/api/v1/health, /docs) |
 | `test_llm_service.py` | 12 | LLM 呼叫, retry (RateLimit/Connection/5xx), code fence, Pydantic parse |
 | `test_scamper_feedback.py` | 9 | 去重 (SequenceMatcher 0.8), severity, Supabase insert, batch |
 | `test_knowledge_writeback.py` | 5 | 6 類資產, filtered, idempotency, endpoint |

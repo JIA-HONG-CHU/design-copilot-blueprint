@@ -3,7 +3,7 @@
 Validates that:
 - Protected endpoints reject unauthenticated / invalid requests with 401
 - Valid JWT tokens are accepted (mocked)
-- Public endpoints (/health, /docs) remain unprotected
+- Public endpoints (/api/v1/health, /docs) remain unprotected
 """
 
 import time
@@ -108,11 +108,11 @@ def test_valid_token_passes_auth(client_no_auth):
     assert resp.status_code != 403
 
 
-# ---- Test: /health is unprotected ----
+# ---- Test: /api/v1/health is unprotected ----
 
 def test_health_endpoint_unprotected(client_no_auth):
-    """The /health endpoint must remain public (no auth)."""
-    resp = client_no_auth.get("/health")
+    """The /api/v1/health endpoint must remain public (no auth)."""
+    resp = client_no_auth.get("/api/v1/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 

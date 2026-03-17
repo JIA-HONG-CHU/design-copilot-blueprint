@@ -139,7 +139,7 @@ docker-compose up --build
 | 檢查項目 | 指令 / URL | 預期結果 |
 |---------|-----------|---------|
 | 前端頁面 | `http://localhost:5173` (dev) / `http://localhost:8080` (docker) | Dashboard 頁面載入 |
-| 後端健康 | `curl http://localhost:8000/health` | `{"status":"ok"}` |
+| 後端健康 | `curl http://localhost:8000/api/v1/health` | `{"status":"ok"}` |
 | API 文件 | `http://localhost:8000/docs` | Swagger UI |
 | AI 改寫 | Brief 頁 > 輸入 Mission > 點「AI 改寫」 | 回傳改寫結果 |
 

@@ -2,7 +2,7 @@
 
 
 def test_health_returns_200(client):
-    resp = client.get("/health")
+    resp = client.get("/api/v1/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -17,7 +17,7 @@ def test_unknown_route_returns_404_with_error_format(client):
 
 
 def test_request_id_header_present(client):
-    resp = client.get("/health")
+    resp = client.get("/api/v1/health")
     assert "X-Request-ID" in resp.headers
     # Should be a 32-char hex UUID
     rid = resp.headers["X-Request-ID"]

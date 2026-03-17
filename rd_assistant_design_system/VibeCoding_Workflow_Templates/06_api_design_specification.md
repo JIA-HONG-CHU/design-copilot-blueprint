@@ -79,7 +79,7 @@
     *   `[使用以下 cURL 命令來驗證您的連接。]`
     ```bash
     curl --request GET \
-      --url https://api.example.com/v1/health \
+      --url https://api.example.com/api/v1/health \
       --header 'Authorization: Bearer YOUR_ACCESS_TOKEN'
     ```
 *   **預期回應:**

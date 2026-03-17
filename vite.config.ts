@@ -6,23 +6,20 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const devPort = Number(env.VITE_DEV_PORT || "5173");
   const apiBaseUrl = env.VITE_API_BASE_URL || "http://localhost:8000";
+  const proxyTarget = apiBaseUrl.replace(/\/+$/, "").replace(/\/api\/v1$/i, "");
 
   return {
     server: {
       host: "::",
-      port: Number.isFinite(devPort) ? devPort : 5173,
+      port: 5173,
+      strictPort: true,
       hmr: {
         overlay: false,
       },
       proxy: {
         "/api/v1": {
-          target: apiBaseUrl,
-          changeOrigin: true,
-        },
-        "/health": {
-          target: apiBaseUrl,
+          target: proxyTarget || "http://localhost:8000",
           changeOrigin: true,
         },
       },

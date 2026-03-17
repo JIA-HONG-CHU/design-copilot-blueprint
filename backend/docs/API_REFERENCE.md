@@ -6,7 +6,7 @@
 
 ## Authentication
 
-All endpoints (except `GET /health`) require a **Bearer token** in the `Authorization` header.
+All endpoints (except `GET /api/v1/health`) require a **Bearer token** in the `Authorization` header.
 The token is a **Supabase JWT** obtained after user login.
 
 ```
@@ -45,7 +45,7 @@ Every error returns a consistent JSON envelope:
 ## Health Check
 
 ```
-GET /health
+GET /api/v1/health
 ```
 
 No auth required. Returns `{"status": "ok"}`.

@@ -5,9 +5,18 @@
  * go through this client instead of using mock data + setTimeout.
  */
 
+const API_PREFIX = "/api/v1";
 const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+
+function normalizeApiBaseUrl(rawBaseUrl?: string): string {
+  if (!rawBaseUrl) return API_PREFIX;
+  const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+  if (/\/api\/v1$/i.test(baseUrl)) return baseUrl;
+  return `${baseUrl}${API_PREFIX}`;
+}
+
 // In dev, prefer Vite same-origin proxy to avoid "localhost" resolving to the user's browser machine.
-const BASE_URL = import.meta.env.DEV ? "/api/v1" : (ENV_BASE_URL || "/api/v1");
+const BASE_URL = import.meta.env.DEV ? API_PREFIX : normalizeApiBaseUrl(ENV_BASE_URL);
 const REQUEST_TIMEOUT_MS = 90000;
 
 // ─── Evidence Reference (shared across AI responses) ────────────────────────
@@ -631,7 +640,7 @@ export interface BackendHealthCheckResult {
 
 export async function checkBackendHealth(): Promise<BackendHealthCheckResult> {
   try {
-    const res = await fetchWithTimeout("/health", { method: "GET" });
+    const res = await fetchWithTimeout(`${BASE_URL}/health`, { method: "GET" });
     if (!res.ok) {
       return { ok: false, message: `Health check 回應異常（HTTP ${res.status}）` };
     }

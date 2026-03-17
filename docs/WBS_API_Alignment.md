@@ -45,7 +45,7 @@
 | 21 | GET | `/api/v1/gates/{gate_id}/check` | Gate 檢查 | ✅ 完整實作（8 gates） |
 | 22 | POST | `/api/v1/export` | 匯出 | 🔸 501 stub (v1.1) |
 | 23 | POST | `/api/v1/knowledge/writeback` | 知識回寫 | 🔸 501 stub (v1.1) |
-| 24 | GET | `/health` | 健康檢查 | ✅ |
+| 24 | GET | `/api/v1/health` | 健康檢查 | ✅ |
 
 ---
 
@@ -297,7 +297,7 @@
 | 收斂掃描 | `POST /api/v1/convergence/scan` | 二次矛盾偵測 + 架構健康度 |
 | 匯出 | `POST /api/v1/export` | 501 stub，v1.1 實作 |
 | 知識回寫 | `POST /api/v1/knowledge/writeback` | 501 stub，v1.1 實作 |
-| 健康檢查 | `GET /health` | 基礎設施 |
+| 健康檢查 | `GET /api/v1/health` | 基礎設施 |
 
 ### ⚠️ 路徑不一致：無
 

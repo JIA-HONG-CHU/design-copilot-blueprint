@@ -5,8 +5,8 @@ import uuid
 
 def test_request_id_is_valid_uuid_hex(client):
     """Each request should get a unique UUID request ID."""
-    resp1 = client.get("/health")
-    resp2 = client.get("/health")
+    resp1 = client.get("/api/v1/health")
+    resp2 = client.get("/api/v1/health")
 
     rid1 = resp1.headers["X-Request-ID"]
     rid2 = resp2.headers["X-Request-ID"]

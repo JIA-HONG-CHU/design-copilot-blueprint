@@ -89,9 +89,9 @@ async function seedProject1(uid: string): Promise<string> {
 
   // ── Constraints ──
   await ins('constraints', [
-    { project_id: pid, constraint_code: 'C-01', description: '必須符合現有馬達外殼尺寸 (120×80×25mm)', source: '機構團隊', type: 'hard', feasibility: 'pass' },
-    { project_id: pid, constraint_code: 'C-02', description: 'BOM 成本不得超過 $18 USD (10k 量級)', source: '產品管理', type: 'hard', feasibility: 'pass' },
-    { project_id: pid, constraint_code: 'C-03', description: '優先使用無鉛焊接、相容現有 SMT 產線', source: '製造部', type: 'soft', feasibility: 'pass' },
+    { project_id: pid, constraint_code: 'C-01', description: '必須符合現有馬達外殼尺寸 (120×80×25mm)', source: '機構團隊', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-02', description: 'BOM 成本不得超過 $18 USD (10k 量級)', source: '產品管理', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-03', description: '優先使用無鉛焊接、相容現有 SMT 產線', source: '製造部', type: 'soft', feasibility: 'verified' },
   ], 'constraints-1');
 
   // ── KPIs (with current_value/current_status for evidence integration) ──
@@ -239,7 +239,7 @@ async function seedProject1(uid: string): Promise<string> {
       },
       interface_contract: { envelope: '120×80×30mm (高度增加 5mm 容納散熱片)', loadPath: '4oz 銅面直接承載電流路徑', signalPath: 'CAN Bus (標準協議)', thermalPath: '功率級→4oz PCB→散熱片→空氣 (總熱阻 3.5°C/W)', datumTolerance: '散熱片與 PCB 平整度 0.05mm', serviceability: '散熱片螺絲固定可拆換' },
       pre_cad_scores: { must: 4, decoupling: 3, testability: 4, failureMech: 3, mvpCadEffort: 4 },
-      overall_pass: true, cad_status: 'completed',
+      overall_pass: false, cad_status: 'completed',
     },
     {
       project_id: pid, name: '傳統 Si + 標準 PCB 基線',
@@ -447,10 +447,10 @@ async function seedProject2(uid: string): Promise<string> {
   }, 'brief-2');
 
   await ins('constraints', [
-    { project_id: pid, constraint_code: 'C-01', description: '必須通過 UN38.3 運輸安全認證', source: '法規', type: 'hard', feasibility: 'pass' },
-    { project_id: pid, constraint_code: 'C-02', description: '待機功耗 < 50μA（延長擱置壽命）', source: '產品規格', type: 'hard', feasibility: 'warning' },
-    { project_id: pid, constraint_code: 'C-03', description: 'BMS PCB 面積 ≤ 60×40mm', source: '電池包結構', type: 'hard', feasibility: 'pass' },
-    { project_id: pid, constraint_code: 'C-04', description: '支援 -20°C ~ 60°C 操作溫度範圍', source: '環境測試', type: 'hard', feasibility: 'pass' },
+    { project_id: pid, constraint_code: 'C-01', description: '必須通過 UN38.3 運輸安全認證', source: '法規', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-02', description: '待機功耗 < 50μA（延長擱置壽命）', source: '產品規格', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-03', description: 'BMS PCB 面積 ≤ 60×40mm', source: '電池包結構', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-04', description: '支援 -20°C ~ 60°C 操作溫度範圍', source: '環境測試', type: 'hard', feasibility: 'verified' },
   ], 'constraints-2');
 
   await ins('kpis', [
@@ -631,9 +631,14 @@ async function seedProject3(uid: string): Promise<string> {
   }, 'brief-3');
 
   await ins('constraints', [
-    { project_id: pid, constraint_code: 'C-01', description: '必須通過 ISO 4210 疲勞與衝擊測試', source: '法規/安全', type: 'hard', feasibility: 'pass' },
-    { project_id: pid, constraint_code: 'C-02', description: '前三角頭管剛性 ≥ 110 N/mm', source: '操控性能', type: 'hard', feasibility: 'warning' },
-    { project_id: pid, constraint_code: 'C-03', description: '車架成本 ≤ $280 USD（不含烤漆）', source: '成本目標', type: 'hard', feasibility: 'warning' },
+    { project_id: pid, constraint_code: 'C-01', description: '必須通過 ISO 4210 疲勞與衝擊測試', source: '法規/安全', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-02', description: '前三角頭管剛性 ≥ 110 N/mm', source: '操控性能', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-03', description: '車架成本 ≤ $280 USD（不含烤漆）', source: '成本目標', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-04', description: '車架最小壁厚（critical section）須 ≥ 0.8 mm（碳纖維層合板）或 ≥ 1.2 mm（鋁合金 6061-T6），以防止局部挫曲與衝擊穿透失效', source: '結構安全', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-05', description: '任何管件截面之最小壁厚須 ≥ 0.8 mm（碳纖維積層）或 ≥ 1.0 mm（鋁合金 6061/7005 系列），以防止局部挫曲與製程缺陷（針孔、分層）導致突發性破壞', source: '製程與強度', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-06', description: '車架幾何公差：頭管中心至五通中心的 stack/reach 偏差須在 ±1.5 mm 內，且左右對稱度（frame alignment）偏差 ≤ 1.0 mm', source: '操控與組裝精度', type: 'hard', feasibility: 'questionable' },
+    { project_id: pid, constraint_code: 'C-07', description: '車架與前叉介面（頭管內徑）及五通規格須符合市售標準，不得為一次性專用規格（例如頭管 IS41/IS52 或 EC44/EC56；五通 BSA 68 mm 或 PF30）', source: '介面相容', type: 'hard', feasibility: 'verified' },
+    { project_id: pid, constraint_code: 'C-08', description: '五通（BB）殼內徑、螺紋規格或壓入公差須符合目標標準（例如 BSA 68 mm M36×24 tpi、PF30 Ø46 mm、T47 M47×1 mm），尺寸偏差 ≤ ±0.05 mm', source: '傳動系統相容', type: 'hard', feasibility: 'questionable' },
   ], 'constraints-3');
 
   await ins('kpis', [
@@ -689,6 +694,8 @@ export async function seedDemoProject(): Promise<string> {
 }
 
 export async function seedShowcaseProjects(): Promise<string[]> {
+  // Keep seeding idempotent in dev: clear legacy/new showcase records first.
+  await clearAllShowcaseData();
   const uid = await getUserId();
   const ids: string[] = [];
   ids.push(await seedProject1(uid));
@@ -705,7 +712,15 @@ export async function clearDemoData(projectId: string): Promise<void> {
 }
 
 export async function clearAllShowcaseData(): Promise<void> {
-  const names = ['E-Bike 馬達控制器升級', 'E-Bike 電池管理系統 BMS', 'E-Bike 車架結構輕量化'];
+  const names = [
+    'E-Bike 馬達控制器升級',
+    'E-Bike 電池管理系統 BMS',
+    'E-Bike 車架結構輕量化',
+    // Legacy names from older seed versions
+    '🏆 E-Bike 馬達控制器升級',
+    '🔋 E-Bike 電池管理系統 BMS',
+    '🚲 E-Bike 車架結構輕量化',
+  ];
   for (const name of names) {
     await getAdminDb().from('projects').delete().eq('name', name);
   }

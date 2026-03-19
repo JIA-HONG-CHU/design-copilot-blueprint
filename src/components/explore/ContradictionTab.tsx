@@ -332,6 +332,10 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           ) : (
             /* Display mode */
             <>
+              {/* Statement — shared by TC and PC */}
+              <p className="text-sm">{c.description}</p>
+
+              {/* Type-specific parameters */}
               {c.type === 'TC' ? (
                 <div className="flex flex-wrap gap-2">
                   <div className="bg-muted rounded px-2 py-1 text-xs">
@@ -344,29 +348,27 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                     <span className="font-medium">{getParamLabel(c.worseningParam)}</span>
                   </div>
                 </div>
-              ) : c.pcAttributeA && c.pcAttributeNotA ? (
-                <div className="flex flex-wrap gap-2">
-                  <div className="bg-muted rounded px-2 py-1 text-xs">
-                    <span className="text-muted-foreground">需要: </span>
-                    <span className="font-medium">{c.pcAttributeA}</span>
-                  </div>
-                  <span className="text-muted-foreground text-xs self-center">⟷</span>
-                  <div className="bg-muted rounded px-2 py-1 text-xs">
-                    <span className="text-muted-foreground">同時需要: </span>
-                    <span className="font-medium">{c.pcAttributeNotA}</span>
-                  </div>
-                </div>
-              ) : c.pcAttributeA ? (
-                <div className="bg-muted rounded px-2 py-1 text-xs">
-                  <span className="text-muted-foreground">物理矛盾: </span>
-                  <span className="font-medium">{c.pcAttributeA}</span>
-                </div>
               ) : (
-                <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">
-                  物理矛盾屬性尚未定義 — 請編輯或使用 AI 識別
+                <div className="flex flex-wrap gap-2">
+                  {c.pcAttributeA ? (
+                    <div className="bg-muted rounded px-2 py-1 text-xs">
+                      <span className="text-muted-foreground">需要: </span>
+                      <span className="font-medium">{c.pcAttributeA}</span>
+                    </div>
+                  ) : (
+                    <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">需要: —</div>
+                  )}
+                  <span className="text-muted-foreground text-xs self-center">⟷</span>
+                  {c.pcAttributeNotA ? (
+                    <div className="bg-muted rounded px-2 py-1 text-xs">
+                      <span className="text-muted-foreground">同時需要: </span>
+                      <span className="font-medium">{c.pcAttributeNotA}</span>
+                    </div>
+                  ) : (
+                    <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">同時需要: —</div>
+                  )}
                 </div>
               )}
-              <p className="text-sm">{c.description}</p>
 
               {/* Actions */}
               <div className="flex gap-2">

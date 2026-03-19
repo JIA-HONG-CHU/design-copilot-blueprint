@@ -92,9 +92,16 @@ export default function ProjectDashboard() {
   // Derive convergence from real contradictions
   const convergence: ContradictionConvergence | undefined = useMemo(() => {
     if (!contradictions || contradictions.length === 0) return undefined;
-    const fatalCount = contradictions.filter((c) => c.severity === 'fatal').length;
-    const majorCount = contradictions.filter((c) => c.severity === 'major').length;
-    const minorCount = contradictions.filter((c) => c.severity === 'minor').length;
+    // Normalize severity: map DB values to display buckets
+    const normalizeSeverity = (s: string): 'fatal' | 'major' | 'minor' => {
+      if (s === 'fatal' || s === 'critical') return 'fatal';
+      if (s === 'major' || s === 'high') return 'major';
+      return 'minor'; // 'minor', 'medium', 'low', or unknown → minor
+    };
+    const severities = contradictions.map((c) => normalizeSeverity(c.severity));
+    const fatalCount = severities.filter((s) => s === 'fatal').length;
+    const majorCount = severities.filter((s) => s === 'major').length;
+    const minorCount = severities.filter((s) => s === 'minor').length;
     return {
       totalNodes: contradictions.length,
       fatalCount,
@@ -108,8 +115,13 @@ export default function ProjectDashboard() {
   // Derive pre-CAD score from contradictions resolved status
   const preCadScore: PreCadScore | undefined = useMemo(() => {
     if (!contradictions || contradictions.length === 0) return undefined;
-    const fatal = contradictions.filter((c) => c.severity === 'fatal');
-    const major = contradictions.filter((c) => c.severity === 'major');
+    const normSev = (s: string) => {
+      if (s === 'fatal' || s === 'critical') return 'fatal';
+      if (s === 'major' || s === 'high') return 'major';
+      return 'minor';
+    };
+    const fatal = contradictions.filter((c) => normSev(c.severity) === 'fatal');
+    const major = contradictions.filter((c) => normSev(c.severity) === 'major');
     const fatalResolved = fatal.filter((c) => c.resolved).length;
     const majorResolved = major.filter((c) => c.resolved).length;
     const total = fatal.length + major.length;

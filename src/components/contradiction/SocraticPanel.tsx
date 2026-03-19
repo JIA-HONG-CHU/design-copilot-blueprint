@@ -34,9 +34,13 @@ const mockSocraticQuestions: SocraticQuestion[] = [
 
 interface SocraticPanelProps {
   description: string;
+  projectId?: string;
+  mission?: string;
+  constraints?: string[];
+  existingQuestions?: string[];
 }
 
-const SocraticPanel = ({ description }: SocraticPanelProps) => {
+const SocraticPanel = ({ description, projectId, mission, constraints, existingQuestions }: SocraticPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [questions, setQuestions] = useState<SocraticQuestion[]>([]);
@@ -45,10 +49,14 @@ const SocraticPanel = ({ description }: SocraticPanelProps) => {
     if (!description || description.length < 10) return;
     setIsLoading(true);
     try {
+      const combinedMission = mission
+        ? `${mission}\n\n目前分析的矛盾描述：${description}`
+        : description;
       const result = await socraticGenerate({
-        project_id: "",
-        mission: description,
-        constraints: [],
+        project_id: projectId || "",
+        mission: combinedMission,
+        constraints: constraints || [],
+        existing_questions: existingQuestions || [],
       });
       const mapped: SocraticQuestion[] = result.questions.map((q, i) => ({
         type: q.category,

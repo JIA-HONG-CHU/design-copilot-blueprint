@@ -19,6 +19,8 @@ import {
   useUpdateContradiction,
   useDeleteContradiction,
 } from "@/hooks/api/useContradictions";
+import { useBrief, useConstraints } from "@/hooks/api/useBrief";
+import { useSocraticQuestions } from "@/hooks/api/useExplore";
 import { Contradiction, ContradictionSeverity } from "@/types/contradiction";
 import SocraticPanel from "@/components/contradiction/SocraticPanel";
 import { contradictionFormalize } from "@/lib/api";
@@ -66,6 +68,20 @@ const ContradictionIdentification = () => {
   const createContradiction = useCreateContradiction();
   const updateContradiction = useUpdateContradiction();
   const deleteContradiction = useDeleteContradiction();
+
+  // --- Phase 1 context for Socratic questions ---
+  const { data: brief } = useBrief(id);
+  const { data: constraints = [] } = useConstraints(id);
+  const { data: existingSocratic = [] } = useSocraticQuestions(id);
+
+  const constraintStrings = useMemo(
+    () => constraints.map((c) => `[${c.constraintCode}] ${c.description} (${c.type})`),
+    [constraints],
+  );
+  const existingQuestionStrings = useMemo(
+    () => existingSocratic.map((q) => q.text),
+    [existingSocratic],
+  );
 
   const [form, setForm] = useState({ ...emptyForm });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -243,7 +259,13 @@ const ContradictionIdentification = () => {
       </div>
 
       {/* Socratic Panel */}
-      <SocraticPanel description={form.naturalDescription} />
+      <SocraticPanel
+        description={form.naturalDescription}
+        projectId={id}
+        mission={brief?.mission}
+        constraints={constraintStrings}
+        existingQuestions={existingQuestionStrings}
+      />
 
       {/* Improving / Worsening params */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

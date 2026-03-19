@@ -154,18 +154,22 @@ export default function Explore() {
 
   // Gate 1.2 check
   const confirmedContradictions = contradictions.filter((c) => c.status === 'confirmed').length;
+  // A project may legitimately have 0 contradictions after thorough exploration.
+  // Gate passes if at least 1 confirmed OR no contradictions were identified at all.
+  const contradictionCheckPassed = confirmedContradictions >= 1 || contradictions.length === 0;
   const gate12Items: GateCheckItem[] = useMemo(() => [
     { label: '累計 ≥ 10 個回答（含 ≥ 10 假設已辨識）', current: answeredCount, target: 10, passed: answeredCount >= 10 },
-    { label: '識別 ≥ 3 個已確認矛盾', current: confirmedContradictions, target: 3, passed: confirmedContradictions >= 3 },
+    { label: '矛盾已處理（≥ 1 個已確認，或確認無矛盾）', current: confirmedContradictions, target: contradictions.length > 0 ? 1 : 0, passed: contradictionCheckPassed },
     { label: '7 類問題皆有回答', current: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size, target: 7, passed: new Set(questions.filter((q) => q.answer && q.answer.trim().length >= 5).map((q) => q.category)).size >= 7 },
-  ], [answeredCount, confirmedContradictions, questions]);
+  ], [answeredCount, confirmedContradictions, contradictions.length, contradictionCheckPassed, questions]);
 
   // Phase Gate 1 check
-  const allContradictionsClassified = contradictions.length > 0 && contradictions.every((c) => c.type === 'TC' || c.type === 'PC');
+  // Allow zero-contradiction projects to pass — classification check only applies when contradictions exist
+  const allContradictionsClassified = contradictions.length === 0 || contradictions.every((c) => c.type === 'TC' || c.type === 'PC');
   const phaseGate1Items: GateCheckItem[] = useMemo(() => [
     { label: '至少 1 個因果迴路圖已建立', current: causalLoop ? 1 : 0, target: 1, passed: !!causalLoop },
     { label: '至少 3 個斷路點已標記', current: breakpointsCount, target: 3, passed: breakpointsCount >= 3 },
-    { label: '所有矛盾已分類為 TC 或 PC', current: allContradictionsClassified ? contradictions.length : 0, target: Math.max(contradictions.length, 1), passed: allContradictionsClassified && contradictions.length > 0 },
+    { label: '所有矛盾已分類為 TC 或 PC（或無矛盾）', current: allContradictionsClassified ? Math.max(contradictions.length, 1) : 0, target: Math.max(contradictions.length, 1), passed: allContradictionsClassified },
   ], [causalLoop, breakpointsCount, contradictions, allContradictionsClassified]);
 
   if (isLoading) {

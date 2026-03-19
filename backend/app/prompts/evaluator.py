@@ -238,6 +238,13 @@ Scan the current alternatives and contradictions to assess convergence health.
 </task>
 
 <context>
+<mission>{mission}</mission>
+<project_constraints>
+{constraints}
+</project_constraints>
+<project_kpis>
+{kpis}
+</project_kpis>
 <alternatives>
 {alternatives}
 </alternatives>

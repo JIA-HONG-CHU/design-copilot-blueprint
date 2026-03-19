@@ -19,7 +19,7 @@ import {
   useUpdateContradiction,
   useDeleteContradiction,
 } from "@/hooks/api/useContradictions";
-import { useBrief, useConstraints } from "@/hooks/api/useBrief";
+import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { useSocraticQuestions } from "@/hooks/api/useExplore";
 import { Contradiction, ContradictionSeverity } from "@/types/contradiction";
 import SocraticPanel from "@/components/contradiction/SocraticPanel";
@@ -81,6 +81,11 @@ const ContradictionIdentification = () => {
   const existingQuestionStrings = useMemo(
     () => existingSocratic.map((q) => q.text),
     [existingSocratic],
+  );
+  const { data: kpisList = [] } = useKpis(id);
+  const kpiStrings = useMemo(
+    () => kpisList.map((k) => `${k.kpiName}: ${k.targetValue} ${k.unit}`),
+    [kpisList],
   );
 
   const [form, setForm] = useState({ ...emptyForm });
@@ -179,6 +184,9 @@ const ContradictionIdentification = () => {
         project_id: id || "",
         contradiction_id: editingId || `new-${Date.now()}`,
         natural_description: form.naturalDescription,
+        mission: brief?.mission,
+        constraints: constraintStrings,
+        kpis: kpiStrings,
       });
       setForm((prev) => ({
         ...prev,

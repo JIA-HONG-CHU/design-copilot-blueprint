@@ -129,6 +129,13 @@ Build a Causal Loop Diagram (CLD) from the contradictions and assumptions below.
 </task>
 
 <context>
+<mission>{mission}</mission>
+<known_constraints>
+{constraints}
+</known_constraints>
+<known_kpis>
+{kpis}
+</known_kpis>
 <contradictions>
 {contradictions}
 </contradictions>
@@ -328,6 +335,16 @@ CONTRADICTION_FORMALIZATION = """\
 Convert the following natural-language contradiction into a TRIZ-standard formal representation.
 </task>
 
+<context>
+<mission>{mission}</mission>
+<known_constraints>
+{constraints}
+</known_constraints>
+<known_kpis>
+{kpis}
+</known_kpis>
+</context>
+
 <input>
 {natural_description}
 </input>
@@ -365,6 +382,15 @@ Extract hidden assumptions from the Socratic Q&A session below.
 
 <context>
 <mission>{mission}</mission>
+<known_constraints>
+{constraints}
+</known_constraints>
+<known_kpis>
+{kpis}
+</known_kpis>
+<existing_assumptions>
+{existing_assumptions}
+</existing_assumptions>
 <qa_transcript>
 {questions_and_answers}
 </qa_transcript>

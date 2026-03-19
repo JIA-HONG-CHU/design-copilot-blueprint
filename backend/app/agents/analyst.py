@@ -171,6 +171,9 @@ def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
     prompt = CLD_GENERATION.format(
         contradictions="\n".join(f"- {c}" for c in req.contradictions),
         assumptions="\n".join(f"- {a}" for a in req.assumptions),
+        mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+        kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
@@ -180,6 +183,9 @@ def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
 def formalize_contradiction(req: ContradictionFormalizeRequest) -> ContradictionFormalizeResponse:
     prompt = CONTRADICTION_FORMALIZATION.format(
         natural_description=req.natural_description,
+        mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+        kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
@@ -193,6 +199,9 @@ def extract_assumptions(req: AssumptionExtractRequest) -> AssumptionExtractRespo
     ) or "（無問答紀錄）"
     prompt = ASSUMPTION_EXTRACTION.format(
         mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+        kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+        existing_assumptions="\n".join(f"- {a}" for a in req.existing_assumptions) or "（尚無）",
         questions_and_answers=qa_text,
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)

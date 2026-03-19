@@ -16,6 +16,11 @@ interface CldTabProps {
   causalLoop: CausalLoop | null;
   onUpdateCausalLoop: (cl: CausalLoop) => void;
   projectId: string;
+  contradictions?: string[];
+  assumptions?: string[];
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
 const CANVAS_W = 550;
@@ -23,7 +28,7 @@ const CANVAS_H = 350;
 const NODE_W = 100;
 const NODE_H = 36;
 
-export function CldTab({ causalLoop, onUpdateCausalLoop, projectId }: CldTabProps) {
+export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis }: CldTabProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -37,8 +42,11 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId }: CldTabProp
     try {
       const result = await cldGenerate({
         project_id: projectId,
-        contradictions: [],
-        assumptions: [],
+        contradictions,
+        assumptions,
+        mission,
+        constraints,
+        kpis,
       });
       // Map backend response to frontend CausalLoop shape
       const SPACING_X = 140;

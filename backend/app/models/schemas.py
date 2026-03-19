@@ -163,6 +163,9 @@ class CldGenerationRequest(BaseModel):
     project_id: str
     contradictions: list[str]
     assumptions: list[str]
+    mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
 
 
 class CldNode(BaseModel):
@@ -336,6 +339,9 @@ class ConvergenceScanRequest(BaseModel):
     project_id: str
     alternatives: list[dict]
     contradictions: list[dict]
+    mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
 
 
 class SecondaryContradiction(BaseModel):
@@ -400,6 +406,9 @@ class ContradictionFormalizeRequest(BaseModel):
     project_id: str
     contradiction_id: str
     natural_description: str
+    mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
 
 
 class ContradictionFormalizeResponse(BaseModel):
@@ -421,6 +430,9 @@ class AssumptionExtractRequest(BaseModel):
     project_id: str
     questions_and_answers: list[dict] = Field(default_factory=list)
     mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
+    existing_assumptions: list[str] = Field(default_factory=list)
 
 
 class ExtractedAssumption(BaseModel):

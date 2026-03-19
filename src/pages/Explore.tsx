@@ -16,6 +16,8 @@ import {
   useCldNodes,
   useCldEdges,
 } from "@/hooks/api/useExplore";
+import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
+import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -44,6 +46,29 @@ export default function Explore() {
   const { data: cldEdges = [], isLoading: isLoadingEdges } = useCldEdges(id);
   const updateQuestion = useUpdateSocraticQuestion();
   const createQuestion = useCreateSocraticQuestion();
+
+  // Phase 1 context for downstream agents
+  const { data: brief } = useBrief(id);
+  const { data: constraintsList = [] } = useConstraints(id);
+  const { data: kpisList = [] } = useKpis(id);
+  const { data: trackAssumptions = [] } = useTrackAssumptions(id);
+
+  const constraintStrings = useMemo(
+    () => constraintsList.map((c) => `[${c.constraintCode}] ${c.description} (${c.type})`),
+    [constraintsList],
+  );
+  const kpiStrings = useMemo(
+    () => kpisList.map((k) => `${k.kpiName}: ${k.targetValue} ${k.unit}`),
+    [kpisList],
+  );
+  const contradictionStrings = useMemo(
+    () => contradictions.map((c) => c.naturalDescription || c.engineeringStatement || ''),
+    [contradictions],
+  );
+  const assumptionStrings = useMemo(
+    () => trackAssumptions.map((a) => a.description),
+    [trackAssumptions],
+  );
 
   const isLoading = isLoadingQuestions || isLoadingContradictions || isLoadingNodes || isLoadingEdges;
 
@@ -200,6 +225,8 @@ export default function Explore() {
             questions={questions}
             onUpdateQuestions={handleUpdateQuestions}
             projectId={id || ''}
+            mission={brief?.mission}
+            constraints={constraintStrings}
           />
         </TabsContent>
 
@@ -217,6 +244,11 @@ export default function Explore() {
             causalLoop={causalLoop}
             onUpdateCausalLoop={() => { /* mutations handled inside tab; query auto-refreshes */ }}
             projectId={id || ''}
+            contradictions={contradictionStrings}
+            assumptions={assumptionStrings}
+            mission={brief?.mission}
+            constraints={constraintStrings}
+            kpis={kpiStrings}
           />
         </TabsContent>
       </Tabs>

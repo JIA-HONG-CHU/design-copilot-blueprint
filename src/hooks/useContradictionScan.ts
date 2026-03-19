@@ -22,6 +22,14 @@ export interface ContradictionScanResult {
   confidenceScore: number; // converged(Fatal+Major) / total(Fatal+Major) * 100
 }
 
+interface ContradictionScanOptions {
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
+  contradictions?: Record<string, unknown>[];
+  alternatives?: Record<string, unknown>[];
+}
+
 export function useContradictionScan() {
   const [scanResult, setScanResult] = useState<ContradictionScanResult>({
     contradictions: [],
@@ -31,14 +39,17 @@ export function useContradictionScan() {
   });
   const [isScanning, setIsScanning] = useState(false);
 
-  const runScan = useCallback(async (solutionId: string, projectId?: string) => {
+  const runScan = useCallback(async (solutionId: string, projectId?: string, options?: ContradictionScanOptions) => {
     setIsScanning(true);
 
     try {
       const result = await convergenceScan({
         project_id: projectId || '',
-        alternatives: [{ id: solutionId }],
-        contradictions: [],
+        alternatives: options?.alternatives || [{ id: solutionId }],
+        contradictions: options?.contradictions || [],
+        mission: options?.mission,
+        constraints: options?.constraints,
+        kpis: options?.kpis,
       });
 
       const scanned: SecondaryContradiction[] = result.new_contradictions.map((c, i) => ({

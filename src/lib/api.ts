@@ -250,6 +250,9 @@ export interface CldGenerateRequest {
   project_id: string;
   contradictions: string[];
   assumptions: string[];
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
 export interface CldNode {
@@ -408,6 +411,9 @@ export interface ConvergenceScanRequest {
   project_id: string;
   alternatives: Record<string, unknown>[];
   contradictions: Record<string, unknown>[];
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
 export interface SecondaryContradictionResult {
@@ -471,6 +477,9 @@ export interface ContradictionFormalizeRequest {
   project_id: string;
   contradiction_id: string;
   natural_description: string;
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
 export interface ContradictionFormalizeResponse {
@@ -492,6 +501,9 @@ export interface AssumptionExtractRequest {
   project_id: string;
   questions_and_answers?: Record<string, unknown>[];
   mission?: string;
+  constraints?: string[];
+  kpis?: string[];
+  existing_assumptions?: string[];
 }
 
 export interface ExtractedAssumption {

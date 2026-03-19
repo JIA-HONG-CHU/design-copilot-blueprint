@@ -14,6 +14,7 @@ import {
   useSaveUnknownFactors,
   useConvertUnknownToAssumption,
 } from "@/hooks/api/useTrack";
+import { useConstraints } from "@/hooks/api/useBrief";
 import type { TrackAssumption, UnknownFactor, TrackGateItem } from "@/types/track";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -41,6 +42,11 @@ export default function Track() {
     isLoading: isAssumptionsLoading,
   } = useTrackAssumptions(id);
   const updateStatus = useUpdateTrackAssumptionStatus(id);
+  const { data: briefConstraints = [] } = useConstraints(id);
+  const trackConstraintStrings = useMemo(
+    () => briefConstraints.map((c) => `[${c.constraintCode}] ${c.description} (${c.type})`),
+    [briefConstraints],
+  );
 
   const {
     data: factors,
@@ -203,6 +209,7 @@ export default function Track() {
             assumptions={displayAssumptions}
             onUpdateAssumptions={handleUpdateAssumptions}
             projectId={id || ''}
+            constraints={trackConstraintStrings}
           />
         </TabsContent>
 

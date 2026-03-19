@@ -48,6 +48,7 @@ import {
 import { useContradictions } from "@/hooks/api/useContradictions";
 import type { Json } from "@/integrations/supabase/types";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
+import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate } from "@/lib/api";
 import type { MustCriterionResult } from "@/lib/api";
 import { useProject } from "@/hooks/api/useProjects";
@@ -133,6 +134,25 @@ export default function Create() {
   const compatibilityPairsQuery = useCompatibilityPairs(id);
   const trackAssumptionsQuery = useTrackAssumptions(id);
   const contradictionsQuery = useContradictions(id);
+
+  // ── Phase 1 context ──
+  const { data: brief } = useBrief(id);
+  const { data: briefConstraints = [] } = useConstraints(id);
+  const { data: briefKpis = [] } = useKpis(id);
+
+  const briefMission = brief?.mission || '';
+  const constraintStrings = useMemo(
+    () => briefConstraints.map((c) => `[${c.constraintCode}] ${c.description} (${c.type})`),
+    [briefConstraints],
+  );
+  const kpiStrings = useMemo(
+    () => briefKpis.map((k) => `${k.kpiName}: ${k.targetValue} ${k.unit}`),
+    [briefKpis],
+  );
+  const contradictionDescs = useMemo(
+    () => (contradictionsQuery.data || []).map((c) => c.naturalDescription),
+    [contradictionsQuery.data],
+  );
 
   // ── API Hooks: mutations ──
   const createAntiAnchorRoute = useCreateAntiAnchorRoute();
@@ -281,8 +301,10 @@ export default function Create() {
     try {
       const result = await antiAnchorGenerate({
         project_id: id,
-        mission: MOCK_MISSION.problemStatement,
-        current_constraints: MOCK_MISSION.contradictions.map((c) => c.description),
+        mission: briefMission || MOCK_MISSION.problemStatement,
+        current_constraints: constraintStrings.length > 0
+          ? constraintStrings
+          : MOCK_MISSION.contradictions.map((c) => c.description),
         existing_alternatives: routes.map((r) => r.name),
       });
       for (const route of result.routes) {
@@ -437,8 +459,8 @@ export default function Create() {
         alternative_name: alt.name,
         mechanism: alt.mechanism,
         must_criteria: mustCriteria.map(c => ({ id: c.id, label: c.label, source: c.source, threshold: c.threshold })),
-        constraints: [], // could be enriched from brief data
-        kpis: [],
+        constraints: constraintStrings,
+        kpis: kpiStrings,
       });
       // Store AI results for display
       setMustAiResults(prev => ({ ...prev, [altId]: result.criteria_results }));
@@ -746,18 +768,20 @@ export default function Create() {
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">關聯矛盾</p>
             <div className="flex flex-wrap gap-2">
-              {MOCK_MISSION.contradictions.map(c => (
-                <label key={c.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={ssFormContradictions.includes(c.id.toLowerCase().replace("-", "-"))}
-                    onCheckedChange={(checked) => {
-                      const cId = c.id.toLowerCase().replace("-", "-");
-                      setSsFormContradictions(prev => checked ? [...prev, cId] : prev.filter(x => x !== cId));
-                    }}
-                  />
-                  <span>{c.id}: {c.description.slice(0, 30)}…</span>
-                </label>
-              ))}
+              {(contradictionsQuery.data || []).map((c, i) => {
+                const cId = c.id || `ec-${i + 1}`;
+                return (
+                  <label key={cId} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={ssFormContradictions.includes(cId)}
+                      onCheckedChange={(checked) => {
+                        setSsFormContradictions(prev => checked ? [...prev, cId] : prev.filter(x => x !== cId));
+                      }}
+                    />
+                    <span>{c.naturalDescription.slice(0, 40)}…</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
           <Input placeholder="介面描述（逗號分隔，選填）" value={ssFormInterfaces} onChange={e => setSsFormInterfaces(e.target.value)} />
@@ -820,7 +844,7 @@ export default function Create() {
 
         {subsystemView === "diagram" ? (
           <SubsystemBlockDiagram
-            systemName={MOCK_MISSION.problemStatement}
+            systemName={briefMission || MOCK_MISSION.problemStatement}
             subsystems={subsystems}
             onToggle={toggleSubsystem}
             onEdit={startEditSubsystem}
@@ -1487,7 +1511,15 @@ export default function Create() {
         )}
       </div>
 
-      <MissionContext {...MOCK_MISSION} />
+      <MissionContext
+        problemStatement={briefMission || MOCK_MISSION.problemStatement}
+        contradictions={contradictionDescs.length > 0
+          ? contradictionDescs.map((d, i) => ({ id: `EC-${String(i + 1).padStart(3, '0')}`, description: d }))
+          : MOCK_MISSION.contradictions}
+        verifiedAssumptions={MOCK_MISSION.verifiedAssumptions}
+        totalAssumptions={MOCK_MISSION.totalAssumptions}
+        highRiskCount={MOCK_MISSION.highRiskCount}
+      />
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">

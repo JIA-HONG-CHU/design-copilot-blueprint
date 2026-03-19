@@ -20,9 +20,10 @@ interface KanbanBoardProps {
   assumptions: TrackAssumption[];
   onUpdateAssumptions: (assumptions: TrackAssumption[]) => void;
   projectId: string;
+  constraints?: string[];
 }
 
-export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: KanbanBoardProps) {
+export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, constraints = [] }: KanbanBoardProps) {
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -125,7 +126,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId }: Kan
       const result = await socraticGenerate({
         project_id: projectId,
         mission: `針對以下假設生成挑戰性問題：\n${unchallenged.map((a) => `- ${a.description}`).join('\n')}`,
-        constraints: [],
+        constraints,
       });
       const challengeMap = new Map<number, string>();
       result.questions.forEach((q, i) => challengeMap.set(i, q.text));

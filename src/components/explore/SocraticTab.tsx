@@ -16,6 +16,8 @@ interface SocraticTabProps {
   questions: SocraticQuestion[];
   onUpdateQuestions: (questions: SocraticQuestion[]) => void;
   projectId: string;
+  mission?: string;
+  constraints?: string[];
 }
 
 const CATEGORY_FILTERS: (QuestionCategory | 'all')[] = ['all', 'clarification', 'assumption', 'consequence', 'counter', 'origin', 'action', 'reframing'];
@@ -25,7 +27,7 @@ const AI_TAG_LABELS = {
   contradiction: { label: '矛盾', color: '#EC4899', description: 'AI 偵測到此回答涉及設計矛盾，建議納入矛盾識別。' },
 };
 
-export function SocraticTab({ questions, onUpdateQuestions, projectId }: SocraticTabProps) {
+export function SocraticTab({ questions, onUpdateQuestions, projectId, mission = '', constraints = [] }: SocraticTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<QuestionCategory | 'all'>('all');
   const [isGenerating, setIsGenerating] = useState(false);
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
@@ -120,7 +122,8 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
     try {
       const result = await socraticGenerate({
         project_id: projectId,
-        mission: '', // Will be enriched by backend from project context
+        mission,
+        constraints,
         existing_questions: questions.map((q) => q.text),
       });
       const newQuestions: SocraticQuestion[] = result.questions.map((q, i) => ({

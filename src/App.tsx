@@ -33,7 +33,26 @@ const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const ConstraintLabelDictionary = lazy(() => import("./pages/ConstraintLabelDictionary"));
 const DevSeed = lazy(() => import("./pages/DevSeed"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 300_000,
+      retry: (failureCount, error) => {
+        // Never retry 4xx client errors (auth, validation, not-found, etc.)
+        if (error && typeof error === "object" && "status" in error) {
+          const status = (error as { status: number }).status;
+          if (status >= 400 && status < 500) return false;
+        }
+        return failureCount < 2;
+      },
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>

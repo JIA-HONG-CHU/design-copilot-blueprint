@@ -3,13 +3,10 @@
  * Unified context for cross-step data sharing.
  * Replaces per-page mock data imports with a central store.
  */
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { SocraticQuestion, ExploreContradiction, CausalLoop } from '@/types/explore';
 import type { TrackAssumption, UnknownFactor } from '@/types/track';
 import type { Alternative } from '@/types/create';
-import { mockSocraticQuestions, mockExploreContradictions, mockCausalLoop } from '@/data/mockExplore';
-import { mockTrackAssumptions, mockUnknownFactors } from '@/data/mockTrack';
-import { mockAlternatives } from '@/data/mockCreate';
 
 interface ProjectData {
   projectId: string;
@@ -36,15 +33,6 @@ export function ProjectDataProvider({ projectId, children }: { projectId: string
   const [assumptions, setAssumptions] = useState<TrackAssumption[]>([]);
   const [unknownFactors, setUnknownFactors] = useState<UnknownFactor[]>([]);
   const [alternatives, setAlternatives] = useState<Alternative[]>([]);
-
-  useEffect(() => {
-    setQuestions(mockSocraticQuestions[projectId] ?? []);
-    setContradictions(mockExploreContradictions[projectId] ?? []);
-    setCausalLoop(mockCausalLoop[projectId] ?? null);
-    setAssumptions(mockTrackAssumptions[projectId] ?? []);
-    setUnknownFactors(mockUnknownFactors[projectId] ?? []);
-    setAlternatives(mockAlternatives[projectId] ?? []);
-  }, [projectId]);
 
   return (
     <ProjectDataContext.Provider

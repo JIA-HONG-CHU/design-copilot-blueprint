@@ -21,7 +21,7 @@ import {
 } from "@/hooks/api/useContradictions";
 import { Contradiction, ContradictionSeverity } from "@/types/contradiction";
 import SocraticPanel from "@/components/contradiction/SocraticPanel";
-import { trizSolve } from "@/lib/api";
+import { contradictionFormalize } from "@/lib/api";
 
 interface FormErrors {
   naturalDescription?: string;
@@ -159,25 +159,20 @@ const ContradictionIdentification = () => {
     }
     setIsAiLoading(true);
     try {
-      const result = await trizSolve({
+      const result = await contradictionFormalize({
         project_id: id || "",
         contradiction_id: editingId || `new-${Date.now()}`,
         natural_description: form.naturalDescription,
-        improving_param: form.improvingParam,
-        worsening_param: form.worseningParam,
-        physical_contradiction: form.physicalContradiction || undefined,
-        type: form.physicalContradiction ? "PC" : "TC",
       });
       setForm((prev) => ({
         ...prev,
-        improvingParam: result.mapped_improving ?? prev.improvingParam,
-        worseningParam: result.mapped_worsening ?? prev.worseningParam,
-        engineeringStatement: result.suggestions.length > 0
-          ? result.suggestions[0].suggestion
-          : prev.engineeringStatement,
+        improvingParam: result.improving_param ?? prev.improvingParam,
+        worseningParam: result.worsening_param ?? prev.worseningParam,
+        engineeringStatement: result.engineering_statement || prev.engineeringStatement,
+        physicalContradiction: result.physical_contradiction || prev.physicalContradiction,
         severity: "major",
       }));
-      toast.info("AI 已生成建議的 TRIZ 矛盾句，請檢查並調整。");
+      toast.info(`AI 已生成建議的 TRIZ 矛盾句（信心度 ${Math.round(result.confidence * 100)}%），請檢查並調整。`);
     } catch (err) {
       console.error("TRIZ transform failed:", err);
       // Fallback to heuristic

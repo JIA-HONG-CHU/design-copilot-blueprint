@@ -236,6 +236,9 @@ export default function Explore() {
             onUpdateContradictions={() => { /* mutations handled inside tab; query auto-refreshes */ }}
             hasAnswers={answeredCount > 0}
             projectId={id || ''}
+            mission={brief?.mission}
+            constraints={constraintStrings}
+            kpis={kpiStrings}
           />
         </TabsContent>
 

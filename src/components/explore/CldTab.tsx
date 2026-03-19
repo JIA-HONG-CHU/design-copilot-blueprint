@@ -6,11 +6,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2, Check } from "lucide-react";
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { cldGenerate } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/hooks/api/useQueryConfig";
 
 interface CldTabProps {
   causalLoop: CausalLoop | null;
@@ -29,6 +32,7 @@ const NODE_W = 100;
 const NODE_H = 36;
 
 export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis }: CldTabProps) {
+  const qc = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -36,6 +40,11 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
 
   const selectedNode = causalLoop?.nodes.find((n) => n.id === selectedNodeId) ?? null;
   const breakpointsCount = causalLoop?.nodes.filter((n) => n.isBreakpoint).length ?? 0;
+
+  const invalidateCld = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.cld_nodes.byProject(projectId) });
+    qc.invalidateQueries({ queryKey: queryKeys.cld_edges.byProject(projectId) });
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -48,27 +57,58 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
         constraints,
         kpis,
       });
-      // Map backend response to frontend CausalLoop shape
+
+      // Delete existing CLD data for this project
+      await supabase.from('cld_edges').delete().eq('project_id', projectId);
+      await supabase.from('cld_nodes').delete().eq('project_id', projectId);
+
+      // Map backend response and persist nodes to Supabase
       const SPACING_X = 140;
       const SPACING_Y = 80;
       const COLS = 4;
-      const cld: CausalLoop = {
-        nodes: result.nodes.map((n, i) => ({
-          id: n.id,
-          label: n.label,
-          position: { x: (i % COLS) * SPACING_X + 30, y: Math.floor(i / COLS) * SPACING_Y + 30 },
-          isBreakpoint: result.breakpoints.includes(n.id),
-          breakpointReason: result.breakpoints.includes(n.id) ? 'AI identified breakpoint' : null,
-          relatedContradictions: [],
-        })),
-        edges: result.edges.map((e, i) => ({
-          id: `e-${i}`,
-          source: e.from_node,
-          target: e.to_node,
-          feedbackType: e.polarity === '+' ? 'positive' as const : 'negative' as const,
-        })),
-      };
-      onUpdateCausalLoop(cld);
+
+      const nodeRows = result.nodes.map((n, i) => ({
+        project_id: projectId,
+        label: n.label,
+        x: (i % COLS) * SPACING_X + 30,
+        y: Math.floor(i / COLS) * SPACING_Y + 30,
+        node_type: n.type || 'variable',
+        is_leverage: result.breakpoints.includes(n.id),
+      }));
+
+      const { data: insertedNodes, error: nodesErr } = await supabase
+        .from('cld_nodes')
+        .insert(nodeRows)
+        .select();
+      if (nodesErr) throw nodesErr;
+
+      // Build a mapping from backend node IDs to newly inserted Supabase IDs
+      const idMap = new Map<string, string>();
+      result.nodes.forEach((n, i) => {
+        if (insertedNodes?.[i]) {
+          idMap.set(n.id, insertedNodes[i].id);
+        }
+      });
+
+      // Persist edges with mapped node IDs (only edges where both nodes exist)
+      const edgeRows = result.edges
+        .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))
+        .map((e) => ({
+          project_id: projectId,
+          from_node: idMap.get(e.from_node)!,
+          to_node: idMap.get(e.to_node)!,
+          polarity: e.polarity === '+' ? 'positive' : 'negative',
+        }));
+
+      if (edgeRows.length > 0) {
+        const { error: edgesErr } = await supabase
+          .from('cld_edges')
+          .insert(edgeRows);
+        if (edgesErr) throw edgesErr;
+      }
+
+      // Invalidate queries so UI refreshes from Supabase
+      invalidateCld();
       toast.success('AI 已生成因果迴路圖');
     } catch (err) {
       console.error("CLD generation failed:", err);
@@ -83,20 +123,19 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
     }
   };
 
-  const handleToggleBreakpoint = (nodeId: string) => {
+  const handleToggleBreakpoint = async (nodeId: string) => {
     if (!causalLoop) return;
     const node = causalLoop.nodes.find((n) => n.id === nodeId);
     if (!node) return;
 
     if (node.isBreakpoint) {
-      // Unmark
-      const updated = {
-        ...causalLoop,
-        nodes: causalLoop.nodes.map((n) =>
-          n.id === nodeId ? { ...n, isBreakpoint: false, breakpointReason: null } : n
-        ),
-      };
-      onUpdateCausalLoop(updated);
+      // Unmark — persist to Supabase
+      const { error } = await supabase
+        .from('cld_nodes')
+        .update({ is_leverage: false })
+        .eq('id', nodeId);
+      if (error) { toast.error(`更新失敗：${error.message}`); return; }
+      invalidateCld();
       toast.success('已取消斷路點標記');
     } else {
       // Mark - need reason
@@ -104,14 +143,13 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
         toast.error('斷路點理由至少 10 個字元');
         return;
       }
-      const updated = {
-        ...causalLoop,
-        nodes: causalLoop.nodes.map((n) =>
-          n.id === nodeId ? { ...n, isBreakpoint: true, breakpointReason: editReason } : n
-        ),
-      };
-      onUpdateCausalLoop(updated);
+      const { error } = await supabase
+        .from('cld_nodes')
+        .update({ is_leverage: true })
+        .eq('id', nodeId);
+      if (error) { toast.error(`更新失敗：${error.message}`); return; }
       setEditReason('');
+      invalidateCld();
       toast.success('已標記為斷路點');
     }
   };

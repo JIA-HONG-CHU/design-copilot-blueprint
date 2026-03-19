@@ -8,8 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, Pencil, Trash2, Plus, Sparkles, Loader2, AlertTriangle, Undo2 } from "lucide-react";
 import { trizParameters } from "@/data/trizParameters";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/hooks/api/useQueryConfig";
+import { contradictionFormalize } from "@/lib/api";
 import type { ExploreContradiction, ContradictionType } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -19,9 +23,13 @@ interface ContradictionTabProps {
   onUpdateContradictions: (contradictions: ExploreContradiction[]) => void;
   hasAnswers: boolean;
   projectId: string;
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
-export function ContradictionTab({ contradictions, onUpdateContradictions, hasAnswers, projectId }: ContradictionTabProps) {
+export function ContradictionTab({ contradictions, onUpdateContradictions, hasAnswers, projectId, mission, constraints, kpis }: ContradictionTabProps) {
+  const qc = useQueryClient();
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<ExploreContradiction>>({});
@@ -29,6 +37,8 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const [addingNew, setAddingNew] = useState(false);
   const [newType, setNewType] = useState<ContradictionType>('TC');
   const [revertConfirmId, setRevertConfirmId] = useState<string | null>(null);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(projectId) });
 
   const tcCount = contradictions.filter((c) => c.type === 'TC').length;
   const pcCount = contradictions.filter((c) => c.type === 'PC').length;
@@ -40,18 +50,24 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     return p ? `#${p.id} ${p.nameZh}` : '—';
   };
 
-  const handleConfirm = (id: string) => {
-    onUpdateContradictions(
-      contradictions.map((c) => (c.id === id ? { ...c, status: 'confirmed' as const, updatedAt: new Date().toISOString() } : c))
-    );
+  const handleConfirm = async (id: string) => {
+    const { error } = await supabase
+      .from('contradictions')
+      .update({ resolved: true, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { toast.error(`確認失敗：${error.message}`); return; }
+    invalidate();
     toast.success('矛盾已確認');
   };
 
-  const handleRevertToDraft = (id: string) => {
-    onUpdateContradictions(
-      contradictions.map((c) => (c.id === id ? { ...c, status: 'draft' as const, updatedAt: new Date().toISOString() } : c))
-    );
+  const handleRevertToDraft = async (id: string) => {
+    const { error } = await supabase
+      .from('contradictions')
+      .update({ resolved: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { toast.error(`撤回失敗：${error.message}`); return; }
     setRevertConfirmId(null);
+    invalidate();
     toast.info('已恢復為草稿狀態');
   };
 
@@ -60,26 +76,61 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     setEditForm({ ...c });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingId) return;
-    onUpdateContradictions(
-      contradictions.map((c) => (c.id === editingId ? { ...c, ...editForm, updatedAt: new Date().toISOString() } : c))
-    );
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (editForm.description !== undefined) updateData.natural_description = editForm.description;
+    if (editForm.improvingParam !== undefined) updateData.improving_param = editForm.improvingParam;
+    if (editForm.worseningParam !== undefined) updateData.worsening_param = editForm.worseningParam;
+    if (editForm.type !== undefined) updateData.type = editForm.type;
+    // PC attributes stored in physical_contradiction as "A | notA"
+    if (editForm.pcAttributeA !== undefined || editForm.pcAttributeNotA !== undefined) {
+      updateData.physical_contradiction = `${editForm.pcAttributeA ?? ''} | ${editForm.pcAttributeNotA ?? ''}`;
+    }
+
+    const { error } = await supabase
+      .from('contradictions')
+      .update(updateData)
+      .eq('id', editingId);
+    if (error) { toast.error(`更新失敗：${error.message}`); return; }
     setEditingId(null);
     setEditForm({});
+    invalidate();
     toast.success('矛盾已更新');
   };
 
-  const handleDelete = (id: string) => {
-    onUpdateContradictions(contradictions.filter((c) => c.id !== id));
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase
+      .from('contradictions')
+      .delete()
+      .eq('id', id);
+    if (error) { toast.error(`刪除失敗：${error.message}`); return; }
     setDeleteConfirmId(null);
+    invalidate();
     toast.success('矛盾已刪除');
   };
 
-  const handleAddManual = () => {
+  const handleAddManual = async () => {
     const now = new Date().toISOString();
-    const newC: ExploreContradiction = {
-      id: `ec-${Date.now()}`,
+    const { data, error } = await supabase
+      .from('contradictions')
+      .insert({
+        project_id: projectId,
+        type: newType,
+        natural_description: '',
+        severity: 'medium',
+        created_at: now,
+        updated_at: now,
+      })
+      .select()
+      .single();
+    if (error) { toast.error(`新增失敗：${error.message}`); return; }
+    setAddingNew(false);
+    invalidate();
+    // Enter edit mode for the new contradiction
+    setEditingId(data.id);
+    setEditForm({
+      id: data.id,
       projectId,
       type: newType,
       improvingParam: null,
@@ -87,38 +138,106 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       pcAttributeA: null,
       pcAttributeNotA: null,
       description: '',
-      status: 'draft',
-      source: 'manual',
+      status: 'draft' as const,
+      source: 'manual' as const,
       createdAt: now,
       updatedAt: now,
-    };
-    onUpdateContradictions([...contradictions, newC]);
-    setAddingNew(false);
-    setEditingId(newC.id);
-    setEditForm(newC);
+    });
   };
 
   const handleAiReidentify = async () => {
     setIsAiLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    const now = new Date().toISOString();
-    const newC: ExploreContradiction = {
-      id: `ec-ai-${Date.now()}`,
-      projectId,
-      type: 'TC',
-      improvingParam: 21,
-      worseningParam: 37,
-      pcAttributeA: null,
-      pcAttributeNotA: null,
-      description: 'AI 新識別：當提升系統自動化程度時，複雜度隨之增加，維護難度上升。',
-      status: 'draft',
-      source: 'ai',
-      createdAt: now,
-      updatedAt: now,
-    };
-    onUpdateContradictions([...contradictions, newC]);
-    setIsAiLoading(false);
-    toast.success('AI 已重新識別矛盾');
+    try {
+      // Collect unformalized contradictions (have description but no TRIZ params)
+      const targets = contradictions.filter(
+        (c) => c.description && !c.improvingParam && !c.worseningParam
+      );
+
+      if (targets.length > 0) {
+        // Formalize existing contradictions via AI
+        let count = 0;
+        for (const c of targets) {
+          try {
+            const result = await contradictionFormalize({
+              project_id: projectId,
+              contradiction_id: c.id,
+              natural_description: c.description,
+              mission,
+              constraints,
+              kpis,
+            });
+            await supabase
+              .from('contradictions')
+              .update({
+                type: result.type,
+                improving_param: result.improving_param,
+                worsening_param: result.worsening_param,
+                engineering_statement: result.engineering_statement,
+                physical_contradiction: result.physical_contradiction,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', c.id);
+            count++;
+          } catch {
+            // Continue with next contradiction
+          }
+        }
+        invalidate();
+        toast.success(`AI 已形式化 ${count} 個矛盾`);
+      } else {
+        // No existing unformalized contradictions — create a new one via AI
+        const desc = mission
+          ? `Based on mission "${mission}", identify a key technical or physical contradiction.`
+          : 'Identify a key design contradiction from the project context.';
+
+        // Insert a draft contradiction first
+        const now = new Date().toISOString();
+        const { data: draft, error: insertErr } = await supabase
+          .from('contradictions')
+          .insert({
+            project_id: projectId,
+            natural_description: desc,
+            severity: 'medium',
+            created_at: now,
+            updated_at: now,
+          })
+          .select()
+          .single();
+        if (insertErr) throw insertErr;
+
+        // Call AI formalize
+        const result = await contradictionFormalize({
+          project_id: projectId,
+          contradiction_id: draft.id,
+          natural_description: desc,
+          mission,
+          constraints,
+          kpis,
+        });
+
+        // Update with AI results
+        await supabase
+          .from('contradictions')
+          .update({
+            type: result.type,
+            improving_param: result.improving_param,
+            worsening_param: result.worsening_param,
+            engineering_statement: result.engineering_statement,
+            physical_contradiction: result.physical_contradiction,
+            natural_description: result.engineering_statement || desc,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', draft.id);
+
+        invalidate();
+        toast.success('AI 已識別新矛盾');
+      }
+    } catch (err) {
+      console.error('AI re-identify failed:', err);
+      toast.error('AI 識別失敗，請稍後重試');
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   if (contradictions.length === 0 && !hasAnswers) {

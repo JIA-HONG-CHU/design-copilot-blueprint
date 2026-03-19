@@ -546,21 +546,32 @@ export default function TaskDefinition() {
     }
 
     if (!id) return;
+    if (isSubmitting) return; // 防止重複送出
     setIsSubmitting(true);
 
     try {
-      // 1. Upsert brief (mission + 5W1H)
+      // 1) Upsert brief (mission + 5W1H)
       await upsertBrief.mutateAsync({
         project_id: id,
         mission,
         task_definition_5w1h: taskDef5W1H as unknown as TablesInsert<"briefs">["task_definition_5w1h"],
       });
 
-      // 2. Sync constraints — persist any new local-only constraints
+      // 2) Sync constraints — create / update / delete
       const validConstraints = constraints.filter((c) => c.description.trim().length >= 2);
+      const existingDbConstraints = constraintsQuery.data ?? [];
+
+      // 刪除：DB 有、目前表單沒有
+      const validConstraintIds = new Set(validConstraints.map((c) => c.id));
+      const constraintsToDelete = existingDbConstraints.filter((db) => !validConstraintIds.has(db.id));
+
+      for (const d of constraintsToDelete) {
+        await deleteConstraint.mutateAsync({ id: d.id });
+      }
+
+      // 新增 / 更新
       for (const c of validConstraints) {
         if (c.id.startsWith("c-")) {
-          // Locally created — insert
           await createConstraint.mutateAsync({
             project_id: id,
             constraint_code: c.constraint_code,
@@ -568,7 +579,6 @@ export default function TaskDefinition() {
             source: c.source || undefined,
           });
         } else {
-          // Existing — update
           await updateConstraint.mutateAsync({
             id: c.id,
             constraint_code: c.constraint_code,
@@ -578,13 +588,23 @@ export default function TaskDefinition() {
         }
       }
 
-      // 3. Sync KPIs — persist any new local-only KPIs
+      // 3) Sync KPIs — create / update / delete
       const validKpis = kpis.filter(
         (k) => k.kpi_name.trim() && k.target_value.trim() && k.unit.trim() && k.measurement_method.trim()
       );
+      const existingDbKpis = kpisQuery.data ?? [];
+
+      // 刪除：DB 有、目前表單沒有
+      const validKpiIds = new Set(validKpis.map((k) => k.id));
+      const kpisToDelete = existingDbKpis.filter((db) => !validKpiIds.has(db.id));
+
+      for (const d of kpisToDelete) {
+        await deleteKpi.mutateAsync({ id: d.id });
+      }
+
+      // 新增 / 更新
       for (const k of validKpis) {
         if (k.id.startsWith("k-")) {
-          // Locally created — insert
           await createKpi.mutateAsync({
             project_id: id,
             kpi_name: k.kpi_name,
@@ -593,7 +613,6 @@ export default function TaskDefinition() {
             measurement_method: k.measurement_method,
           });
         } else {
-          // Existing — update
           await updateKpi.mutateAsync({
             id: k.id,
             kpi_name: k.kpi_name,
@@ -607,6 +626,7 @@ export default function TaskDefinition() {
       toast.success("任務定義已保存");
       navigate(`/projects/${id}/explore`);
     } catch (err) {
+      console.error("handleSubmit failed:", err);
       toast.error("保存失敗，請重試");
     } finally {
       setIsSubmitting(false);

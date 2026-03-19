@@ -159,7 +159,20 @@ def _get_anthropic():
     global _anthropic_client
     if _anthropic_client is None:
         from anthropic import Anthropic
-        _anthropic_client = Anthropic(api_key=settings.anthropic_api_key)
+
+        kwargs: dict = {}
+
+        # Azure proxy 指向 Anthropic 的場景
+        if settings.llm_provider == LLMProvider.AZURE_OPENAI:
+            base_url = (settings.azure_openai_base_url or "").lower()
+            if "anthropic" in base_url:
+                kwargs["api_key"] = settings.azure_openai_api_key
+                kwargs["base_url"] = settings.azure_openai_base_url
+
+        if "api_key" not in kwargs:
+            kwargs["api_key"] = settings.anthropic_api_key
+
+        _anthropic_client = Anthropic(**kwargs)
     return _anthropic_client
 
 
@@ -245,14 +258,21 @@ def _call_provider(
     temperature: float = 0.3,
 ) -> str:
     """Route to the active LLM provider."""
-    if settings.llm_provider == LLMProvider.ANTHROPIC:
+    use_anthropic = settings.llm_provider == LLMProvider.ANTHROPIC
+
+    # Azure OpenAI 但 base_url 指向 Anthropic → 走 Anthropic
+    if settings.llm_provider == LLMProvider.AZURE_OPENAI:
+        base_url = (settings.azure_openai_base_url or "").lower()
+        if "anthropic" in base_url:
+            use_anthropic = True
+
+    if use_anthropic:
         return _call_anthropic(system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
     return _call_openai_compat(
         system, user_message,
         provider=settings.llm_provider,
         model=model, max_tokens=max_tokens, temperature=temperature,
     )
-
 
 # Keep backward-compatible accessor
 def get_llm():

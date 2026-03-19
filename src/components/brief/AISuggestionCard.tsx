@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,15 @@ export function AISuggestionCard({
 }: AISuggestionCardProps) {
   const [editedContent, setEditedContent] = useState(content ?? "");
   const [isEditing, setIsEditing] = useState(false);
+  const prevContentRef = useRef(content);
 
-  // Sync when content arrives from AI
-  if (content && editedContent === "" && !isEditing) {
-    setEditedContent(content);
-  }
+  // Sync editedContent when content changes from parent (e.g. AI result arrives)
+  useEffect(() => {
+    if (content != null && content !== prevContentRef.current && !isEditing) {
+      setEditedContent(content);
+    }
+    prevContentRef.current = content;
+  }, [content, isEditing]);
 
   const handleAdopt = () => {
     if (disableActions || isLoading || isAdopting) return;

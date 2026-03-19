@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Upload, File, X, FileText, Image, Sheet, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export interface UploadedFile {
   id: string;
@@ -47,26 +48,69 @@ function formatSize(bytes: number) {
 
 export function FileUploadZone({ files, onFilesChange, onExtract, isExtracting }: FileUploadZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const progressTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  /** Simulate upload progress for a single file, then mark it done.
+   *  TODO: Replace this simulation with a real upload call, e.g.:
+   *    const res = await fetch("/api/upload", { method: "POST", body: formData });
+   *  The progress callback should drive `onFilesChange` updates.
+   */
+  const simulateUploadProgress = useCallback((
+    fileId: string,
+    currentFiles: UploadedFile[],
+    onUpdate: (files: UploadedFile[]) => void,
+  ) => {
+    let progress = 0;
+    const timer = setInterval(() => {
+      progress = Math.min(progress + 20 + Math.floor(Math.random() * 15), 100);
+      const updated = currentFiles.map((f) =>
+        f.id === fileId
+          ? { ...f, progress, status: (progress >= 100 ? "done" : "uploading") as UploadedFile["status"] }
+          : f,
+      );
+      onUpdate(updated);
+      // Keep a mutable ref to latest files for subsequent ticks
+      currentFiles = updated;
+      if (progress >= 100) {
+        clearInterval(timer);
+        progressTimers.current.delete(fileId);
+      }
+    }, 200);
+    progressTimers.current.set(fileId, timer);
+  }, []);
 
   const processFiles = useCallback((fileList: FileList) => {
-    const newFiles: UploadedFile[] = Array.from(fileList).map((f) => {
+    const incoming: UploadedFile[] = [];
+    const errors: string[] = [];
+
+    Array.from(fileList).forEach((f) => {
       const isValidType = ACCEPTED_TYPES.some((t) => f.type === t) || f.name.endsWith(".pdf") || f.name.endsWith(".xlsx") || f.name.endsWith(".csv");
       const isValidSize = f.size <= MAX_SIZE;
 
       if (!isValidType) {
-        return { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "error" as const, progress: 0, errorMessage: "不支援的檔案格式" };
+        errors.push(`${f.name}: 不支援的檔案格式`);
+        incoming.push({ id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "error" as const, progress: 0, errorMessage: "不支援的檔案格式" });
+        return;
       }
       if (!isValidSize) {
-        return { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "error" as const, progress: 0, errorMessage: "檔案超過 20MB 限制" };
+        toast.error(`檔案「${f.name}」超過 20 MB 限制`, { description: `實際大小：${formatSize(f.size)}` });
+        incoming.push({ id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "error" as const, progress: 0, errorMessage: "檔案超過 20MB 限制" });
+        return;
       }
 
-      // Simulate upload - in real app this would be actual upload
-      const file: UploadedFile = { id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "done", progress: 100 };
-      return file;
+      // TODO: Replace with real upload via backend endpoint.
+      // File passes validation — start in "uploading" state with 0 progress.
+      incoming.push({ id: `f-${Date.now()}-${Math.random()}`, name: f.name, size: f.size, type: f.type, status: "uploading" as const, progress: 0 });
     });
 
-    onFilesChange([...files, ...newFiles]);
-  }, [files, onFilesChange]);
+    const merged = [...files, ...incoming];
+    onFilesChange(merged);
+
+    // Kick off simulated progress for each valid (uploading) file
+    incoming
+      .filter((f) => f.status === "uploading")
+      .forEach((f) => simulateUploadProgress(f.id, merged, onFilesChange));
+  }, [files, onFilesChange, simulateUploadProgress]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();

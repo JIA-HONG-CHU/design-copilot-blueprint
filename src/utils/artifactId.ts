@@ -1,16 +1,17 @@
 import { ArtifactType, ARTIFACT_TYPE_CONFIG } from '@/types/artifact';
 
-const counters: Record<string, number> = {};
-
 /**
  * Generate a unique Artifact ID in the format {PREFIX}-{SEQ}
  * e.g. CON-001, CTD-003, EVD-012
+ *
+ * Stateless: the next sequence number is derived purely from existingIds,
+ * so concurrent calls with the same existingIds list are idempotent.
  */
 export function generateArtifactId(type: ArtifactType, existingIds: string[] = []): string {
   const prefix = ARTIFACT_TYPE_CONFIG[type].prefix;
 
   // Find the highest existing sequence number for this prefix
-  let maxSeq = counters[prefix] ?? 0;
+  let maxSeq = 0;
   for (const id of existingIds) {
     if (id.startsWith(prefix + '-')) {
       const seq = parseInt(id.slice(prefix.length + 1), 10);
@@ -19,7 +20,6 @@ export function generateArtifactId(type: ArtifactType, existingIds: string[] = [
   }
 
   const nextSeq = maxSeq + 1;
-  counters[prefix] = nextSeq;
   return `${prefix}-${String(nextSeq).padStart(3, '0')}`;
 }
 

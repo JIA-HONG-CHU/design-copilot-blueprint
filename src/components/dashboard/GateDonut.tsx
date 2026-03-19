@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
 
+// SVG layout constants
+const DONUT_RADIUS = 36;
+const DONUT_VIEWBOX_SIZE = 80;
+const DONUT_CENTER = DONUT_VIEWBOX_SIZE / 2; // 40
+const DONUT_STROKE_WIDTH = 6;
+
 interface GateDonutProps {
   passed: number;
   total: number;
@@ -7,19 +13,18 @@ interface GateDonutProps {
 
 export function GateDonut({ passed, total }: GateDonutProps) {
   const pct = total > 0 ? (passed / total) * 100 : 0;
-  const radius = 36;
-  const circumference = 2 * Math.PI * radius;
+  const circumference = 2 * Math.PI * DONUT_RADIUS;
   const offset = circumference - (pct / 100) * circumference;
 
   return (
     <div className="flex items-center gap-3">
       <div className="relative h-16 w-16 shrink-0">
-        <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
-          <circle cx="40" cy="40" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+        <svg viewBox={`0 0 ${DONUT_VIEWBOX_SIZE} ${DONUT_VIEWBOX_SIZE}`} className="h-full w-full -rotate-90">
+          <circle cx={DONUT_CENTER} cy={DONUT_CENTER} r={DONUT_RADIUS} fill="none" stroke="hsl(var(--muted))" strokeWidth={DONUT_STROKE_WIDTH} />
           <circle
-            cx="40" cy="40" r={radius} fill="none"
+            cx={DONUT_CENTER} cy={DONUT_CENTER} r={DONUT_RADIUS} fill="none"
             stroke="hsl(var(--primary))"
-            strokeWidth="6"
+            strokeWidth={DONUT_STROKE_WIDTH}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}

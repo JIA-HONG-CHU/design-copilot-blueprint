@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,7 +65,7 @@ const App = () => (
         <AuthProvider>
           <ArtifactProvider>
           <BrowserRouter>
-            <Suspense fallback={<div style={{ padding: 32 }}>Loading…</div>}>
+            <Suspense fallback={<div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />

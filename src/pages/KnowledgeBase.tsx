@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,7 +35,6 @@ const KnowledgeBase = () => {
   const { data: liveArticle, isLoading: articleLoading } = useKnowledgeArticle(slug);
 
   const filtered = useMemo(() => {
-    setPage(1);
     return articles.filter((a) => {
       const matchCategory = activeCategory === "all" || a.category === activeCategory;
       const matchSearch =
@@ -45,6 +44,11 @@ const KnowledgeBase = () => {
         a.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
       return matchCategory && matchSearch;
     });
+  }, [search, activeCategory, articles]);
+
+  // Reset to page 1 whenever filter criteria change
+  useEffect(() => {
+    setPage(1);
   }, [search, activeCategory, articles]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);

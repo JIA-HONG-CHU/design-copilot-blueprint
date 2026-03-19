@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,82 +44,73 @@ interface KnowledgeEntry {
   createdAt: string;
 }
 
+const MOCK_ENTRIES: KnowledgeEntry[] = [
+  {
+    id: 'ke-001',
+    title: '磁力耦合傳動系統設計要點',
+    summary: '磁力耦合器透過磁場實現非接觸式扭矩傳遞，關鍵參數包括氣隙距離、磁鐵材質（NdFeB vs SmCo）、溫度退磁特性。設計時需確保最大扭矩 > 1.5× 額定扭矩以防滑脫。高溫環境需選用 SmCo 或做散熱設計。',
+    source: '決策記錄 DR-001 + 實驗 Exp-001',
+    assetType: 'decision',
+    status: 'written',
+    createdAt: '2026-02-24T10:00:00Z',
+  },
+  {
+    id: 'ke-002',
+    title: '碳纖維蜂巢夾層結構減重方案',
+    summary: '蜂巢夾層結構可在減重 35% 的同時維持結構剛度。關鍵假設：蜂巢芯材的剪切模量需 ≥ 50MPa。疲勞壽命需通過 10^6 次循環測試驗證。製造成本約為傳統鋁合金的 2.5 倍。',
+    source: '假設 A-003 驗證結果 + TRIZ 分割原理',
+    assetType: 'experiment',
+    status: 'written',
+    createdAt: '2026-02-24T10:30:00Z',
+  },
+  {
+    id: 'ke-003',
+    title: 'TRIZ 分割原理在傳動系統的應用模式',
+    summary: '分割原理（Principle #1）應用於傳動系統時，可將單一大齒輪分割為多級小齒輪以降低噪音，或將剛性聯軸器分割為柔性元件以吸收振動。本專案中應用於將機械傳動分割為磁力耦合段 + 機械段的混合架構。',
+    source: 'TRIZ 求解步驟 + 矛盾 EC-001',
+    assetType: 'contradiction',
+    status: 'pending',
+    createdAt: '2026-02-24T11:00:00Z',
+  },
+  {
+    id: 'ke-004',
+    title: '齒輪嚙合噪音致命失效模式',
+    summary: '齒輪傳動系統中，齒面磨損導致齒隙增大，引起嚙合衝擊噪音指數增長。當齒隙 > 0.3mm 時噪音可突破 75dB，超過法規限制。建議設定齒隙上限 0.2mm 並設定定期檢測週期。',
+    source: 'FMEA 分析 + 文獻回顧',
+    assetType: 'failure_mode',
+    status: 'written',
+    createdAt: '2026-02-24T11:30:00Z',
+  },
+  {
+    id: 'ke-005',
+    title: '電動自行車傳動系統散熱設計規則',
+    summary: '散熱片面積需 ≥ 50cm²/kW，鰭片間距 ≥ 3mm（自然對流），材質優先選用 Al6063-T5。熱阻目標 ≤ 2°C/W。在密封環境中需額外考慮內部空氣循環路徑。',
+    source: '實驗 Exp-001 結論 + 熱仿真結果',
+    assetType: 'design_rule',
+    status: 'reviewed',
+    createdAt: '2026-02-24T12:00:00Z',
+  },
+  {
+    id: 'ke-006',
+    title: '磁力耦合器氣隙最佳實踐',
+    summary: '氣隙距離建議 1.5-3mm，< 1.5mm 組裝困難且公差敏感，> 3mm 效率快速下降。磁鐵配置推薦 Halbach 陣列以提升 15-20% 磁通密度。端面密封建議採用非接觸式迷宮密封。',
+    source: '產業標竿比對 + 專利分析',
+    assetType: 'best_practice',
+    status: 'pending',
+    createdAt: '2026-02-24T12:30:00Z',
+  },
+];
+
 export default function Feynman() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [localEntries, setLocalEntries] = useState<KnowledgeEntry[]>([]);
-  const [mockLoaded, setMockLoaded] = useState(false);
+  const [localEntries, setLocalEntries] = useState<KnowledgeEntry[]>(MOCK_ENTRIES);
 
   // Fetch knowledge entries from Supabase
   const { data: liveEntries, isLoading: liveLoading } = useKnowledgeEntries(id);
   const updateEntry = useUpdateKnowledgeEntry();
 
-  // Mock data as fallback — loaded via timer to preserve original UX
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLocalEntries([
-        {
-          id: 'ke-001',
-          title: '磁力耦合傳動系統設計要點',
-          summary: '磁力耦合器透過磁場實現非接觸式扭矩傳遞，關鍵參數包括氣隙距離、磁鐵材質（NdFeB vs SmCo）、溫度退磁特性。設計時需確保最大扭矩 > 1.5× 額定扭矩以防滑脫。高溫環境需選用 SmCo 或做散熱設計。',
-          source: '決策記錄 DR-001 + 實驗 Exp-001',
-          assetType: 'decision',
-          status: 'written',
-          createdAt: '2026-02-24T10:00:00Z',
-        },
-        {
-          id: 'ke-002',
-          title: '碳纖維蜂巢夾層結構減重方案',
-          summary: '蜂巢夾層結構可在減重 35% 的同時維持結構剛度。關鍵假設：蜂巢芯材的剪切模量需 ≥ 50MPa。疲勞壽命需通過 10^6 次循環測試驗證。製造成本約為傳統鋁合金的 2.5 倍。',
-          source: '假設 A-003 驗證結果 + TRIZ 分割原理',
-          assetType: 'experiment',
-          status: 'written',
-          createdAt: '2026-02-24T10:30:00Z',
-        },
-        {
-          id: 'ke-003',
-          title: 'TRIZ 分割原理在傳動系統的應用模式',
-          summary: '分割原理（Principle #1）應用於傳動系統時，可將單一大齒輪分割為多級小齒輪以降低噪音，或將剛性聯軸器分割為柔性元件以吸收振動。本專案中應用於將機械傳動分割為磁力耦合段 + 機械段的混合架構。',
-          source: 'TRIZ 求解步驟 + 矛盾 EC-001',
-          assetType: 'contradiction',
-          status: 'pending',
-          createdAt: '2026-02-24T11:00:00Z',
-        },
-        {
-          id: 'ke-004',
-          title: '齒輪嚙合噪音致命失效模式',
-          summary: '齒輪傳動系統中，齒面磨損導致齒隙增大，引起嚙合衝擊噪音指數增長。當齒隙 > 0.3mm 時噪音可突破 75dB，超過法規限制。建議設定齒隙上限 0.2mm 並設定定期檢測週期。',
-          source: 'FMEA 分析 + 文獻回顧',
-          assetType: 'failure_mode',
-          status: 'written',
-          createdAt: '2026-02-24T11:30:00Z',
-        },
-        {
-          id: 'ke-005',
-          title: '電動自行車傳動系統散熱設計規則',
-          summary: '散熱片面積需 ≥ 50cm²/kW，鰭片間距 ≥ 3mm（自然對流），材質優先選用 Al6063-T5。熱阻目標 ≤ 2°C/W。在密封環境中需額外考慮內部空氣循環路徑。',
-          source: '實驗 Exp-001 結論 + 熱仿真結果',
-          assetType: 'design_rule',
-          status: 'reviewed',
-          createdAt: '2026-02-24T12:00:00Z',
-        },
-        {
-          id: 'ke-006',
-          title: '磁力耦合器氣隙最佳實踐',
-          summary: '氣隙距離建議 1.5-3mm，< 1.5mm 組裝困難且公差敏感，> 3mm 效率快速下降。磁鐵配置推薦 Halbach 陣列以提升 15-20% 磁通密度。端面密封建議採用非接觸式迷宮密封。',
-          source: '產業標竿比對 + 專利分析',
-          assetType: 'best_practice',
-          status: 'pending',
-          createdAt: '2026-02-24T12:30:00Z',
-        },
-      ]);
-      setMockLoaded(true);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [id]);
-
-  // Derive entries: prefer live Supabase data, fall back to local mock
   // Map live entries to the page's KnowledgeEntry shape
   const livePageEntries: KnowledgeEntry[] = useMemo(() =>
     liveEntries.map((e) => ({
@@ -134,8 +125,10 @@ export default function Feynman() {
     [liveEntries],
   );
 
-  const entries = livePageEntries.length > 0 ? livePageEntries : localEntries;
-  const isLoading = liveLoading && !mockLoaded;
+  // Prefer live Supabase data when available; fall back to local mock seed
+  const hasLiveData = !liveLoading && livePageEntries.length > 0;
+  const entries = hasLiveData ? livePageEntries : localEntries;
+  const isLoading = liveLoading;
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -156,7 +149,7 @@ export default function Feynman() {
 
   const handleMarkReviewed = (entryId: string) => {
     // If using live data, call the update mutation
-    if (livePageEntries.length > 0) {
+    if (hasLiveData) {
       updateEntry.mutate({ id: entryId, reviewed: true });
     } else {
       setLocalEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: 'reviewed' as const } : e));

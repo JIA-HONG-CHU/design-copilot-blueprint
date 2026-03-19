@@ -38,6 +38,7 @@ import {
   useUpdateKpi,
   useDeleteKpi,
 } from "@/hooks/api/useBrief";
+import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import type { BriefConstraint, BriefKPI, TaskDefinition5W1H, GateCheckItem } from "@/types/taskDefinition";
 import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2, ShieldCheck } from "lucide-react";
@@ -124,6 +125,15 @@ export default function TaskDefinition() {
     if (briefQuery.data) {
       setMission(briefQuery.data.mission);
       setTaskDef5W1H(briefQuery.data.taskDefinition5w1h);
+
+      // Restore persisted feasibility data from the 5W1H JSON blob
+      const raw = briefQuery.data.taskDefinition5w1h as Record<string, unknown> | null;
+      if (raw?.feasibility_status && typeof raw.feasibility_status === 'string') {
+        setFeasibilityStatus(raw.feasibility_status as FeasibilityStatus);
+      }
+      if (raw?.feasibility_conflicts && Array.isArray(raw.feasibility_conflicts)) {
+        setFeasibilityConflicts(raw.feasibility_conflicts as FeasibilityConflictResult[]);
+      }
     }
 
     if (constraintsQuery.data && constraintsQuery.data.length > 0) {
@@ -473,12 +483,23 @@ export default function TaskDefinition() {
     toast.success("已接受所有提取結果並填入表單");
   };
 
+  // Persist feasibility results into the brief's task_definition_5w1h JSON
+  const persistFeasibility = async (status: FeasibilityStatus, conflicts: FeasibilityConflictResult[]) => {
+    if (!id) return;
+    const blob = { ...(taskDef5W1H ?? {}), feasibility_status: status, feasibility_conflicts: conflicts };
+    await supabase
+      .from('briefs')
+      .update({ task_definition_5w1h: blob as unknown as TablesInsert<"briefs">["task_definition_5w1h"], updated_at: new Date().toISOString() })
+      .eq('project_id', id);
+  };
+
   const handleFeasibilityCheck = async () => {
     if (!id) return;
     const descriptions = constraints.map((c) => c.description).filter((d) => d.trim().length >= 2);
     if (descriptions.length < 2) {
       setFeasibilityStatus("pass");
       setFeasibilityConflicts([]);
+      await persistFeasibility("pass", []);
       return;
     }
     setFeasibilityStatus("checking");
@@ -490,14 +511,18 @@ export default function TaskDefinition() {
       });
       setFeasibilityConflicts(result.conflicts);
       setFeasibilityStatus(result.status as FeasibilityStatus);
+      await persistFeasibility(result.status as FeasibilityStatus, result.conflicts);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "約束可行性驗證"));
       setFeasibilityStatus("idle");
     }
   };
 
-  const handleFeasibilityOverride = (reason: string) => {
+  const handleFeasibilityOverride = async (reason: string) => {
     setFeasibilityStatus("warning");
+    // Persist override status + conflicts (with override reason appended)
+    const conflictsWithOverride = feasibilityConflicts.map((c) => ({ ...c, overrideReason: reason }));
+    await persistFeasibility("warning", conflictsWithOverride);
     toast.info("已記錄覆寫原因，可繼續進行");
   };
 
@@ -561,11 +586,16 @@ export default function TaskDefinition() {
     setIsSubmitting(true);
 
     try {
-      // 1) Upsert brief (mission + 5W1H)
+      // 1) Upsert brief (mission + 5W1H + feasibility data)
+      const briefBlob = {
+        ...(taskDef5W1H ?? {}),
+        feasibility_status: feasibilityStatus,
+        feasibility_conflicts: feasibilityConflicts,
+      };
       await upsertBrief.mutateAsync({
         project_id: id,
         mission,
-        task_definition_5w1h: taskDef5W1H as unknown as TablesInsert<"briefs">["task_definition_5w1h"],
+        task_definition_5w1h: briefBlob as unknown as TablesInsert<"briefs">["task_definition_5w1h"],
       });
 
       // 2) Sync constraints — create / update / delete

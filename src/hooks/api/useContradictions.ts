@@ -13,6 +13,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { queryKeys, defaultQueryOptions } from '@/hooks/api/useQueryConfig';
+import { CONTRADICTION_SEVERITIES, DEFAULT_SEVERITY } from '@/types/contradiction';
 import type { Contradiction, ContradictionSeverity } from '@/types/contradiction';
 
 // ---------------------------------------------------------------------------
@@ -34,7 +35,7 @@ interface ContradictionRow {
   updated_at: string;
 }
 
-const VALID_SEVERITIES: Set<string> = new Set(['fatal', 'major', 'minor']);
+const validSeverities: ReadonlySet<string> = new Set(CONTRADICTION_SEVERITIES);
 
 const mapRow = (r: ContradictionRow): Contradiction => ({
   id: r.id,
@@ -44,7 +45,7 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   worseningParam: r.worsening_param,
   engineeringStatement: r.engineering_statement ?? '',
   physicalContradiction: r.physical_contradiction ?? '',
-  severity: (VALID_SEVERITIES.has(r.severity) ? r.severity : 'minor') as ContradictionSeverity,
+  severity: (validSeverities.has(r.severity) ? r.severity : DEFAULT_SEVERITY) as ContradictionSeverity,
   resolved: (r as any).resolved ?? false,
   createdAt: r.created_at,
   updatedAt: r.updated_at,

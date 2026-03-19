@@ -13,6 +13,7 @@ import { trizParameters } from "@/data/trizParameters";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
 import { contradictionFormalize } from "@/lib/api";
+import { DEFAULT_SEVERITY } from "@/types/contradiction";
 import type { ExploreContradiction, ContradictionType } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -117,7 +118,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         project_id: projectId,
         type,
         natural_description: '',
-        severity: 'minor',
+        severity: DEFAULT_SEVERITY,
         created_at: now,
         updated_at: now,
       })
@@ -187,7 +188,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
             project_id: projectId,
             type,
             natural_description: desc,
-            severity: 'minor',
+            severity: DEFAULT_SEVERITY,
             created_at: now,
             updated_at: now,
           })

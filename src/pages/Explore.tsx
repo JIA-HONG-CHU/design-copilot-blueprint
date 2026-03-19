@@ -22,6 +22,7 @@ import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
 import { contradictionFormalize } from "@/lib/api";
+import { DEFAULT_SEVERITY } from "@/types/contradiction";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -124,7 +125,7 @@ export default function Explore() {
             .insert({
               project_id: id,
               natural_description: desc,
-              severity: 'minor',
+              severity: DEFAULT_SEVERITY,
               created_at: now,
               updated_at: now,
             })

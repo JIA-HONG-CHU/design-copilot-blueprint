@@ -4,7 +4,9 @@ export interface TrizParameter {
   nameZh: string;
 }
 
-export type ContradictionSeverity = 'fatal' | 'major' | 'minor';
+export const CONTRADICTION_SEVERITIES = ['fatal', 'major', 'minor'] as const;
+export type ContradictionSeverity = (typeof CONTRADICTION_SEVERITIES)[number];
+export const DEFAULT_SEVERITY: ContradictionSeverity = 'minor';
 
 export interface Contradiction {
   id: string;

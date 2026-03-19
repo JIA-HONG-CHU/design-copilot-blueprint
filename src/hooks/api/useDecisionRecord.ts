@@ -466,17 +466,7 @@ export function useUpsertWantScore() {
     }
   >({
     mutationFn: async (vars) => {
-      // Check if a row already exists for this criterion+alternative
-      const { data: existing, error: fetchErr } = await supabase
-        .from('want_scores')
-        .select('id')
-        .eq('project_id', vars.projectId)
-        .eq('criterion_id', vars.criterionId)
-        .eq('alternative_id', vars.alternativeId)
-        .limit(1);
-      if (fetchErr) throw fetchErr;
-
-      const row: Record<string, unknown> = {
+      const row = {
         project_id: vars.projectId,
         criterion_id: vars.criterionId,
         alternative_id: vars.alternativeId,
@@ -485,11 +475,23 @@ export function useUpsertWantScore() {
         weighted_total: vars.weightedTotal ?? 0,
       };
 
-      if (existing && existing.length > 0) {
+      // TODO: Add DB unique constraint on (project_id, criterion_id, alternative_id) then
+      // replace with: supabase.from('want_scores').upsert(row, { onConflict: '...' })
+      // Current check-then-act is not fully atomic but handles the common single-user case.
+      const { data: existing } = await supabase
+        .from('want_scores')
+        .select('id')
+        .eq('project_id', vars.projectId)
+        .eq('criterion_id', vars.criterionId)
+        .eq('alternative_id', vars.alternativeId)
+        .limit(1)
+        .single();
+
+      if (existing) {
         const { error } = await supabase
           .from('want_scores')
           .update(row)
-          .eq('id', existing[0].id);
+          .eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase

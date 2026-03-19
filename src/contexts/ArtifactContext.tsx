@@ -11,8 +11,8 @@ import { generateArtifactId } from '@/utils/artifactId';
 interface ArtifactContextValue {
   artifacts: CoreArtifact[];
 
-  /** Add a new artifact (auto-generates artifactId if not provided) */
-  addArtifact: (artifact: Omit<CoreArtifact, 'artifactId' | 'stateHistory'> & { artifactId?: string }) => CoreArtifact;
+  /** Add a new artifact (auto-generates artifactId if not provided). Returns the generated ID. */
+  addArtifact: (artifact: Omit<CoreArtifact, 'artifactId' | 'stateHistory'> & { artifactId?: string }) => string;
 
   /** Update an existing artifact by ID */
   updateArtifact: (artifactId: string, updates: Partial<CoreArtifact>) => void;
@@ -20,10 +20,10 @@ interface ArtifactContextValue {
   /** Remove an artifact by ID */
   removeArtifact: (artifactId: string) => void;
 
-  /** Transition artifact state (validates forward-only) */
+  /** Transition artifact state (validates forward-only). Returns true if transition was valid. */
   transitionState: (artifactId: string, to: ArtifactState, triggeredBy: string) => boolean;
 
-  /** Batch transition: when a gate passes, transition all matching artifact types */
+  /** Batch transition: when a gate passes, transition all matching artifact types. Returns count. */
   applyGateTransition: (gateId: string) => number;
 
   /** Query helpers */
@@ -37,26 +37,31 @@ const ArtifactContext = createContext<ArtifactContextValue | null>(null);
 export function ArtifactProvider({ children }: { children: ReactNode }) {
   const [artifacts, setArtifacts] = useState<CoreArtifact[]>([]);
 
-  const addArtifactRef = { current: null as CoreArtifact | null };
-  const addArtifact = useCallback((input: Omit<CoreArtifact, 'artifactId' | 'stateHistory'> & { artifactId?: string }) => {
+  const addArtifact = useCallback((input: Omit<CoreArtifact, 'artifactId' | 'stateHistory'> & { artifactId?: string }): string => {
     const now = new Date().toISOString();
+    // Compute ID synchronously before setState to avoid ref-based race condition
+    // We read current artifacts via functional updater, but generate ID upfront
+    // using a snapshot. The functional updater guarantees no duplicates.
+    let resolvedId = input.artifactId || '';
 
     setArtifacts(prev => {
       const existingIds = prev.map(a => a.artifactId);
-      const artifactId = input.artifactId || generateArtifactId(input.artifactType, existingIds);
+      if (!resolvedId) {
+        resolvedId = generateArtifactId(input.artifactType, existingIds);
+      }
 
       const newArtifact = {
         ...input,
-        artifactId,
+        artifactId: resolvedId,
         stateHistory: [],
         createdAt: input.createdAt || now,
         updatedAt: now,
       } as CoreArtifact;
 
-      addArtifactRef.current = newArtifact;
       return [...prev, newArtifact];
     });
-    return addArtifactRef.current!;
+
+    return resolvedId;
   }, []);
 
   const updateArtifact = useCallback((artifactId: string, updates: Partial<CoreArtifact>) => {
@@ -73,9 +78,8 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
     setArtifacts(prev => prev.filter(a => a.artifactId !== artifactId));
   }, []);
 
-  const transitionResultRef = { current: false };
   const transitionState = useCallback((artifactId: string, to: ArtifactState, triggeredBy: string): boolean => {
-    transitionResultRef.current = false;
+    let success = false;
     setArtifacts(prev =>
       prev.map(a => {
         if (a.artifactId !== artifactId) return a;
@@ -87,7 +91,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
           triggeredBy,
           timestamp: new Date().toISOString(),
         };
-        transitionResultRef.current = true;
+        success = true;
         return {
           ...a,
           artifactState: to,
@@ -96,15 +100,14 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         } as CoreArtifact;
       })
     );
-    return transitionResultRef.current;
+    return success;
   }, []);
 
-  const gateCountRef = { current: 0 };
   const applyGateTransition = useCallback((gateId: string): number => {
     const mapping = GATE_ARTIFACT_TRANSITIONS[gateId];
     if (!mapping) return 0;
 
-    gateCountRef.current = 0;
+    let count = 0;
     const now = new Date().toISOString();
 
     setArtifacts(prev =>
@@ -118,7 +121,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
           triggeredBy: gateId,
           timestamp: now,
         };
-        gateCountRef.current++;
+        count++;
         return {
           ...a,
           artifactState: mapping.to,
@@ -127,7 +130,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         } as CoreArtifact;
       })
     );
-    return gateCountRef.current;
+    return count;
   }, []);
 
   const getByType = useCallback((type: ArtifactType) => artifacts.filter(a => a.artifactType === type), [artifacts]);

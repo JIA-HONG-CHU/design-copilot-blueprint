@@ -16,7 +16,12 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-const DEV_BYPASS_AUTH = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+// Double-guard: bypass only works in Vite dev server, never in production builds
+const DEV_BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+
+if (!import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
+  console.error("[Auth] CRITICAL: VITE_DEV_BYPASS_AUTH is enabled in a production build. Ignoring.");
+}
 
 const MOCK_USER = {
   id: "dev-admin-00000000",
@@ -55,11 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // THEN check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+      })
+      .catch((err) => {
+        console.error("[Auth] Failed to fetch session:", err);
+        setSession(null);
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
 
     return () => subscription.unsubscribe();
   }, []);

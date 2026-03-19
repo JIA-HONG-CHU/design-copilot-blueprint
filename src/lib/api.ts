@@ -5,6 +5,8 @@
  * go through this client instead of using mock data + setTimeout.
  */
 
+import type { ZodType } from "zod";
+
 const API_PREFIX = "/api/v1";
 const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 
@@ -76,7 +78,69 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Pr
   }
 }
 
-async function request<T>(path: string, body: unknown): Promise<T> {
+// ─── Runtime response validation ─────────────────────────────────────────────
+
+interface RequestOptions<T> {
+  /** Optional Zod schema — when provided, response is parsed & validated. */
+  schema?: ZodType<T>;
+}
+
+const IS_DEV = import.meta.env.DEV;
+
+/**
+ * Safely parse a Response body as JSON.
+ * Falls back to a descriptive ApiError when the body is not valid JSON.
+ */
+async function safeParseJson(res: Response, path: string): Promise<unknown> {
+  const text = await res.text();
+  if (!text) {
+    // Empty 2xx body — return null so callers can handle
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ApiError(
+      res.status,
+      `Expected JSON from ${path} but received non-JSON body: ${text.slice(0, 200)}`,
+    );
+  }
+}
+
+/**
+ * Dev-only sanity check: warn when the parsed value doesn't look like a plain
+ * object (the shape returned by 100 % of our backend endpoints).
+ */
+function devAssertObject(value: unknown, path: string): void {
+  if (!IS_DEV) return;
+  if (value === null || value === undefined) {
+    console.warn(`[api] ${path}: response body is ${String(value)}`);
+    return;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    console.warn(
+      `[api] ${path}: expected plain object, got ${Array.isArray(value) ? "array" : typeof value}`,
+    );
+  }
+}
+
+/**
+ * If a Zod schema was supplied, validate the response and return the parsed
+ * (and potentially transformed) value.  On failure, log a dev warning and
+ * return the raw data so the app keeps working.
+ */
+function validateWithSchema<T>(data: unknown, schema: ZodType<T> | undefined, path: string): T {
+  if (!schema) return data as T;
+  const result = schema.safeParse(data);
+  if (result.success) return result.data;
+  if (IS_DEV) {
+    console.warn(`[api] ${path}: Zod validation failed`, result.error.format());
+  }
+  // Graceful degradation: return raw data so the UI isn't blocked.
+  return data as T;
+}
+
+async function request<T>(path: string, body: unknown, opts?: RequestOptions<T>): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = await getAuthToken();
   if (token) {
@@ -88,10 +152,32 @@ async function request<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const errorBody = await res.text().catch(() => "unknown error");
+    // Try JSON first (FastAPI error detail), fall back to raw text.
+    const errorBody = await safeParseJsonError(res);
     throw new ApiError(res.status, errorBody);
   }
-  return res.json() as Promise<T>;
+  const data = await safeParseJson(res, path);
+  devAssertObject(data, path);
+  return validateWithSchema(data, opts?.schema, path);
+}
+
+/**
+ * Extract error payload from a non-ok response.
+ * FastAPI returns `{ "detail": "..." }` for most errors — surface that string
+ * when available so ApiError messages are human-readable.
+ */
+async function safeParseJsonError(res: Response): Promise<unknown> {
+  const text = await res.text().catch(() => "unknown error");
+  try {
+    const json = JSON.parse(text);
+    // FastAPI convention: { detail: string | object }
+    if (json && typeof json === "object" && "detail" in json) {
+      return json.detail;
+    }
+    return json;
+  } catch {
+    return text;
+  }
 }
 
 // ─── Brief ──────────────────────────────────────────────────────────────────
@@ -648,7 +734,7 @@ export interface GateCheckResponse {
   checklist_items: GateCheckItem[];
 }
 
-async function requestGet<T>(path: string): Promise<T> {
+async function requestGet<T>(path: string, opts?: RequestOptions<T>): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = await getAuthToken();
   if (token) {
@@ -659,10 +745,12 @@ async function requestGet<T>(path: string): Promise<T> {
     headers,
   });
   if (!res.ok) {
-    const errorBody = await res.text().catch(() => "unknown error");
+    const errorBody = await safeParseJsonError(res);
     throw new ApiError(res.status, errorBody);
   }
-  return res.json() as Promise<T>;
+  const data = await safeParseJson(res, path);
+  devAssertObject(data, path);
+  return validateWithSchema(data, opts?.schema, path);
 }
 
 export function gateCheck(gateId: string, projectId: string) {
@@ -678,9 +766,16 @@ export async function checkBackendHealth(): Promise<BackendHealthCheckResult> {
   try {
     const res = await fetchWithTimeout(`${BASE_URL}/health`, { method: "GET" });
     if (!res.ok) {
-      return { ok: false, message: `Health check 回應異常（HTTP ${res.status}）` };
+      const detail = await safeParseJsonError(res);
+      const suffix = typeof detail === "string" ? `: ${detail}` : "";
+      return { ok: false, message: `Health check 回應異常（HTTP ${res.status}）${suffix}` };
     }
-    return { ok: true, message: "後端連線正常" };
+    // Validate the response body is actually parseable JSON
+    const data = await safeParseJson(res, "/health");
+    if (data && typeof data === "object" && "status" in data) {
+      return { ok: true, message: "後端連線正常" };
+    }
+    return { ok: true, message: "後端連線正常（回應格式非預期，但連線成功）" };
   } catch (err) {
     return { ok: false, message: getApiErrorMessage(err, "後端連線檢查") };
   }
@@ -704,4 +799,4 @@ export function getApiErrorMessage(error: unknown, actionLabel = "操作"): stri
   return `${actionLabel}失敗：未知錯誤`;
 }
 
-export { ApiError, ApiNetworkError };
+export { ApiError, ApiNetworkError, type RequestOptions };

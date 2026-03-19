@@ -190,7 +190,14 @@ export default function Create() {
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
-  const convergenceLoop = useConvergenceLoop();
+  const convergenceLoop = useConvergenceLoop({
+    projectId: id,
+    contradictions: contradictionsQuery.data ?? [],
+    alternatives: alternatives.map((a) => ({ id: a.id, name: a.name, mechanism: a.mechanism })),
+    mission: briefMission,
+    constraints: constraintStrings,
+    kpis: kpiStrings,
+  });
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");

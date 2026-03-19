@@ -1,7 +1,9 @@
 // Track page types
 
+import type { ExperimentStatus, RiskLevel } from './shared';
+export type { ExperimentStatus, RiskLevel } from './shared';
+
 export type VerificationStatus = 'unverified' | 'verifying' | 'verified' | 'negated';
-export type RiskLevel = 'L' | 'M' | 'H' | 'H*';
 export type AssumptionSource = 'explore_tag' | 'manual' | 'ai_suggest' | 'unknown_convert';
 
 export interface TrackAssumption {
@@ -66,8 +68,7 @@ export const UNKNOWN_STATUS_CONFIG: Record<UnknownStatus, { label: string; color
   dismissed: { label: '已排除', color: '#dc3545' },
 };
 
-// Experiment
-export type ExperimentStatus = 'planned' | 'running' | 'completed' | 'failed';
+// Experiment (Track-specific shape — lighter than designReview.Experiment)
 
 export interface Experiment {
   id: string;
@@ -78,10 +79,9 @@ export interface Experiment {
 }
 
 export const EXPERIMENT_STATUS_CONFIG: Record<ExperimentStatus, { label: string; color: string }> = {
-  planned: { label: '已規劃', color: '#6c757d' },
-  running: { label: '進行中', color: '#F59E0B' },
-  completed: { label: '完成', color: '#28a745' },
-  failed: { label: '失敗', color: '#dc3545' },
+  Plan: { label: '已規劃', color: '#3B82F6' },
+  Running: { label: '進行中', color: '#F59E0B' },
+  Done: { label: '完成', color: '#10B981' },
 };
 
 // Gate check

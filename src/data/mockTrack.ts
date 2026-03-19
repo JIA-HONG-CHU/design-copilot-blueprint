@@ -171,14 +171,14 @@ export const mockUnknownFactors: Record<string, UnknownFactor[]> = {
 
 export const mockExperiments: Record<string, Experiment[]> = {
   "ta-001": [
-    { id: "exp-001", name: "坡度爬坡扭矩測試 (15% 坡度)", status: "completed", result: "42Nm 達標，通過", createdAt: "2026-01-25T08:00:00Z" },
-    { id: "exp-002", name: "極端負載爬坡測試 (20% 坡度)", status: "completed", result: "48Nm，超出額定但仍在安全範圍", createdAt: "2026-02-05T10:00:00Z" },
+    { id: "exp-001", name: "坡度爬坡扭矩測試 (15% 坡度)", status: "Done", result: "42Nm 達標，通過", createdAt: "2026-01-25T08:00:00Z" },
+    { id: "exp-002", name: "極端負載爬坡測試 (20% 坡度)", status: "Done", result: "48Nm，超出額定但仍在安全範圍", createdAt: "2026-02-05T10:00:00Z" },
   ],
   "ta-002": [
-    { id: "exp-003", name: "減速比 1:3.5 動態模擬", status: "running", result: null, createdAt: "2026-02-10T09:00:00Z" },
+    { id: "exp-003", name: "減速比 1:3.5 動態模擬", status: "Running", result: null, createdAt: "2026-02-10T09:00:00Z" },
   ],
   "ta-004": [
-    { id: "exp-004", name: "皮帶傳動效率量測", status: "failed", result: "實測效率損失 8.2%，超過 5% 目標，假設已否定", createdAt: "2026-02-12T08:00:00Z" },
+    { id: "exp-004", name: "皮帶傳動效率量測", status: "Done", result: "實測效率損失 8.2%，超過 5% 目標，假設已否定", createdAt: "2026-02-12T08:00:00Z" },
   ],
   "ta-006": [],
 };

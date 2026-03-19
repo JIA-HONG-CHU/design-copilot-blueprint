@@ -1,3 +1,6 @@
+import type { ExperimentStatus, RiskLevel } from './shared';
+export type { ExperimentStatus, RiskLevel } from './shared';
+
 // Evidence levels E0-E4
 export type EvidenceLevel = 'E0' | 'E1' | 'E2' | 'E3' | 'E4';
 
@@ -32,22 +35,21 @@ export function getRiskScore(r: RiskItem): number {
   return r.probability * r.severity;
 }
 
-export function getRiskLevel(score: number): 'L' | 'M' | 'H' | 'H*' {
+export function getRiskLevel(score: number): RiskLevel {
   if (score >= 20) return 'H*';
   if (score >= 15) return 'H';
   if (score >= 8) return 'M';
   return 'L';
 }
 
-export function getRiskColor(level: 'L' | 'M' | 'H' | 'H*'): string {
+export function getRiskColor(level: RiskLevel): string {
   if (level === 'H*') return '#8B0000';
   if (level === 'H') return '#dc3545';
   if (level === 'M') return '#fd7e14';
   return '#28a745';
 }
 
-// Experiment
-export type ExperimentStatus = 'Plan' | 'Running' | 'Done';
+// Experiment (DesignReview-specific shape — richer than track.Experiment)
 
 export interface Experiment {
   id: string;

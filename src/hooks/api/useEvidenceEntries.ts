@@ -251,8 +251,17 @@ export function useCreateEvidenceEntry() {
 
       if (error) throw error;
 
-      // Auto-propagation
-      await propagateEvidence(data as EvidenceEntryRow);
+      // Auto-propagation — best-effort; entry is already persisted so we
+      // never let a propagation failure bubble up as a mutation error.
+      try {
+        await propagateEvidence(data as EvidenceEntryRow);
+      } catch (propagationError) {
+        console.error(
+          '[useCreateEvidenceEntry] propagation failed (entry saved, related data may be stale):',
+          propagationError,
+        );
+        toast.warning('證據已儲存，但相關 KPI / 矩陣同步失敗，請手動重新整理');
+      }
 
       return mapRow(data as EvidenceEntryRow);
     },

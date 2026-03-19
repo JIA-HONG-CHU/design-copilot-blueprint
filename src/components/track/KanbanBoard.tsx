@@ -39,7 +39,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [newExpName, setNewExpName] = useState('');
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
   const [editExpResult, setEditExpResult] = useState('');
-  const [editExpStatus, setEditExpStatus] = useState<ExperimentStatus>('planned');
+  const [editExpStatus, setEditExpStatus] = useState<ExperimentStatus>('Plan');
 
   // New assumption form
   const [newDesc, setNewDesc] = useState('');
@@ -553,7 +553,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {(['planned', 'running', 'completed', 'failed'] as ExperimentStatus[]).map((s) => (
+                                    {(['Plan', 'Running', 'Done'] as ExperimentStatus[]).map((s) => (
                                       <SelectItem key={s} value={s} className="text-xs">
                                         {EXPERIMENT_STATUS_CONFIG[s].label}
                                       </SelectItem>

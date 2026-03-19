@@ -1,222 +1,87 @@
 /**
  * useConvergenceLoop — AI autonomous contradiction convergence loop
  *
- * Replaces the old useContradictionScan hook.
- * Implements the E2E spec's Fully Auto TRIZ convergence:
+ * Implements the E2E spec's Fully Auto TRIZ convergence using the real
+ * /convergence/scan API endpoint:
  *   - AI explores each contradiction branch in parallel (TC/PC/SF)
- *   - Each round: pick best solution → scan for secondary contradictions
+ *   - Each round: call convergenceScan → process secondary contradictions
  *   - Fatal/Major → auto-trigger next round (no iteration limit)
  *   - Minor → risk register (non-blocking)
- *   - Converged when all Fatal+Major resolved (Confidence = 100%)
- *   - Halted when nodes > 5 or circular dependency detected
+ *   - Converged when convergence_score === 100 or no new fatal/major
+ *   - Halted when architecture_health is critical/circular or force_pause
  *
- * TODO: Replace inline simulation data with real AI API calls for TRIZ reasoning.
- *       The current implementation keeps exploration simulation in the frontend;
- *       contradictions are initialized from Supabase via useContradictions.
+ * Accepts real Contradiction[] from Supabase (via useContradictions) and
+ * calls the backend API for each convergence scan round.
  */
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ContradictionSeverity } from '@/types/contradiction';
+import type { Contradiction } from '@/types/contradiction';
 import type { HealthStatus, ConvergenceNode, ConvergenceEdge } from '@/types/solution';
 import type {
   ConvergenceState,
   ConvergenceLoopActions,
   BranchExploration,
-  ExplorationRound,
   MinorContradiction,
 } from '@/types/convergence';
-import type { TrizPath } from '@/types/create';
+import {
+  convergenceScan,
+  getApiErrorMessage,
+} from '@/lib/api';
+import type {
+  ConvergenceScanResponse,
+  SecondaryContradictionResult,
+} from '@/lib/api';
 
 // ---------------------------------------------------------------------------
-// Inline simulation data (previously in mockConvergence.ts)
-// TODO: Replace with AI API responses. These are kept inline so the convergence
-//       loop can function without importing mock data files.
+// Hook configuration
 // ---------------------------------------------------------------------------
 
-const branch1Round1: ExplorationRound = {
-  roundNumber: 1,
-  solutions: [
-    { id: 'sol-1a', path: 'TC' as TrizPath, principleNumber: 1, principleName: '分割', suggestion: '將單一大齒輪分割為多級小齒輪組，降低單齒嚙合衝擊力，從而降低噪音。', score: 8.2, isRecommended: true },
-    { id: 'sol-1b', path: 'PC' as TrizPath, principleNumber: null, principleName: '時間分離', suggestion: '在高速段切換至磁力耦合傳動（無接觸），低速段使用齒輪直驅。', score: 6.5, isRecommended: false },
-    { id: 'sol-1c', path: 'SF' as TrizPath, principleNumber: 12, principleName: '等位性', suggestion: '引入彈性聯軸器作為中間體，吸收振動能量。', score: 5.1, isRecommended: false },
-  ],
-  adoptedSolutionId: 'sol-1a',
-  scanResult: {
-    newContradictions: [
-      { id: 'sc-001', description: '多級齒輪組增加散熱需求 → 與輕量化目標矛盾', severity: 'major' as ContradictionSeverity, resolved: false, sourceSolutionId: 'sol-1a' },
-    ],
-    hasNewFatalMajor: true,
-  },
-  timestamp: new Date().toISOString(),
-};
-
-const branch1Round2: ExplorationRound = {
-  roundNumber: 2,
-  solutions: [
-    { id: 'sol-1d', path: 'PC' as TrizPath, principleNumber: null, principleName: '空間分離', suggestion: '將散熱鰭片整合至齒輪箱外壁，利用行駛風冷實現被動散熱，不增加額外重量。', score: 7.8, isRecommended: true },
-    { id: 'sol-1e', path: 'TC' as TrizPath, principleNumber: 18, principleName: '機械振動', suggestion: '利用齒輪箱振動驅動壓電散熱微泵。', score: 6.0, isRecommended: false },
-  ],
-  adoptedSolutionId: 'sol-1d',
-  scanResult: { newContradictions: [], hasNewFatalMajor: false },
-  timestamp: new Date().toISOString(),
-};
-
-const branch2Round1: ExplorationRound = {
-  roundNumber: 1,
-  solutions: [
-    { id: 'sol-2a', path: 'TC' as TrizPath, principleNumber: 40, principleName: '複合材料', suggestion: '以碳纖維蜂巢夾層結構替代鋁合金殼體，減重 35% 同時維持剛度。', score: 7.5, isRecommended: true },
-    { id: 'sol-2b', path: 'PC' as TrizPath, principleNumber: null, principleName: '條件分離', suggestion: '承力區使用鈦合金，非承力區使用工程塑膠。', score: 6.2, isRecommended: false },
-    { id: 'sol-2c', path: 'SF' as TrizPath, principleNumber: 5, principleName: '場引入', suggestion: '引入磁場懸浮支撐，取消部分機械支撐結構。', score: 4.0, isRecommended: false },
-  ],
-  adoptedSolutionId: 'sol-2a',
-  scanResult: {
-    newContradictions: [
-      { id: 'sc-002', description: '碳纖維殼體成本超出預算 300%', severity: 'fatal' as ContradictionSeverity, resolved: false, sourceSolutionId: 'sol-2a' },
-      { id: 'sc-003', description: '碳纖維維修困難，現場不可修復', severity: 'major' as ContradictionSeverity, resolved: false, sourceSolutionId: 'sol-2a' },
-    ],
-    hasNewFatalMajor: true,
-  },
-  timestamp: new Date().toISOString(),
-};
-
-const branch2Round2: ExplorationRound = {
-  roundNumber: 2,
-  solutions: [
-    { id: 'sol-2d', path: 'TC' as TrizPath, principleNumber: 35, principleName: '參數變化', suggestion: '採用漸變壁厚設計：應力集中區保持厚壁（鋁合金），低應力區改用薄壁 PA66+GF30，整體減重 20%。', score: 8.5, isRecommended: true },
-    { id: 'sol-2e', path: 'PC' as TrizPath, principleNumber: null, principleName: '系統層級分離', suggestion: '將殼體拆為內外雙層：內層承力（金屬），外層保護（塑膠）。', score: 7.0, isRecommended: false },
-  ],
-  adoptedSolutionId: 'sol-2d',
-  scanResult: {
-    newContradictions: [
-      { id: 'sc-004', description: '漸變壁厚在振動環境下可能應力集中開裂', severity: 'major' as ContradictionSeverity, resolved: false, sourceSolutionId: 'sol-2d' },
-    ],
-    hasNewFatalMajor: true,
-  },
-  timestamp: new Date().toISOString(),
-};
-
-const branch2Round3: ExplorationRound = {
-  roundNumber: 3,
-  solutions: [
-    { id: 'sol-2f', path: 'TC' as TrizPath, principleNumber: 3, principleName: '局部品質', suggestion: '在壁厚過渡區域增加 R3 圓角過渡 + 玻纖方向對齊，消除應力集中。FEA 模擬確認安全係數 > 2.0。', score: 8.8, isRecommended: true },
-    { id: 'sol-2g', path: 'SF' as TrizPath, principleNumber: 22, principleName: '轉化有害為有益', suggestion: '利用振動能量驅動壁厚區域的自加熱退火，提升局部韌性。', score: 5.5, isRecommended: false },
-  ],
-  adoptedSolutionId: 'sol-2f',
-  scanResult: {
-    newContradictions: [
-      { id: 'sc-005', description: '圓角過渡增加模具成本約 5%', severity: 'minor' as ContradictionSeverity, resolved: true, sourceSolutionId: 'sol-2f' },
-    ],
-    hasNewFatalMajor: false,
-  },
-  timestamp: new Date().toISOString(),
-};
-
-// Seed branches used to look up labels and final state
-const seedBranches: BranchExploration[] = [
-  {
-    contradictionId: 'ec-001',
-    contradictionLabel: '速度提升 vs 噪音增加',
-    rounds: [branch1Round1, branch1Round2],
-    status: 'converged',
-    depth: 2,
-  },
-  {
-    contradictionId: 'ec-002',
-    contradictionLabel: '結構強度 vs 重量限制',
-    rounds: [branch2Round1, branch2Round2, branch2Round3],
-    status: 'converged',
-    depth: 3,
-  },
-];
-
-const seedRiskRegister: MinorContradiction[] = [
-  { id: 'sc-005', description: '圓角過渡增加模具成本約 5%', sourceBranchId: 'ec-002', sourceRound: 3 },
-];
-
-interface SimulationStep {
-  iteration: number;
-  activeBranch: string;
-  round: ExplorationRound;
-  cumulativeFatal: { resolved: number; total: number };
-  cumulativeMajor: { resolved: number; total: number };
-  minorCount: number;
-  confidence: number;
-  health: HealthStatus;
-}
-
-const seedSimulationSteps: SimulationStep[] = [
-  { iteration: 1, activeBranch: 'ec-001', round: branch1Round1, cumulativeFatal: { resolved: 0, total: 1 }, cumulativeMajor: { resolved: 0, total: 2 }, minorCount: 0, confidence: 0, health: 'healthy' },
-  { iteration: 1, activeBranch: 'ec-002', round: branch2Round1, cumulativeFatal: { resolved: 0, total: 1 }, cumulativeMajor: { resolved: 0, total: 2 }, minorCount: 0, confidence: 0, health: 'healthy' },
-  { iteration: 2, activeBranch: 'ec-001', round: branch1Round2, cumulativeFatal: { resolved: 0, total: 1 }, cumulativeMajor: { resolved: 1, total: 2 }, minorCount: 0, confidence: 33, health: 'warning' },
-  { iteration: 2, activeBranch: 'ec-002', round: branch2Round2, cumulativeFatal: { resolved: 1, total: 1 }, cumulativeMajor: { resolved: 1, total: 3 }, minorCount: 0, confidence: 50, health: 'warning' },
-  { iteration: 3, activeBranch: 'ec-002', round: branch2Round3, cumulativeFatal: { resolved: 1, total: 1 }, cumulativeMajor: { resolved: 3, total: 3 }, minorCount: 1, confidence: 100, health: 'healthy' },
-];
-
-// ---------------------------------------------------------------------------
-// Graph builder (inline, previously buildGraphAtIteration)
-// ---------------------------------------------------------------------------
-
-function buildGraphAtIteration(iteration: number): { nodes: ConvergenceNode[]; edges: ConvergenceEdge[] } {
-  const allNodes: ConvergenceNode[] = [];
-  const allEdges: ConvergenceEdge[] = [];
-
-  // Branch 1 nodes
-  if (iteration >= 1) {
-    allNodes.push({ id: 'cont-001', label: '速度↑噪音↑', type: 'contradiction', severity: 'major', resolved: iteration >= 2, x: 20, y: 20 });
-    allNodes.push({ id: 'sol-1a', label: '#1 分割', type: 'solution', x: 180, y: 20 });
-    allEdges.push({ from: 'cont-001', to: 'sol-1a' });
-  }
-  if (iteration >= 1) {
-    allNodes.push({ id: 'sc-001', label: '散熱↑輕量↓', type: 'contradiction', severity: 'major', resolved: iteration >= 2, x: 340, y: 20 });
-    allEdges.push({ from: 'sol-1a', to: 'sc-001' });
-  }
-  if (iteration >= 2) {
-    allNodes.push({ id: 'sol-1d', label: '空間分離散熱', type: 'solution', x: 500, y: 20 });
-    allEdges.push({ from: 'sc-001', to: 'sol-1d' });
-  }
-
-  // Branch 2 nodes
-  if (iteration >= 1) {
-    allNodes.push({ id: 'cont-002', label: '強度↑重量↑', type: 'contradiction', severity: 'fatal', resolved: iteration >= 3, x: 20, y: 100 });
-    allNodes.push({ id: 'sol-2a', label: '#40 複合材料', type: 'solution', x: 180, y: 100 });
-    allEdges.push({ from: 'cont-002', to: 'sol-2a' });
-  }
-  if (iteration >= 1) {
-    allNodes.push({ id: 'sc-002', label: '成本超標', type: 'contradiction', severity: 'fatal', resolved: iteration >= 2, x: 340, y: 80 });
-    allNodes.push({ id: 'sc-003', label: '維修困難', type: 'contradiction', severity: 'major', resolved: iteration >= 2, x: 340, y: 140 });
-    allEdges.push({ from: 'sol-2a', to: 'sc-002' });
-    allEdges.push({ from: 'sol-2a', to: 'sc-003' });
-  }
-  if (iteration >= 2) {
-    allNodes.push({ id: 'sol-2d', label: '#35 漸變壁厚', type: 'solution', x: 500, y: 100 });
-    allEdges.push({ from: 'sc-002', to: 'sol-2d' });
-    allEdges.push({ from: 'sc-003', to: 'sol-2d' });
-  }
-  if (iteration >= 2) {
-    allNodes.push({ id: 'sc-004', label: '應力集中', type: 'contradiction', severity: 'major', resolved: iteration >= 3, x: 660, y: 100 });
-    allEdges.push({ from: 'sol-2d', to: 'sc-004' });
-  }
-  if (iteration >= 3) {
-    allNodes.push({ id: 'sol-2f', label: '#3 局部品質', type: 'solution', x: 820, y: 100 });
-    allEdges.push({ from: 'sc-004', to: 'sol-2f' });
-    allNodes.push({ id: 'sc-005', label: '模具成本+5%', type: 'contradiction', severity: 'minor', resolved: true, x: 820, y: 170 });
-    allEdges.push({ from: 'sol-2f', to: 'sc-005' });
-  }
-
-  return { nodes: allNodes, edges: allEdges };
+export interface UseConvergenceLoopOptions {
+  /** Current project ID (from route params). Required for API calls. */
+  projectId: string | undefined;
+  /** Real contradictions from Supabase via useContradictions(). */
+  contradictions: Contradiction[];
+  /** Alternatives to evaluate (passed through to convergenceScan). */
+  alternatives?: Record<string, unknown>[];
+  /** Phase 1 context for richer AI reasoning. */
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
 }
 
 // ---------------------------------------------------------------------------
-// Hook implementation
+// Delay between convergence rounds (visual pacing)
 // ---------------------------------------------------------------------------
-
 const STEP_DELAY_MS = 1500;
 
-function getHealth(nodeCount: number, hasCircular: boolean): HealthStatus {
-  if (hasCircular) return 'circular';
-  if (nodeCount > 5) return 'critical';
-  if (nodeCount >= 4) return 'warning';
-  return 'healthy';
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mapArchitectureHealth(health: string): HealthStatus {
+  switch (health) {
+    case 'critical': return 'critical';
+    case 'circular': return 'circular';
+    case 'warning': return 'warning';
+    case 'healthy': return 'healthy';
+    default: return 'healthy';
+  }
 }
+
+function mapSeverity(s: string): ContradictionSeverity {
+  if (s === 'fatal' || s === 'major' || s === 'minor') return s;
+  return 'minor';
+}
+
+let nodeIdCounter = 0;
+function nextNodeId(prefix: string): string {
+  nodeIdCounter += 1;
+  return `${prefix}-${nodeIdCounter}`;
+}
+
+// ---------------------------------------------------------------------------
+// Initial state
+// ---------------------------------------------------------------------------
 
 const initialState: ConvergenceState = {
   iteration: 0,
@@ -231,135 +96,353 @@ const initialState: ConvergenceState = {
   riskRegister: [],
 };
 
-export function useConvergenceLoop(): ConvergenceLoopActions {
+// ---------------------------------------------------------------------------
+// Hook implementation
+// ---------------------------------------------------------------------------
+
+export function useConvergenceLoop(options: UseConvergenceLoopOptions): ConvergenceLoopActions {
+  const {
+    projectId,
+    contradictions,
+    alternatives = [],
+    mission,
+    constraints,
+    kpis,
+  } = options;
+
   const [state, setState] = useState<ConvergenceState>(initialState);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stepIndexRef = useRef(0);
+  // Abort flag so we can cancel an in-progress exploration
+  const abortRef = useRef(false);
 
-  // TODO: In the future, fetch initial contradictions from Supabase:
-  //   const { data: contradictions } = useContradictions(projectId);
-  // and use them to build the initial branch list instead of seedBranches.
+  // ------------------------------------------------------------------
+  // Graph builder: adds nodes/edges from a scan response to the graph
+  // ------------------------------------------------------------------
+  const appendToGraph = useCallback(
+    (
+      prevNodes: ConvergenceNode[],
+      prevEdges: ConvergenceEdge[],
+      sourceNodeId: string,
+      newContradictions: SecondaryContradictionResult[],
+    ): { nodes: ConvergenceNode[]; edges: ConvergenceEdge[] } => {
+      const nodes = [...prevNodes];
+      const edges = [...prevEdges];
+      const maxX = nodes.length > 0 ? Math.max(...nodes.map((n) => n.x)) : 0;
 
-  const simulationSteps = useMemo(() => seedSimulationSteps, []);
+      for (const nc of newContradictions) {
+        const nid = nextNodeId('sc');
+        const severity = mapSeverity(nc.severity);
+        nodes.push({
+          id: nid,
+          label: nc.description.length > 16 ? nc.description.slice(0, 16) + '...' : nc.description,
+          type: 'contradiction',
+          severity,
+          resolved: severity === 'minor',
+          x: maxX + 160,
+          y: 20 + nodes.filter((n) => n.type === 'contradiction').length * 60,
+        });
+        edges.push({ from: sourceNodeId, to: nid });
+      }
 
-  const runNextStep = useCallback(() => {
-    const idx = stepIndexRef.current;
-    if (idx >= simulationSteps.length) {
-      // All steps done → converged
-      setState((prev) => ({
-        ...prev,
-        status: 'converged',
-        branches: seedBranches,
-        riskRegister: seedRiskRegister,
-      }));
-      return;
-    }
+      return { nodes, edges };
+    },
+    [],
+  );
 
-    const step = simulationSteps[idx];
-    const graph = buildGraphAtIteration(step.iteration);
-    const nodeCount = graph.nodes.filter((n) => n.type === 'contradiction').length;
-    const health = getHealth(nodeCount, false);
+  // ------------------------------------------------------------------
+  // Build initial graph from contradictions list
+  // ------------------------------------------------------------------
+  const buildInitialGraph = useCallback(
+    (contrs: Contradiction[]): { nodes: ConvergenceNode[]; edges: ConvergenceEdge[] } => {
+      const nodes: ConvergenceNode[] = [];
+      const edges: ConvergenceEdge[] = [];
+      contrs.forEach((c, i) => {
+        nodes.push({
+          id: c.id,
+          label:
+            c.naturalDescription.length > 16
+              ? c.naturalDescription.slice(0, 16) + '...'
+              : c.naturalDescription,
+          type: 'contradiction',
+          severity: c.severity,
+          resolved: c.resolved ?? false,
+          x: 20,
+          y: 20 + i * 80,
+        });
+      });
+      return { nodes, edges };
+    },
+    [],
+  );
 
-    // Build progressive branches state
-    const branchMap = new Map<string, BranchExploration>();
-    for (let i = 0; i <= idx; i++) {
-      const s = simulationSteps[i];
-      const existing = branchMap.get(s.activeBranch);
-      if (existing) {
-        if (!existing.rounds.find((r) => r.roundNumber === s.round.roundNumber)) {
-          existing.rounds.push(s.round);
-          existing.depth = s.round.roundNumber;
-        }
-      } else {
-        const fullBranch = seedBranches.find((b) => b.contradictionId === s.activeBranch);
-        branchMap.set(s.activeBranch, {
-          contradictionId: s.activeBranch,
-          contradictionLabel: fullBranch?.contradictionLabel ?? s.activeBranch,
-          rounds: [s.round],
-          status: 'exploring',
-          depth: s.round.roundNumber,
+  // ------------------------------------------------------------------
+  // Run a single convergence scan round via the API
+  // ------------------------------------------------------------------
+  const runScanRound = useCallback(
+    async (
+      iteration: number,
+      branches: BranchExploration[],
+      graph: { nodes: ConvergenceNode[]; edges: ConvergenceEdge[] },
+      riskRegister: MinorContradiction[],
+      fatalCount: { resolved: number; total: number },
+      majorCount: { resolved: number; total: number },
+      minorCount: number,
+    ) => {
+      if (abortRef.current || !projectId) return;
+
+      // Call the real API
+      let scanResult: ConvergenceScanResponse;
+      try {
+        scanResult = await convergenceScan({
+          project_id: projectId,
+          alternatives,
+          contradictions: contradictions.map((c) => ({
+            id: c.id,
+            natural_description: c.naturalDescription,
+            severity: c.severity,
+            resolved: c.resolved ?? false,
+          })),
+          mission,
+          constraints,
+          kpis,
+        });
+      } catch (err) {
+        // On API error, halt the loop
+        const msg = getApiErrorMessage(err, '收斂掃描');
+        setState((prev) => ({
+          ...prev,
+          status: 'halted',
+          health: 'critical',
+        }));
+        console.error('[useConvergenceLoop] scan failed:', msg);
+        return;
+      }
+
+      if (abortRef.current) return;
+
+      // Process new contradictions from the scan
+      const newFatal = scanResult.new_contradictions.filter((c) => c.severity === 'fatal');
+      const newMajor = scanResult.new_contradictions.filter((c) => c.severity === 'major');
+      const newMinor = scanResult.new_contradictions.filter(
+        (c) => c.severity !== 'fatal' && c.severity !== 'major',
+      );
+
+      const updatedFatal = {
+        total: fatalCount.total + newFatal.length,
+        resolved: fatalCount.resolved + (scanResult.new_contradictions.length === 0 ? fatalCount.total - fatalCount.resolved : 0),
+      };
+      const updatedMajor = {
+        total: majorCount.total + newMajor.length,
+        resolved: majorCount.resolved + (scanResult.new_contradictions.length === 0 ? majorCount.total - majorCount.resolved : 0),
+      };
+      const updatedMinorCount = minorCount + newMinor.length;
+
+      // Add minor contradictions to risk register
+      const updatedRisk = [...riskRegister];
+      for (const nc of newMinor) {
+        updatedRisk.push({
+          id: nextNodeId('risk'),
+          description: nc.description,
+          sourceBranchId: nc.source_alternative,
+          sourceRound: iteration,
         });
       }
-    }
 
-    // Mark converged branches
-    const branches = Array.from(branchMap.values()).map((b) => {
-      const lastRound = b.rounds[b.rounds.length - 1];
-      const isConverged = lastRound && !lastRound.scanResult.hasNewFatalMajor;
-      return { ...b, status: (isConverged ? 'converged' : 'exploring') as BranchExploration['status'] };
-    });
+      // Update graph: use the first contradiction node as source if available
+      const sourceNodeId = graph.nodes.length > 0 ? graph.nodes[graph.nodes.length - 1].id : 'root';
+      const updatedGraph = appendToGraph(
+        graph.nodes,
+        graph.edges,
+        sourceNodeId,
+        scanResult.new_contradictions,
+      );
 
-    const isScanning = idx < simulationSteps.length - 1;
+      // Update branches status
+      const hasNewFatalMajor = newFatal.length > 0 || newMajor.length > 0;
+      const updatedBranches = branches.map((b) => ({
+        ...b,
+        status: (!hasNewFatalMajor ? 'converged' : 'exploring') as BranchExploration['status'],
+        depth: iteration,
+      }));
 
-    setState({
-      iteration: step.iteration,
-      status: health === 'critical' || health === 'circular' ? 'halted' : (isScanning ? 'exploring' : 'exploring'),
-      branches,
-      graph,
-      health,
-      confidence: step.confidence,
-      fatalCount: step.cumulativeFatal,
-      majorCount: step.cumulativeMajor,
-      minorCount: step.minorCount,
-      riskRegister: step.minorCount > 0 ? seedRiskRegister : [],
-    });
+      // Determine health and convergence
+      const health = mapArchitectureHealth(scanResult.architecture_health);
+      const confidence = scanResult.convergence_score;
+      const isConverged = confidence >= 100 || (!hasNewFatalMajor && iteration > 0);
+      const isHalted = scanResult.force_pause || health === 'critical' || health === 'circular';
 
-    stepIndexRef.current = idx + 1;
+      const nextStatus = isHalted
+        ? 'halted' as const
+        : isConverged
+          ? 'converged' as const
+          : 'exploring' as const;
 
-    if (health === 'critical' || health === 'circular') {
-      // Halted — don't auto-advance
+      setState({
+        iteration,
+        status: nextStatus,
+        branches: updatedBranches,
+        graph: updatedGraph,
+        health,
+        confidence,
+        fatalCount: updatedFatal,
+        majorCount: updatedMajor,
+        minorCount: updatedMinorCount,
+        riskRegister: updatedRisk,
+      });
+
+      // If not converged and not halted, schedule the next round
+      if (nextStatus === 'exploring') {
+        timerRef.current = setTimeout(() => {
+          runScanRound(
+            iteration + 1,
+            updatedBranches,
+            updatedGraph,
+            updatedRisk,
+            updatedFatal,
+            updatedMajor,
+            updatedMinorCount,
+          );
+        }, STEP_DELAY_MS);
+      }
+    },
+    [projectId, alternatives, contradictions, mission, constraints, kpis, appendToGraph],
+  );
+
+  // ------------------------------------------------------------------
+  // startExploration — kicks off the convergence loop
+  // ------------------------------------------------------------------
+  const startExploration = useCallback(() => {
+    abortRef.current = false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    if (!projectId || contradictions.length === 0) {
+      // Nothing to explore
+      setState({ ...initialState });
       return;
     }
 
-    timerRef.current = setTimeout(runNextStep, STEP_DELAY_MS);
-  }, [simulationSteps]);
+    // Reset node ID counter
+    nodeIdCounter = 0;
 
-  const startExploration = useCallback(() => {
-    // TODO: Fetch contradictions from DB here and build initial branches
-    //       e.g. const branches = contradictions.map(c => ({ contradictionId: c.id, ... }))
-    stepIndexRef.current = 0;
-    setState({ ...initialState, status: 'exploring' });
-    timerRef.current = setTimeout(runNextStep, STEP_DELAY_MS);
-  }, [runNextStep]);
+    // Build initial branches from real contradictions
+    const initialBranches: BranchExploration[] = contradictions.map((c) => ({
+      contradictionId: c.id,
+      contradictionLabel: c.naturalDescription,
+      rounds: [],
+      status: 'exploring' as const,
+      depth: 0,
+    }));
 
+    const initialGraph = buildInitialGraph(contradictions);
+
+    // Count initial fatal/major from real contradictions
+    const initialFatal = {
+      total: contradictions.filter((c) => c.severity === 'fatal').length,
+      resolved: contradictions.filter((c) => c.severity === 'fatal' && c.resolved).length,
+    };
+    const initialMajor = {
+      total: contradictions.filter((c) => c.severity === 'major').length,
+      resolved: contradictions.filter((c) => c.severity === 'major' && c.resolved).length,
+    };
+
+    setState({
+      ...initialState,
+      status: 'exploring',
+      branches: initialBranches,
+      graph: initialGraph,
+      fatalCount: initialFatal,
+      majorCount: initialMajor,
+    });
+
+    // Kick off the first API scan round
+    timerRef.current = setTimeout(() => {
+      runScanRound(1, initialBranches, initialGraph, [], initialFatal, initialMajor, 0);
+    }, STEP_DELAY_MS);
+  }, [projectId, contradictions, buildInitialGraph, runScanRound]);
+
+  // ------------------------------------------------------------------
+  // confirmSeverity — override a node's severity in the graph
+  // ------------------------------------------------------------------
   const confirmSeverity = useCallback((contradictionId: string, severity: ContradictionSeverity) => {
     setState((prev) => {
       const updatedNodes = prev.graph.nodes.map((n) =>
-        n.id === contradictionId && n.type === 'contradiction' ? { ...n, severity } : n
+        n.id === contradictionId && n.type === 'contradiction' ? { ...n, severity } : n,
       );
       return { ...prev, graph: { ...prev.graph, nodes: updatedNodes } };
     });
   }, []);
 
+  // ------------------------------------------------------------------
+  // forceHalt — immediately stop the loop
+  // ------------------------------------------------------------------
   const forceHalt = useCallback(() => {
+    abortRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
     setState((prev) => ({ ...prev, status: 'halted' }));
   }, []);
 
+  // ------------------------------------------------------------------
+  // forceContinue — resume after a halt
+  // ------------------------------------------------------------------
   const forceContinue = useCallback(() => {
-    setState((prev) => ({ ...prev, status: 'exploring', health: 'warning' as HealthStatus }));
-    timerRef.current = setTimeout(runNextStep, STEP_DELAY_MS);
-  }, [runNextStep]);
+    abortRef.current = false;
+    setState((prev) => {
+      const newState = { ...prev, status: 'exploring' as const, health: 'warning' as HealthStatus };
 
+      // Schedule the next scan round
+      timerRef.current = setTimeout(() => {
+        runScanRound(
+          prev.iteration + 1,
+          prev.branches,
+          prev.graph,
+          prev.riskRegister,
+          prev.fatalCount,
+          prev.majorCount,
+          prev.minorCount,
+        );
+      }, STEP_DELAY_MS);
+
+      return newState;
+    });
+  }, [runScanRound]);
+
+  // ------------------------------------------------------------------
+  // retryBranch — re-run exploration for a specific branch
+  // ------------------------------------------------------------------
   const retryBranch = useCallback((contradictionId: string) => {
-    setState((prev) => ({
-      ...prev,
-      status: 'exploring',
-      branches: prev.branches.map((b) =>
-        b.contradictionId === contradictionId ? { ...b, status: 'exploring' as const } : b
-      ),
-    }));
-    // TODO: In real impl, re-run AI exploration for this branch
-    timerRef.current = setTimeout(runNextStep, STEP_DELAY_MS);
-  }, [runNextStep]);
+    abortRef.current = false;
+    setState((prev) => {
+      const updatedBranches = prev.branches.map((b) =>
+        b.contradictionId === contradictionId ? { ...b, status: 'exploring' as const } : b,
+      );
+      const newState = { ...prev, status: 'exploring' as const, branches: updatedBranches };
 
+      timerRef.current = setTimeout(() => {
+        runScanRound(
+          prev.iteration + 1,
+          updatedBranches,
+          prev.graph,
+          prev.riskRegister,
+          prev.fatalCount,
+          prev.majorCount,
+          prev.minorCount,
+        );
+      }, STEP_DELAY_MS);
+
+      return newState;
+    });
+  }, [runScanRound]);
+
+  // ------------------------------------------------------------------
+  // addContradiction — manually add a contradiction to the loop
+  // ------------------------------------------------------------------
   const addContradiction = useCallback((description: string, severity: ContradictionSeverity, sourceBranchId: string) => {
     const newId = `sc-ext-${Date.now()}`;
     setState((prev) => {
-      const newNode = {
+      const newNode: ConvergenceNode = {
         id: newId,
-        label: description.length > 12 ? description.slice(0, 12) + '…' : description,
-        type: 'contradiction' as const,
+        label: description.length > 12 ? description.slice(0, 12) + '...' : description,
+        type: 'contradiction',
         severity,
         resolved: false,
         x: Math.max(...prev.graph.nodes.map((n) => n.x), 0) + 160,
@@ -373,18 +456,20 @@ export function useConvergenceLoop(): ConvergenceLoopActions {
           nodes: [...prev.graph.nodes, newNode],
           edges: prev.graph.edges,
         },
-        fatalCount: severity === 'fatal'
-          ? { ...prev.fatalCount, total: prev.fatalCount.total + 1 }
-          : prev.fatalCount,
-        majorCount: severity === 'major'
-          ? { ...prev.majorCount, total: prev.majorCount.total + 1 }
-          : prev.majorCount,
+        fatalCount:
+          severity === 'fatal'
+            ? { ...prev.fatalCount, total: prev.fatalCount.total + 1 }
+            : prev.fatalCount,
+        majorCount:
+          severity === 'major'
+            ? { ...prev.majorCount, total: prev.majorCount.total + 1 }
+            : prev.majorCount,
         minorCount: severity === 'minor' ? prev.minorCount + 1 : prev.minorCount,
         confidence: isFatalMajor
           ? Math.round(
               ((prev.fatalCount.resolved + prev.majorCount.resolved) /
                 (prev.fatalCount.total + prev.majorCount.total + 1)) *
-                100
+                100,
             )
           : prev.confidence,
       };

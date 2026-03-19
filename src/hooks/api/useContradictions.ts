@@ -34,6 +34,8 @@ interface ContradictionRow {
   updated_at: string;
 }
 
+const VALID_SEVERITIES: Set<string> = new Set(['fatal', 'major', 'minor']);
+
 const mapRow = (r: ContradictionRow): Contradiction => ({
   id: r.id,
   projectId: r.project_id,
@@ -42,7 +44,7 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   worseningParam: r.worsening_param,
   engineeringStatement: r.engineering_statement ?? '',
   physicalContradiction: r.physical_contradiction ?? '',
-  severity: r.severity as ContradictionSeverity,
+  severity: (VALID_SEVERITIES.has(r.severity) ? r.severity : 'minor') as ContradictionSeverity,
   resolved: (r as any).resolved ?? false,
   createdAt: r.created_at,
   updatedAt: r.updated_at,

@@ -46,6 +46,7 @@ _register(GateDefinition(
     gate_id="1.1",
     name="Mission + KPI 完整性",
     phase="1",
+    ai_evaluator="brief_quality",
     checks=[
         check_field_exists(
             "briefs", "mission",
@@ -70,6 +71,7 @@ _register(GateDefinition(
     gate_id="1.2",
     name="假設 + 矛盾充分性",
     phase="1",
+    ai_evaluator="depth_quality",
     checks=[
         check_table_count(
             "assumptions",
@@ -126,6 +128,7 @@ _register(GateDefinition(
     gate_id="2.1",
     name="高風險假設實驗覆蓋",
     phase="2",
+    ai_evaluator="experiment_coverage",
     checks=[
         check_cross_table(
             "assumptions", "code",

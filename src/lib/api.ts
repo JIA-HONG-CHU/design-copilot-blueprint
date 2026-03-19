@@ -147,6 +147,30 @@ export function briefRewrite(body: BriefRewriteRequest) {
   return request<BriefRewriteResponse>("/definitions/rewrite", body);
 }
 
+// ─── Constraint Feasibility Check ────────────────────────────────────────────
+
+export interface ConstraintFeasibilityRequest {
+  project_id: string;
+  mission: string;
+  constraints: string[];
+}
+
+export interface FeasibilityConflictResult {
+  constraintA: string;
+  constraintB: string;
+  reason: string;
+  suggestion: string;
+}
+
+export interface ConstraintFeasibilityResponse {
+  status: "pass" | "warning" | "conflict";
+  conflicts: FeasibilityConflictResult[];
+}
+
+export function constraintFeasibilityCheck(body: ConstraintFeasibilityRequest) {
+  return request<ConstraintFeasibilityResponse>("/definitions/check-feasibility", body);
+}
+
 // ─── Constraint Suggestions ─────────────────────────────────────────────────
 
 export interface ConstraintSuggestRequest {

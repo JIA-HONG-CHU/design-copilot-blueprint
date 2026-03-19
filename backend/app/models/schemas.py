@@ -53,6 +53,28 @@ class BriefExtractionResponse(BaseModel):
     feasibility_warnings: list[str]
 
 
+# --- Constraint Feasibility Check ---
+
+class ConstraintFeasibilityRequest(BaseModel):
+    """Input for AI constraint feasibility analysis."""
+    project_id: str
+    mission: str
+    constraints: list[str] = Field(default_factory=list)
+
+
+class FeasibilityConflict(BaseModel):
+    constraintA: str
+    constraintB: str
+    reason: str
+    suggestion: str
+
+
+class ConstraintFeasibilityResponse(BaseModel):
+    """AI-generated constraint feasibility analysis."""
+    status: str  # "pass" | "warning" | "conflict"
+    conflicts: list[FeasibilityConflict] = Field(default_factory=list)
+
+
 # --- Brief AI Rewrite ---
 
 class BriefRewriteRequest(BaseModel):

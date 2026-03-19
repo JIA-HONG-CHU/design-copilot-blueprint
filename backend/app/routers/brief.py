@@ -12,6 +12,8 @@ from app.models.schemas import (
     BriefRewriteResponse,
     ConstraintSuggestRequest,
     ConstraintSuggestResponse,
+    ConstraintFeasibilityRequest,
+    ConstraintFeasibilityResponse,
     KpiSuggestRequest,
     KpiSuggestResponse,
     TaskDef5W1HRequest,
@@ -21,6 +23,7 @@ from app.agents.analyst import (
     extract_brief,
     rewrite_mission,
     suggest_constraints,
+    check_constraint_feasibility,
     suggest_kpis,
     generate_5w1h,
 )
@@ -38,6 +41,12 @@ def definitions_extract(req: BriefExtractionRequest):
 async def definitions_rewrite(req: BriefRewriteRequest):
     """AI rewrites mission statement with precise engineering language."""
     return await rewrite_mission(req)
+
+
+@router.post("/definitions/check-feasibility", response_model=ConstraintFeasibilityResponse)
+def definitions_check_feasibility(req: ConstraintFeasibilityRequest):
+    """AI checks pairwise feasibility of constraints — identifies conflicts and trade-offs."""
+    return check_constraint_feasibility(req)
 
 
 @router.post("/definitions/suggest-constraints", response_model=ConstraintSuggestResponse)

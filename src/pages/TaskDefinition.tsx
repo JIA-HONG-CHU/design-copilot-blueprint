@@ -15,12 +15,11 @@ import { FileUploadZone, type UploadedFile } from "@/components/task-definition/
 import { AIExtractionResults, type ExtractedItem } from "@/components/task-definition/AIExtractionResults";
 import { FeasibilityValidation, type FeasibilityStatus } from "@/components/task-definition/FeasibilityValidation";
 import { MultiItemInput } from "@/components/task-definition/MultiItemInput";
-// TODO: mockFeasibilityConflictsWarning — feasibility check UI placeholder (no backend endpoint yet)
-import { mockFeasibilityConflictsWarning } from "@/data/mockExtraction";
 import {
   briefExtract, type BriefExtractResponse,
   briefRewrite, type BriefRewriteResponse,
   constraintSuggest, type ConstraintSuggestResponse, type SuggestedConstraint,
+  constraintFeasibilityCheck, type FeasibilityConflictResult,
   kpiSuggest, type KpiSuggestResponse, type SuggestedKpi,
   briefGenerate5W1H,
   checkBackendHealth,
@@ -95,6 +94,7 @@ export default function TaskDefinition() {
 
   // Feasibility state
   const [feasibilityStatus, setFeasibilityStatus] = useState<FeasibilityStatus>("idle");
+  const [feasibilityConflicts, setFeasibilityConflicts] = useState<FeasibilityConflictResult[]>([]);
 
   // AI suggestion state
   const [showMissionSuggestion, setShowMissionSuggestion] = useState(false);
@@ -473,16 +473,27 @@ export default function TaskDefinition() {
     toast.success("已接受所有提取結果並填入表單");
   };
 
-  const handleFeasibilityCheck = () => {
+  const handleFeasibilityCheck = async () => {
+    if (!id) return;
+    const descriptions = constraints.map((c) => c.description).filter((d) => d.trim().length >= 2);
+    if (descriptions.length < 2) {
+      setFeasibilityStatus("pass");
+      setFeasibilityConflicts([]);
+      return;
+    }
     setFeasibilityStatus("checking");
-    setTimeout(() => {
-      // Simulate: if constraints contain potential conflicts, show warning
-      if (constraints.length >= 3) {
-        setFeasibilityStatus("warning");
-      } else {
-        setFeasibilityStatus("pass");
-      }
-    }, 2000);
+    try {
+      const result = await constraintFeasibilityCheck({
+        project_id: id,
+        mission,
+        constraints: descriptions,
+      });
+      setFeasibilityConflicts(result.conflicts);
+      setFeasibilityStatus(result.status as FeasibilityStatus);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "約束可行性驗證"));
+      setFeasibilityStatus("idle");
+    }
   };
 
   const handleFeasibilityOverride = (reason: string) => {
@@ -1024,7 +1035,7 @@ export default function TaskDefinition() {
       {/* Section 9: 約束可行性驗證 (Gate 1) */}
       <FeasibilityValidation
         status={feasibilityStatus}
-        conflicts={mockFeasibilityConflictsWarning}
+        conflicts={feasibilityConflicts.map((c, i) => ({ id: `fc-${i}`, ...c }))}
         onCheck={handleFeasibilityCheck}
         onOverride={handleFeasibilityOverride}
       />

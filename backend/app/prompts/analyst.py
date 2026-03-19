@@ -465,3 +465,48 @@ robotics, etc.) — do not limit to the project's own industry.
 }}
 </output_schema>
 """
+
+# ---------------------------------------------------------------------------
+# Constraint Feasibility Check
+# ---------------------------------------------------------------------------
+
+CONSTRAINT_FEASIBILITY = """\
+<task>
+Analyze whether the given set of constraints can be simultaneously satisfied.
+Identify pairwise conflicts or physical/economic impossibilities.
+</task>
+
+<context>
+<mission>{mission}</mission>
+<constraints>
+{constraints}
+</constraints>
+</context>
+
+<instructions>
+1. For each pair of constraints, assess whether satisfying both simultaneously is \
+physically, economically, or technically challenging.
+2. Only report **real** conflicts — do not invent issues that do not exist.
+3. For each conflict, explain why the two constraints tension each other and suggest \
+a concrete engineering trade-off or relaxation.
+4. Classify overall status:
+   - "pass" — no conflicts found; all constraints are mutually compatible.
+   - "warning" — minor tensions exist but can likely be resolved with trade-offs.
+   - "conflict" — at least one pair is physically or economically infeasible as stated.
+5. If there are fewer than 2 constraints, return status "pass" with an empty conflicts list.
+</instructions>
+
+<output_schema>
+{{
+  "status": "pass|warning|conflict",
+  "conflicts": [
+    {{
+      "constraintA": "First constraint description",
+      "constraintB": "Second constraint description",
+      "reason": "Why these two constraints conflict",
+      "suggestion": "Concrete suggestion to resolve the tension"
+    }}
+  ]
+}}
+</output_schema>
+"""

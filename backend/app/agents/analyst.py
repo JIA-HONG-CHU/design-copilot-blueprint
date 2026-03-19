@@ -11,6 +11,7 @@ from app.prompts.analyst import (
     BRIEF_EXTRACTION,
     MISSION_REWRITE,
     CONSTRAINT_SUGGESTION,
+    CONSTRAINT_FEASIBILITY,
     KPI_SUGGESTION,
     TASK_DEF_5W1H,
     SOCRATIC_QUESTIONS,
@@ -26,6 +27,8 @@ from app.models.schemas import (
     BriefRewriteResponse,
     ConstraintSuggestRequest,
     ConstraintSuggestResponse,
+    ConstraintFeasibilityRequest,
+    ConstraintFeasibilityResponse,
     KpiSuggestRequest,
     KpiSuggestResponse,
     TaskDef5W1HRequest,
@@ -78,6 +81,18 @@ def extract_brief(req: BriefExtractionRequest) -> BriefExtractionResponse:
         "feasibility_warnings": data.get("feasibility_warnings", []),
     }
     return BriefExtractionResponse(**filtered)
+
+
+def check_constraint_feasibility(req: ConstraintFeasibilityRequest) -> ConstraintFeasibilityResponse:
+    if len(req.constraints) < 2:
+        return ConstraintFeasibilityResponse(status="pass", conflicts=[])
+    prompt = CONSTRAINT_FEASIBILITY.format(
+        mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints),
+    )
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    return ConstraintFeasibilityResponse(**data)
 
 
 async def rewrite_mission(req: BriefRewriteRequest) -> BriefRewriteResponse:

@@ -388,7 +388,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                           <span className="font-medium">{getParamLabel(c.worseningParam)}</span>
                         </div>
                       </div>
-                    ) : (
+                    ) : c.pcAttributeA && c.pcAttributeNotA ? (
                       <div className="flex flex-wrap gap-2">
                         <div className="bg-muted rounded px-2 py-1 text-xs">
                           <span className="text-muted-foreground">需要: </span>
@@ -399,6 +399,15 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                           <span className="text-muted-foreground">同時需要: </span>
                           <span className="font-medium">{c.pcAttributeNotA}</span>
                         </div>
+                      </div>
+                    ) : c.pcAttributeA ? (
+                      <div className="bg-muted rounded px-2 py-1 text-xs">
+                        <span className="text-muted-foreground">物理矛盾: </span>
+                        <span className="font-medium">{c.pcAttributeA}</span>
+                      </div>
+                    ) : (
+                      <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">
+                        物理矛盾屬性尚未定義 — 請編輯或使用 AI 重新識別
                       </div>
                     )}
                     <p className="text-sm">{c.description}</p>

@@ -75,21 +75,38 @@ interface ExploreContradictionRow {
   updated_at: string;
 }
 
-const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradiction => ({
-  id: r.id,
-  projectId: r.project_id,
-  type: (r.type as ContradictionType) ?? 'TC',
-  improvingParam: r.improving_param,
-  worseningParam: r.worsening_param,
-  pcAttributeA: null, // not stored in DB yet
-  pcAttributeNotA: null,
-  description: r.engineering_statement || r.natural_description || '',
-  engineeringStatement: r.engineering_statement ?? null,
-  status: (r.resolved ? 'confirmed' : 'draft') as ContradictionStatus,
-  source: r.engineering_statement ? 'ai' : 'manual',
-  createdAt: r.created_at,
-  updatedAt: r.updated_at,
-});
+const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradiction => {
+  // Parse PC attributes from physical_contradiction field
+  // Format from manual edit: "A | notA", from AI: free-text description
+  let pcA: string | null = null;
+  let pcNotA: string | null = null;
+  if (r.physical_contradiction) {
+    const parts = r.physical_contradiction.split(' | ');
+    if (parts.length === 2) {
+      pcA = parts[0].trim() || null;
+      pcNotA = parts[1].trim() || null;
+    } else {
+      // AI returns a descriptive sentence — show as attribute A
+      pcA = r.physical_contradiction;
+    }
+  }
+
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    type: (r.type as ContradictionType) ?? 'TC',
+    improvingParam: r.improving_param,
+    worseningParam: r.worsening_param,
+    pcAttributeA: pcA,
+    pcAttributeNotA: pcNotA,
+    description: r.engineering_statement || r.natural_description || '',
+    engineeringStatement: r.engineering_statement ?? null,
+    status: (r.resolved ? 'confirmed' : 'draft') as ContradictionStatus,
+    source: r.engineering_statement ? 'ai' : 'manual',
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+};
 
 // ---------------------------------------------------------------------------
 // Row ↔ Frontend mappers — CLD Nodes

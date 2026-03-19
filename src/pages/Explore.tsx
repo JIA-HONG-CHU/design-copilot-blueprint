@@ -102,7 +102,8 @@ export default function Explore() {
       const changed =
         original.answer !== q.answer ||
         original.taggedAsAssumption !== q.taggedAsAssumption ||
-        original.taggedAsContradiction !== q.taggedAsContradiction;
+        original.taggedAsContradiction !== q.taggedAsContradiction ||
+        original.aiSuggestedTag !== q.aiSuggestedTag;
       if (changed) {
         updateQuestion.mutate({
           id: q.id,
@@ -110,6 +111,7 @@ export default function Explore() {
           answer: q.answer,
           taggedAsAssumption: q.taggedAsAssumption,
           taggedAsContradiction: q.taggedAsContradiction,
+          aiSuggestedTag: q.aiSuggestedTag,
         });
 
         // When a question is newly tagged as contradiction → create entry in contradictions table

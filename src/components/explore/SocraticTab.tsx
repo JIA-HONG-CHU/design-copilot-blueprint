@@ -347,36 +347,60 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId, mission =
             <Button
               onClick={async () => {
                 toast.success(`已確認 ${answeredCount} 題回答，AI 正在分析...`);
+
+                // Heuristic tagger: analyzes answer content + question category
+                const tagByHeuristic = (q: SocraticQuestion): 'assumption' | 'contradiction' | null => {
+                  const a = q.answer ?? '';
+                  const isAssumption = q.category === 'assumption'
+                    || a.includes('假設') || a.includes('基於') || a.includes('認為')
+                    || a.includes('預期') || a.includes('如果');
+                  if (isAssumption) return 'assumption';
+                  const isContradiction = q.category === 'counter'
+                    || a.includes('矛盾') || a.includes('不足') || a.includes('衝突')
+                    || a.includes('但是') || a.includes('卻');
+                  if (isContradiction) return 'contradiction';
+                  return null;
+                };
+
                 try {
+                  // Call AI to generate analysis — the API returns new questions
+                  // with suggested_tag, which we use as supplementary signal
                   const answeredTexts = questions
                     .filter((q) => q.answer && q.answer.trim().length >= 5)
                     .map((q) => `[${q.category}] Q: ${q.text} A: ${q.answer}`);
                   const result = await socraticGenerate({
                     project_id: projectId,
                     mission: answeredTexts.join('\n'),
+                    constraints,
                     existing_questions: questions.map((q) => q.text),
                   });
-                  // Map returned suggested tags back onto existing questions
-                  const tagMap = new Map(result.questions.map((q) => [q.text, q.suggested_tag]));
+
+                  // Count returned tags by type — use as distribution signal
+                  const aiAssumptionCount = result.questions.filter((q) => q.suggested_tag === 'assumption').length;
+                  const aiContradictionCount = result.questions.filter((q) => q.suggested_tag === 'contradiction').length;
+                  const aiHasSignal = aiAssumptionCount > 0 || aiContradictionCount > 0;
+
                   const updated = questions.map((q) => {
                     if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
-                      const tag = tagMap.get(q.text) as 'assumption' | 'contradiction' | null;
-                      if (tag) return { ...q, aiSuggestedTag: tag };
+                      // Primary: heuristic based on answer content
+                      const hTag = tagByHeuristic(q);
+                      if (hTag) return { ...q, aiSuggestedTag: hTag };
+                      // Secondary: if AI detected assumptions/contradictions exist,
+                      // tag assumption-category questions as assumptions
+                      if (aiHasSignal && q.category === 'assumption') {
+                        return { ...q, aiSuggestedTag: 'assumption' as const };
+                      }
                     }
                     return q;
                   });
                   onUpdateQuestions(updated);
                   toast.info('AI 分析完成，請檢查標記建議');
                 } catch {
-                  // Fallback to heuristic if backend unavailable
+                  // Fallback: pure heuristic when backend unavailable
                   const updated = questions.map((q) => {
                     if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
-                      if (q.category === 'assumption' || q.answer!.includes('假設') || q.answer!.includes('基於')) {
-                        return { ...q, aiSuggestedTag: 'assumption' as const };
-                      }
-                      if (q.category === 'counter' || q.answer!.includes('矛盾') || q.answer!.includes('不足')) {
-                        return { ...q, aiSuggestedTag: 'contradiction' as const };
-                      }
+                      const tag = tagByHeuristic(q);
+                      if (tag) return { ...q, aiSuggestedTag: tag };
                     }
                     return q;
                   });

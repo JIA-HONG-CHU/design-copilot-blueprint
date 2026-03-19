@@ -597,6 +597,8 @@ export interface ContradictionFormalizeResponse {
   improving_param: number | null;
   worsening_param: number | null;
   physical_contradiction: string | null;
+  pc_attribute_a: string | null;
+  pc_attribute_not_a: string | null;
   type: "TC" | "PC";
   confidence: number;
 }

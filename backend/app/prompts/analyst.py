@@ -350,12 +350,18 @@ Convert the following natural-language contradiction into a TRIZ-standard formal
 </input>
 
 <instructions>
-1. Produce an engineering statement: "Improving [Parameter A] worsens [Parameter B]."
-2. Map to TRIZ 39 engineering parameters (1–39). Use null if no confident mapping exists.
-3. Classify the contradiction type:
+1. Produce an engineering statement describing the contradiction in one sentence.
+2. Classify the contradiction type:
    - **TC** (Technical Contradiction): two different parameters conflict.
    - **PC** (Physical Contradiction): one parameter must simultaneously satisfy opposing demands.
-4. If PC, write a physical_contradiction description.
+3. For TC:
+   - Map improving and worsening parameters to TRIZ 39 engineering parameters (1–39).
+   - Use null if no confident mapping exists.
+4. For PC:
+   - Extract the required attribute (pc_attribute_a): the property the system needs.
+   - Extract the opposing attribute (pc_attribute_not_a): the contradictory property the system also needs.
+   - Each attribute should be a concise phrase (e.g., "高計算深度", "低計算量"), NOT a full sentence.
+   - Store the full description in physical_contradiction.
 5. Assign a confidence score (0–1) for the mapping quality.
 </instructions>
 
@@ -365,10 +371,25 @@ Convert the following natural-language contradiction into a TRIZ-standard formal
   "improving_param": 14,
   "worsening_param": 1,
   "physical_contradiction": null,
+  "pc_attribute_a": null,
+  "pc_attribute_not_a": null,
   "type": "TC",
   "confidence": 0.8
 }}
 </output_schema>
+
+<example_pc>
+{{
+  "engineering_statement": "The VLM model must have both high computational depth and low computational cost",
+  "improving_param": null,
+  "worsening_param": null,
+  "physical_contradiction": "The core model requires large-scale parameters for high recall, but must also meet real-time inference latency requirements",
+  "pc_attribute_a": "高計算深度（大規模參數以達成極高召回率）",
+  "pc_attribute_not_a": "低計算量（滿足產線即時推論延遲要求）",
+  "type": "PC",
+  "confidence": 0.85
+}}
+</example_pc>
 """
 
 # ---------------------------------------------------------------------------

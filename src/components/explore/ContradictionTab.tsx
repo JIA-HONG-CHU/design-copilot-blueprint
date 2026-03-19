@@ -165,7 +165,9 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                 improving_param: result.improving_param,
                 worsening_param: result.worsening_param,
                 engineering_statement: result.engineering_statement,
-                physical_contradiction: result.physical_contradiction,
+                physical_contradiction: result.pc_attribute_a && result.pc_attribute_not_a
+                  ? `${result.pc_attribute_a} | ${result.pc_attribute_not_a}`
+                  : result.physical_contradiction,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', c.id);

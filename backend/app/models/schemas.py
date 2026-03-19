@@ -439,6 +439,8 @@ class ContradictionFormalizeResponse(BaseModel):
     improving_param: int | None = None
     worsening_param: int | None = None
     physical_contradiction: str | None = None
+    pc_attribute_a: str | None = None
+    pc_attribute_not_a: str | None = None
     type: str = "TC"  # TC or PC
     confidence: float = Field(ge=0, le=1, default=0.7)
 

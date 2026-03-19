@@ -1,10 +1,17 @@
+import { useMemo, useCallback } from "react";
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import logoImg from "@/assets/logo-delta.svg";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { useProject } from "@/hooks/api/useProjects";
-import type { PhaseProgress } from "@/types/project";
+import {
+  globalNavItems,
+  projectSteps,
+  phaseLabels,
+  getStepStatus,
+} from "@/config/navigationSteps";
+import type { StepStatusValue } from "@/config/navigationSteps";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,63 +21,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  FolderKanban, BookOpen, Settings, LayoutDashboard,
-  ClipboardList, Compass, ListChecks, Wand2, Search, Gavel, GraduationCap,
-  LogOut, Sun, Moon, Monitor, ChevronDown, ShieldCheck,
+  LayoutDashboard,
+  LogOut, Sun, Moon, Monitor, ChevronDown, Settings,
 } from "lucide-react";
 
-const globalNavItems = [
-  { label: "專案列表", path: "/projects", icon: FolderKanban },
-  { label: "知識庫", path: "/knowledge-base", icon: BookOpen },
-  { label: "設定", path: "/settings", icon: Settings },
-];
-
-const projectSteps = [
-  { id: "brief", label: "Brief", zhLabel: "定義簡報", icon: ClipboardList, route: "brief", phase: 1 },
-  { id: "explore", label: "Explore", zhLabel: "問題探索", icon: Compass, route: "explore", phase: 1 },
-  { id: "track", label: "Track", zhLabel: "假設追蹤", icon: ListChecks, route: "track", phase: 2 },
-  { id: "create", label: "Create", zhLabel: "方案創造", icon: Wand2, route: "create", phase: 2 },
-  { id: "pre-cad", label: "Pre-CAD", zhLabel: "Pre-CAD 審查", icon: ShieldCheck, route: "pre-cad", phase: 2 },
-  { id: "review", label: "Review", zhLabel: "設計審查", icon: Search, route: "review", phase: 3 },
-  { id: "decide", label: "Decide", zhLabel: "最終決策", icon: Gavel, route: "decide", phase: 3 },
-  { id: "feynman", label: "Feynman", zhLabel: "內化傳達", icon: GraduationCap, route: "feynman", phase: 3 },
-];
-
-const phaseLabels: Record<number, string> = {
-  1: "Define",
-  2: "Diverge",
-  3: "Converge",
-};
-
-/** Map each sidebar step to the phase_progress keys it covers */
-const stepProgressKeys: Record<string, (keyof PhaseProgress)[]> = {
-  brief:   ["1.1"],
-  explore: ["1.2", "1.3"],
-  track:   ["2.1"],
-  create:  ["2.2"],
-  "pre-cad": ["2.3"],
-  review:  ["3.1"],
-  decide:  ["3.2"],
-  feynman: ["3.3"],
-};
-
-function getStepStatus(
-  pathname: string,
-  route: string,
-  projectId: string,
-  progress?: PhaseProgress,
-): "active" | "completed" | "not_started" {
-  const fullPath = `/projects/${projectId}/${route}`;
-  if (pathname === fullPath || pathname.startsWith(fullPath + "/")) return "active";
-  if (progress) {
-    const keys = stepProgressKeys[route];
-    if (keys && keys.every((k) => progress[k] === "passed")) return "completed";
-    if (keys && keys.some((k) => progress[k] === "in_progress")) return "active";
-  }
-  return "not_started";
-}
-
-function StatusDot({ status }: { status: "active" | "completed" | "not_started" }) {
+function StatusDot({ status }: { status: StepStatusValue }) {
   if (status === "completed") return <span className="text-[10px] text-primary">✓</span>;
   if (status === "active") return <span className="text-[10px] animate-pulse text-primary">◉</span>;
   return <span className="text-[10px] text-muted-foreground">○</span>;
@@ -86,17 +41,32 @@ export function AppSidebar() {
   const isInsideProject = !!projectId && location.pathname.startsWith(`/projects/${projectId}`);
   const { data: project } = useProject(isInsideProject ? projectId : undefined);
 
-  const initials = user?.user_metadata?.display_name
-    ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
-    : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+  const stepsByPhase = useMemo(
+    () =>
+      [1, 2, 3].map((phase) => ({
+        phase,
+        steps: projectSteps.filter((s) => s.phase === phase),
+      })),
+    [],
+  );
 
-  const handleSignOut = async () => {
+  const initials = useMemo(
+    () =>
+      user?.user_metadata?.display_name
+        ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
+        : user?.email?.slice(0, 2).toUpperCase() ?? "U",
+    [user?.user_metadata?.display_name, user?.email],
+  );
+
+  const handleSignOut = useCallback(async () => {
     await signOut();
     navigate("/auth");
-  };
+  }, [signOut, navigate]);
 
-  const themeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
-  const ThemeIcon = themeIcon;
+  const ThemeIcon = useMemo(
+    () => (theme === "dark" ? Moon : theme === "light" ? Sun : Monitor),
+    [theme],
+  );
 
   return (
     <aside className="hidden md:flex md:flex-col md:w-60 border-r border-sidebar-border bg-sidebar shrink-0">
@@ -157,14 +127,14 @@ export function AppSidebar() {
             </NavLink>
 
             {/* 6+1 steps with phase grouping */}
-            {[1, 2, 3].map(phase => (
+            {stepsByPhase.map(({ phase, steps }) => (
               <div key={phase} className="space-y-0.5">
                 <p className={cn("text-[10px] font-semibold px-3 pt-3 pb-0.5 uppercase tracking-wider",
                   phase === 1 ? "text-phase-1" : phase === 2 ? "text-phase-2" : "text-phase-3"
                 )}>
                   Phase {phase} · {phaseLabels[phase]}
                 </p>
-                {projectSteps.filter(s => s.phase === phase).map(step => {
+                {steps.map(step => {
                   const status = getStepStatus(location.pathname, step.route, projectId!, project?.phase_progress);
                   const isActive = status === "active";
                   return (

@@ -116,7 +116,7 @@ function mapExperimentRow(row: ExperimentRow): Experiment {
 export function useTrackAssumptions(projectId: string | undefined) {
   const query = useSupabaseQuery<AssumptionRow[]>({
     table: 'assumptions',
-    queryKey: queryKeys.track.assumptions(projectId ?? ''),
+    queryKey: queryKeys.track.assumptions(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq', value: projectId }]
       : [],
@@ -142,8 +142,8 @@ export function useUpdateTrackAssumptionStatus(projectId: string | undefined) {
     table: 'assumptions',
     type: 'update',
     invalidateKeys: [
-      queryKeys.track.assumptions(projectId ?? ''),
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.track.assumptions(projectId),
+      queryKeys.assumptions.byProject(projectId),
     ],
     successMessage: false,
   });
@@ -320,8 +320,8 @@ export function useConvertUnknownToAssumption(projectId: string | undefined) {
     table: 'assumptions',
     type: 'insert',
     invalidateKeys: [
-      queryKeys.track.assumptions(projectId ?? ''),
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.track.assumptions(projectId),
+      queryKeys.assumptions.byProject(projectId),
     ],
     successMessage: '已轉化為假設',
   });
@@ -376,7 +376,7 @@ export function useConvertUnknownToAssumption(projectId: string | undefined) {
 export function useTrackExperiments(assumptionCode: string | undefined) {
   const query = useSupabaseQuery<ExperimentRow[]>({
     table: 'experiments',
-    queryKey: queryKeys.experiments.byAssumptionCode(assumptionCode ?? ''),
+    queryKey: queryKeys.experiments.byAssumptionCode(assumptionCode),
     filters: assumptionCode
       ? [{ column: 'assumption_code', operator: 'eq', value: assumptionCode }]
       : [],

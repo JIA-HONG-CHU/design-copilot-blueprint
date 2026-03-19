@@ -82,7 +82,7 @@ function mapRowToSolution(r: AlternativeRow): Solution {
 
 export function usePreCadSolutions(projectId: string | undefined) {
   return useQuery<Solution[], Error>({
-    queryKey: [...queryKeys.alternatives.byProject(projectId ?? ''), 'pre-cad'],
+    queryKey: [...queryKeys.alternatives.byProject(projectId), 'pre-cad'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alternatives')
@@ -119,7 +119,7 @@ interface ConvergenceStats {
 
 export function usePreCadConvergenceStats(projectId: string | undefined) {
   return useQuery<ConvergenceStats, Error>({
-    queryKey: [...queryKeys.contradictions.byProject(projectId ?? ''), 'convergence-stats'],
+    queryKey: [...queryKeys.contradictions.byProject(projectId), 'convergence-stats'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contradictions')

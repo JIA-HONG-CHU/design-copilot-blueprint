@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import logoImg from "@/assets/logo-delta.svg";
 import { NavLink, useLocation, useParams, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -8,29 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  FolderKanban, BookOpen, Settings, LayoutDashboard, Menu,
-  ClipboardList, Compass, ListChecks, Wand2, Search, Gavel, GraduationCap,
-  LogOut, Sun, Moon, Monitor, ShieldCheck,
+  globalNavItems,
+  projectSteps,
+  phaseLabels,
+} from "@/config/navigationSteps";
+import {
+  LayoutDashboard, Menu,
+  LogOut, Sun, Moon, Monitor,
 } from "lucide-react";
-
-const navItems = [
-  { label: "專案列表", path: "/projects", icon: FolderKanban },
-  { label: "知識庫", path: "/knowledge-base", icon: BookOpen },
-  { label: "設定", path: "/settings", icon: Settings },
-];
-
-const projectSteps = [
-  { id: "brief", label: "Brief", zhLabel: "定義簡報", icon: ClipboardList, route: "brief", phase: 1 },
-  { id: "explore", label: "Explore", zhLabel: "問題探索", icon: Compass, route: "explore", phase: 1 },
-  { id: "track", label: "Track", zhLabel: "假設追蹤", icon: ListChecks, route: "track", phase: 2 },
-  { id: "create", label: "Create", zhLabel: "方案創造", icon: Wand2, route: "create", phase: 2 },
-  { id: "pre-cad", label: "Pre-CAD", zhLabel: "Pre-CAD 審查", icon: ShieldCheck, route: "pre-cad", phase: 2 },
-  { id: "review", label: "Review", zhLabel: "設計審查", icon: Search, route: "review", phase: 3 },
-  { id: "decide", label: "Decide", zhLabel: "最終決策", icon: Gavel, route: "decide", phase: 3 },
-  { id: "feynman", label: "Feynman", zhLabel: "內化傳達", icon: GraduationCap, route: "feynman", phase: 3 },
-];
-
-const phaseLabels: Record<number, string> = { 1: "Define", 2: "Diverge", 3: "Converge" };
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -42,17 +27,24 @@ export function MobileNav() {
 
   const isInsideProject = !!projectId && location.pathname.startsWith(`/projects/${projectId}`);
 
-  const initials = user?.user_metadata?.display_name
-    ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
-    : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+  const initials = useMemo(
+    () =>
+      user?.user_metadata?.display_name
+        ? user.user_metadata.display_name.slice(0, 2).toUpperCase()
+        : user?.email?.slice(0, 2).toUpperCase() ?? "U",
+    [user?.user_metadata?.display_name, user?.email],
+  );
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     setOpen(false);
     await signOut();
     navigate("/auth");
-  };
+  }, [signOut, navigate]);
 
-  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const ThemeIcon = useMemo(
+    () => (theme === "dark" ? Moon : theme === "light" ? Sun : Monitor),
+    [theme],
+  );
 
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden bg-card">
@@ -72,7 +64,7 @@ export function MobileNav() {
             <span className="font-semibold text-sm tracking-tight">RD Design Copilot</span>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
+            {globalNavItems.map((item) => {
               const isActive =
                 location.pathname === item.path ||
                 location.pathname.startsWith(item.path + "/");

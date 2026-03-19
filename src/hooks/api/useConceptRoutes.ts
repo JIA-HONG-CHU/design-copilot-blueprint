@@ -74,7 +74,7 @@ const mapPairRow = (r: CompatibilityPairRow): SolutionCompatibility => ({
 
 export function useConceptRoutes(projectId: string | undefined) {
   return useQuery<ConceptRoute[], Error>({
-    queryKey: queryKeys.concept_routes.byProject(projectId ?? ''),
+    queryKey: queryKeys.concept_routes.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('concept_routes')
@@ -139,7 +139,7 @@ export function useCreateConceptRoute() {
 
 export function useCompatibilityPairs(projectId: string | undefined) {
   return useQuery<SolutionCompatibility[], Error>({
-    queryKey: queryKeys.compatibility_pairs.byProject(projectId ?? ''),
+    queryKey: queryKeys.compatibility_pairs.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('compatibility_pairs')

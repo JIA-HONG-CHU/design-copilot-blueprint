@@ -57,7 +57,7 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
 
 export function useContradictions(projectId: string | undefined) {
   return useQuery<Contradiction[], Error>({
-    queryKey: queryKeys.contradictions.byProject(projectId ?? ''),
+    queryKey: queryKeys.contradictions.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contradictions')

@@ -125,7 +125,7 @@ function solutionToRow(
 
 export function useSolutions(projectId: string | undefined) {
   return useQuery<Solution[], Error>({
-    queryKey: queryKeys.alternatives.byProject(projectId ?? ''),
+    queryKey: queryKeys.alternatives.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alternatives')
@@ -231,7 +231,7 @@ interface ContradictionRow {
 
 export function useConvergenceGraph(projectId: string | undefined) {
   return useQuery<{ nodes: ConvergenceNode[]; edges: ConvergenceEdge[] }, Error>({
-    queryKey: [...queryKeys.alternatives.byProject(projectId ?? ''), 'convergence'],
+    queryKey: [...queryKeys.alternatives.byProject(projectId), 'convergence'],
     queryFn: async () => {
       // Fetch contradictions
       const { data: contRows, error: contErr } = await supabase

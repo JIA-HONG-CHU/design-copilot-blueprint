@@ -160,7 +160,7 @@ async function propagateEvidence(entry: EvidenceEntryRow) {
 
 export function useEvidenceEntries(projectId: string | undefined) {
   return useQuery<EvidenceEntry[], Error>({
-    queryKey: queryKeys.evidence_entries.byProject(projectId ?? ''),
+    queryKey: queryKeys.evidence_entries.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('evidence_entries')
@@ -183,7 +183,7 @@ export function useEvidenceEntries(projectId: string | undefined) {
 
 export function useEvidenceEntriesByKpi(kpiId: string | undefined) {
   return useQuery<EvidenceEntry[], Error>({
-    queryKey: queryKeys.evidence_entries.byKpi(kpiId ?? ''),
+    queryKey: queryKeys.evidence_entries.byKpi(kpiId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('evidence_entries')

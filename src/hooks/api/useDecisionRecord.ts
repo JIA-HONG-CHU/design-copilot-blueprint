@@ -180,7 +180,7 @@ function mapActionItem(row: ActionItemRow): ActionItem {
  */
 export function useDecision(projectId: string | undefined) {
   return useQuery<(KtDecision & { id: string }) | null, Error>({
-    queryKey: queryKeys.decisions.byProject(projectId ?? ''),
+    queryKey: queryKeys.decisions.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('decisions')
@@ -267,7 +267,7 @@ export function useUpsertDecision() {
 
 export function useWantCriteria(projectId: string | undefined) {
   return useQuery<WantCriterion[], Error>({
-    queryKey: queryKeys.want_criteria.byProject(projectId ?? ''),
+    queryKey: queryKeys.want_criteria.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('want_criteria')
@@ -383,7 +383,7 @@ export function useDeleteWantCriterion() {
  */
 export function useWantScores(projectId: string | undefined) {
   return useQuery<WantScore[], Error>({
-    queryKey: queryKeys.want_scores.byProject(projectId ?? ''),
+    queryKey: queryKeys.want_scores.byProject(projectId),
     queryFn: async () => {
       // Fetch scores
       const { data: scoreRows, error: scoreErr } = await supabase
@@ -515,7 +515,7 @@ export function useUpsertWantScore() {
 
 export function useAdverseConsequences(projectId: string | undefined) {
   return useQuery<AdverseConsequence[], Error>({
-    queryKey: queryKeys.adverse_consequences.byProject(projectId ?? ''),
+    queryKey: queryKeys.adverse_consequences.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('adverse_consequences')
@@ -627,7 +627,7 @@ export function useUpdateAdverseConsequence() {
 
 export function useSignatures(projectId: string | undefined) {
   return useQuery<(Signature & { id: string; decisionId: string })[], Error>({
-    queryKey: queryKeys.signatures.byProject(projectId ?? ''),
+    queryKey: queryKeys.signatures.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('signatures')
@@ -731,7 +731,7 @@ export function useUpdateSignature() {
 
 export function useActionItems(projectId: string | undefined, decisionId?: string) {
   return useQuery<ActionItem[], Error>({
-    queryKey: queryKeys.action_items.byProject(projectId ?? ''),
+    queryKey: queryKeys.action_items.byProject(projectId),
     queryFn: async () => {
       let query = supabase
         .from('action_items')

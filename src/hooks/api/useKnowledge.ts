@@ -148,7 +148,7 @@ export function useKnowledgeArticles() {
 export function useKnowledgeArticle(slug: string | undefined) {
   const result = useSupabaseQuery<KnowledgeArticleDbRow>({
     table: 'knowledge_articles',
-    queryKey: queryKeys.knowledge_articles.bySlug(slug ?? ''),
+    queryKey: queryKeys.knowledge_articles.bySlug(slug),
     filters: slug
       ? [{ column: 'slug', operator: 'eq' as const, value: slug }]
       : [],
@@ -209,7 +209,7 @@ export function useUpdateKnowledgeArticle() {
 export function useKnowledgeEntries(projectId: string | undefined) {
   const result = useSupabaseQuery<KnowledgeEntryDbRow[]>({
     table: 'knowledge_entries',
-    queryKey: queryKeys.knowledge_entries.byProject(projectId ?? ''),
+    queryKey: queryKeys.knowledge_entries.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq' as const, value: projectId }]
       : [],
@@ -258,7 +258,7 @@ export function useUpdateKnowledgeEntry() {
 export function useConstraintLabelMap(projectId: string | undefined) {
   const result = useSupabaseQuery<KnowledgeEntryDbRow[]>({
     table: 'knowledge_entries',
-    queryKey: queryKeys.constraint_labels.byProject(projectId ?? ''),
+    queryKey: queryKeys.constraint_labels.byProject(projectId),
     filters: projectId
       ? [
           { column: 'project_id', operator: 'eq' as const, value: projectId },
@@ -405,7 +405,7 @@ export interface ConstraintLabelHistoryItem {
 export function useConstraintLabelHistory(projectId: string | undefined, limit = 20) {
   const result = useSupabaseQuery<KnowledgeEntryDbRow[]>({
     table: 'knowledge_entries',
-    queryKey: [...queryKeys.constraint_labels.historyByProject(projectId ?? ''), limit],
+    queryKey: [...queryKeys.constraint_labels.historyByProject(projectId), limit],
     filters: projectId
       ? [
           { column: 'project_id', operator: 'eq' as const, value: projectId },

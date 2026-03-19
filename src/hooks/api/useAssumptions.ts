@@ -148,7 +148,7 @@ function mapRowToLinkedContradiction(row: ContradictionRow): LinkedContradiction
 export function useAssumptions(projectId: string | undefined) {
   const query = useSupabaseQuery<AssumptionRow[]>({
     table: 'assumptions',
-    queryKey: queryKeys.assumptions.byProject(projectId ?? ''),
+    queryKey: queryKeys.assumptions.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq', value: projectId }]
       : [],
@@ -174,7 +174,7 @@ export function useCreateAssumption(projectId: string | undefined) {
     table: 'assumptions',
     type: 'insert',
     invalidateKeys: [
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.assumptions.byProject(projectId),
       queryKeys.assumptions.all,
     ],
     successMessage: '假設已新增',
@@ -191,7 +191,7 @@ export function useCreateAssumptionMapped(projectId: string | undefined) {
     table: 'assumptions',
     type: 'insert',
     invalidateKeys: [
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.assumptions.byProject(projectId),
       queryKeys.assumptions.all,
     ],
     successMessage: '假設已新增',
@@ -220,7 +220,7 @@ export function useUpdateAssumption(projectId: string | undefined) {
     table: 'assumptions',
     type: 'update',
     invalidateKeys: [
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.assumptions.byProject(projectId),
       queryKeys.assumptions.all,
     ],
     successMessage: false,
@@ -262,7 +262,7 @@ export function useDeleteAssumption(projectId: string | undefined) {
     table: 'assumptions',
     type: 'delete',
     invalidateKeys: [
-      queryKeys.assumptions.byProject(projectId ?? ''),
+      queryKeys.assumptions.byProject(projectId),
       queryKeys.assumptions.all,
     ],
     successMessage: '假設已刪除',
@@ -276,7 +276,7 @@ export function useDeleteAssumption(projectId: string | undefined) {
 export function useCldNodes(projectId: string | undefined) {
   const query = useSupabaseQuery<CldNodeRow[]>({
     table: 'cld_nodes',
-    queryKey: queryKeys.cld_nodes.byProject(projectId ?? ''),
+    queryKey: queryKeys.cld_nodes.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq', value: projectId }]
       : [],
@@ -296,7 +296,7 @@ export function useCldNodes(projectId: string | undefined) {
 export function useCldEdges(projectId: string | undefined) {
   const query = useSupabaseQuery<CldEdgeRow[]>({
     table: 'cld_edges',
-    queryKey: queryKeys.cld_edges.byProject(projectId ?? ''),
+    queryKey: queryKeys.cld_edges.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq', value: projectId }]
       : [],
@@ -316,7 +316,7 @@ export function useCldEdges(projectId: string | undefined) {
 export function useLinkedContradictions(projectId: string | undefined) {
   const query = useSupabaseQuery<ContradictionRow[]>({
     table: 'contradictions',
-    queryKey: queryKeys.contradictions.byProject(projectId ?? ''),
+    queryKey: queryKeys.contradictions.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq', value: projectId }]
       : [],

@@ -157,7 +157,7 @@ const mapCldEdgeRow = (r: CldEdgeRow): CausalEdge => ({
 
 export function useSocraticQuestions(projectId: string | undefined) {
   return useQuery<SocraticQuestion[], Error>({
-    queryKey: queryKeys.socratic_questions.byProject(projectId ?? ''),
+    queryKey: queryKeys.socratic_questions.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('socratic_questions')
@@ -247,7 +247,7 @@ export function useUpdateSocraticQuestion() {
 
 export function useExploreContradictions(projectId: string | undefined) {
   return useQuery<ExploreContradiction[], Error>({
-    queryKey: queryKeys.contradictions.byProject(projectId ?? ''),
+    queryKey: queryKeys.contradictions.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contradictions')
@@ -268,7 +268,7 @@ export function useExploreContradictions(projectId: string | undefined) {
 
 export function useCldNodes(projectId: string | undefined) {
   return useQuery<CausalNode[], Error>({
-    queryKey: queryKeys.cld_nodes.byProject(projectId ?? ''),
+    queryKey: queryKeys.cld_nodes.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cld_nodes')
@@ -354,7 +354,7 @@ export function useMutateCldNode() {
 
 export function useCldEdges(projectId: string | undefined) {
   return useQuery<CausalEdge[], Error>({
-    queryKey: queryKeys.cld_edges.byProject(projectId ?? ''),
+    queryKey: queryKeys.cld_edges.byProject(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cld_edges')

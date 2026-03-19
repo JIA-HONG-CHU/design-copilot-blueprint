@@ -85,7 +85,7 @@ export function useProjects() {
 
 export function useProject(id: string | undefined) {
   return useQuery<Project, Error>({
-    queryKey: queryKeys.projects.detail(id ?? ''),
+    queryKey: queryKeys.projects.detail(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
@@ -211,7 +211,7 @@ export function useDeleteProject() {
 
 export function useProjectStats(projectId: string | undefined) {
   return useQuery<QuickStats, Error>({
-    queryKey: queryKeys.projects.stats(projectId ?? ''),
+    queryKey: queryKeys.projects.stats(projectId),
     queryFn: async () => {
       const id = projectId!;
 

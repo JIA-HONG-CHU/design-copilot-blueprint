@@ -181,7 +181,7 @@ function mapAlternative(row: AlternativeRow): Alternative {
 export function useAntiAnchorRoutes(projectId: string | undefined) {
   const result = useSupabaseQuery<AntiAnchorRouteRow[]>({
     table: 'anti_anchor_routes',
-    queryKey: queryKeys.anti_anchor_routes.byProject(projectId ?? ''),
+    queryKey: queryKeys.anti_anchor_routes.byProject(projectId),
     filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,
@@ -230,7 +230,7 @@ export function useUpdateAntiAnchorRoute() {
 export function useTrizSolutions(projectId: string | undefined) {
   const result = useSupabaseQuery<TrizSolutionRow[]>({
     table: 'triz_solutions',
-    queryKey: queryKeys.triz_solutions.byProject(projectId ?? ''),
+    queryKey: queryKeys.triz_solutions.byProject(projectId),
     filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,
@@ -280,7 +280,7 @@ export function useUpdateTrizSolution() {
 export function useSubsystems(projectId: string | undefined) {
   const result = useSupabaseQuery<SubsystemRow[]>({
     table: 'subsystems',
-    queryKey: queryKeys.subsystems.byProject(projectId ?? ''),
+    queryKey: queryKeys.subsystems.byProject(projectId),
     filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,
@@ -344,7 +344,7 @@ export function useDeleteSubsystem() {
 export function useScamperVariants(projectId: string | undefined) {
   const result = useSupabaseQuery<ScamperVariantRow[]>({
     table: 'scamper_variants',
-    queryKey: queryKeys.scamper_variants.byProject(projectId ?? ''),
+    queryKey: queryKeys.scamper_variants.byProject(projectId),
     filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,
@@ -393,7 +393,7 @@ export function useUpdateScamperVariant() {
 export function useAlternatives(projectId: string | undefined) {
   const result = useSupabaseQuery<AlternativeRow[]>({
     table: 'alternatives',
-    queryKey: queryKeys.alternatives.byProject(projectId ?? ''),
+    queryKey: queryKeys.alternatives.byProject(projectId),
     filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,

@@ -101,7 +101,7 @@ function mapKpi(row: KpiRow): KpiFrontend {
 export function useBrief(projectId: string | undefined) {
   const query = useSupabaseQuery<BriefRow>({
     table: 'briefs',
-    queryKey: queryKeys.briefs.detail(projectId ?? ''),
+    queryKey: queryKeys.briefs.detail(projectId),
     filters: [{ column: 'project_id', operator: 'eq', value: projectId }],
     single: true,
     enabled: !!projectId,
@@ -132,7 +132,7 @@ export function useUpsertBrief() {
 export function useConstraints(projectId: string | undefined) {
   const query = useSupabaseQuery<ConstraintRow[]>({
     table: 'constraints',
-    queryKey: queryKeys.constraints.byProject(projectId ?? ''),
+    queryKey: queryKeys.constraints.byProject(projectId),
     filters: [{ column: 'project_id', operator: 'eq', value: projectId }],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,
@@ -182,7 +182,7 @@ export function useDeleteConstraint() {
 export function useKpis(projectId: string | undefined) {
   const query = useSupabaseQuery<KpiRow[]>({
     table: 'kpis',
-    queryKey: queryKeys.kpis.byProject(projectId ?? ''),
+    queryKey: queryKeys.kpis.byProject(projectId),
     filters: [{ column: 'project_id', operator: 'eq', value: projectId }],
     orderBy: { column: 'created_at', ascending: true },
     enabled: !!projectId,

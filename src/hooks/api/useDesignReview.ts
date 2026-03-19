@@ -103,7 +103,7 @@ function mapExperiment(row: ExperimentDbRow): Experiment {
 export function useEvidenceMatrix(projectId: string | undefined) {
   const result = useSupabaseQuery<EvidenceMatrixDbRow[]>({
     table: 'evidence_matrix',
-    queryKey: queryKeys.evidence_matrix.byProject(projectId ?? ''),
+    queryKey: queryKeys.evidence_matrix.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq' as const, value: projectId }]
       : [],
@@ -153,7 +153,7 @@ export function useUpdateEvidenceRow() {
 export function useRisks(projectId: string | undefined) {
   const result = useSupabaseQuery<RiskDbRow[]>({
     table: 'risks',
-    queryKey: queryKeys.risks.byProject(projectId ?? ''),
+    queryKey: queryKeys.risks.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq' as const, value: projectId }]
       : [],
@@ -215,7 +215,7 @@ export function useDeleteRisk() {
 export function useExperiments(projectId: string | undefined) {
   const result = useSupabaseQuery<ExperimentDbRow[]>({
     table: 'experiments',
-    queryKey: queryKeys.experiments.byProject(projectId ?? ''),
+    queryKey: queryKeys.experiments.byProject(projectId),
     filters: projectId
       ? [{ column: 'project_id', operator: 'eq' as const, value: projectId }]
       : [],

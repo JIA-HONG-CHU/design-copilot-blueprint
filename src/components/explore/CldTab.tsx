@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,20 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Star, Loader2, ZoomIn, ZoomOut, Maximize2, Check } from "lucide-react";
+import { Sparkles, Star, Loader2, Check } from "lucide-react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  type Node,
+  type Edge,
+  type NodeMouseHandler,
+  type NodeChange,
+  applyNodeChanges,
+  MarkerType,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import Dagre from "@dagrejs/dagre";
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -26,17 +39,88 @@ interface CldTabProps {
   kpis?: string[];
 }
 
-const CANVAS_W = 550;
-const CANVAS_H = 350;
-const NODE_W = 100;
-const NODE_H = 36;
+const NODE_W = 140;
+const NODE_H = 40;
+
+// ── Dagre auto-layout ────────────────────────────────────────────────────────
+
+function layoutWithDagre(nodes: Node[], edges: Edge[]): Node[] {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 80 });
+
+  for (const node of nodes) {
+    g.setNode(node.id, { width: NODE_W, height: NODE_H });
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
+  }
+
+  Dagre.layout(g);
+
+  return nodes.map((node) => {
+    const pos = g.node(node.id);
+    return {
+      ...node,
+      position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
+    };
+  });
+}
+
+// ── Map CausalLoop → React Flow nodes/edges ──────────────────────────────────
+
+function toFlowNodes(causalNodes: CausalNode[]): Node[] {
+  return causalNodes.map((n) => ({
+    id: n.id,
+    position: n.position,
+    data: { label: n.label, isBreakpoint: n.isBreakpoint },
+    style: {
+      width: NODE_W,
+      height: NODE_H,
+      borderRadius: 8,
+      border: n.isBreakpoint ? "2px dashed #dc3545" : "1px solid #e9ecef",
+      background: n.isBreakpoint ? "#fff5f5" : "#ffffff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 12,
+      fontWeight: n.isBreakpoint ? 600 : 400,
+      cursor: "pointer",
+    },
+  }));
+}
+
+function toFlowEdges(causalEdges: CausalEdge[]): Edge[] {
+  return causalEdges.map((e) => {
+    const isPositive = e.feedbackType === "positive";
+    const color = isPositive ? "#3B82F6" : "#dc3545";
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      animated: false,
+      label: isPositive ? "+" : "−",
+      labelStyle: { fill: color, fontWeight: 700, fontSize: 14 },
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9 },
+      labelBgPadding: [4, 4] as [number, number],
+      labelBgBorderRadius: 4,
+      style: { stroke: color, strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color,
+        width: 16,
+        height: 16,
+      },
+    };
+  });
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis }: CldTabProps) {
   const qc = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [editReason, setEditReason] = useState('');
+  const [editReason, setEditReason] = useState("");
 
   const selectedNode = causalLoop?.nodes.find((n) => n.id === selectedNodeId) ?? null;
   const breakpointsCount = causalLoop?.nodes.filter((n) => n.isBreakpoint).length ?? 0;
@@ -45,6 +129,37 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
     qc.invalidateQueries({ queryKey: queryKeys.cld_nodes.byProject(projectId) });
     qc.invalidateQueries({ queryKey: queryKeys.cld_edges.byProject(projectId) });
   };
+
+  // ── React Flow data (memoized) ──────────────────────────────────────────
+
+  const flowEdges = useMemo(() => (causalLoop ? toFlowEdges(causalLoop.edges) : []), [causalLoop]);
+
+  const flowNodes = useMemo(() => {
+    if (!causalLoop) return [];
+    const raw = toFlowNodes(causalLoop.nodes);
+    // Apply dagre layout for clean positioning
+    return layoutWithDagre(raw, flowEdges);
+  }, [causalLoop, flowEdges]);
+
+  const [localNodes, setLocalNodes] = useState<Node[]>([]);
+
+  // Sync flowNodes → localNodes when data changes
+  useMemo(() => {
+    setLocalNodes(flowNodes);
+  }, [flowNodes]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => setLocalNodes((nds) => applyNodeChanges(changes, nds)),
+    [],
+  );
+
+  // ── Handlers ────────────────────────────────────────────────────────────
+
+  const handleNodeClick: NodeMouseHandler = useCallback((_event, node) => {
+    setSelectedNodeId(node.id);
+    const cn = causalLoop?.nodes.find((n) => n.id === node.id);
+    setEditReason(cn?.breakpointReason ?? "");
+  }, [causalLoop]);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -59,30 +174,26 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
       });
 
       // Delete existing CLD data for this project
-      await supabase.from('cld_edges').delete().eq('project_id', projectId);
-      await supabase.from('cld_nodes').delete().eq('project_id', projectId);
+      await supabase.from("cld_edges").delete().eq("project_id", projectId);
+      await supabase.from("cld_nodes").delete().eq("project_id", projectId);
 
-      // Map backend response and persist nodes to Supabase
-      const SPACING_X = 140;
-      const SPACING_Y = 80;
-      const COLS = 4;
-
+      // Persist nodes (position will be computed by dagre on render)
       const nodeRows = result.nodes.map((n, i) => ({
         project_id: projectId,
         label: n.label,
-        x: (i % COLS) * SPACING_X + 30,
-        y: Math.floor(i / COLS) * SPACING_Y + 30,
-        node_type: n.type || 'variable',
+        x: i * 150,
+        y: 0,
+        node_type: n.type || "variable",
         is_leverage: result.breakpoints.includes(n.id),
       }));
 
       const { data: insertedNodes, error: nodesErr } = await supabase
-        .from('cld_nodes')
+        .from("cld_nodes")
         .insert(nodeRows)
         .select();
       if (nodesErr) throw nodesErr;
 
-      // Build a mapping from backend node IDs to newly inserted Supabase IDs
+      // Build mapping from backend node IDs to Supabase IDs
       const idMap = new Map<string, string>();
       result.nodes.forEach((n, i) => {
         if (insertedNodes?.[i]) {
@@ -90,34 +201,30 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
         }
       });
 
-      // Persist edges with mapped node IDs (only edges where both nodes exist)
+      // Persist edges with mapped node IDs
       const edgeRows = result.edges
         .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))
         .map((e) => ({
           project_id: projectId,
           from_node: idMap.get(e.from_node)!,
           to_node: idMap.get(e.to_node)!,
-          polarity: e.polarity === '+' ? 'positive' : 'negative',
+          polarity: e.polarity === "+" ? "positive" : "negative",
         }));
 
       if (edgeRows.length > 0) {
-        const { error: edgesErr } = await supabase
-          .from('cld_edges')
-          .insert(edgeRows);
+        const { error: edgesErr } = await supabase.from("cld_edges").insert(edgeRows);
         if (edgesErr) throw edgesErr;
       }
 
-      // Invalidate queries so UI refreshes from Supabase
       invalidateCld();
-      toast.success('AI 已生成因果迴路圖');
+      toast.success("AI 已生成因果迴路圖");
     } catch (err) {
       console.error("CLD generation failed:", err);
-      // Fallback to mock data
       const { mockCausalLoop } = await import("@/data/mockExplore");
       if (mockCausalLoop[projectId]) {
         onUpdateCausalLoop(mockCausalLoop[projectId]);
       }
-      toast.error('AI 生成失敗，已載入範例資料');
+      toast.error("AI 生成失敗，已載入範例資料");
     } finally {
       setIsGenerating(false);
     }
@@ -129,36 +236,30 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
     if (!node) return;
 
     if (node.isBreakpoint) {
-      // Unmark — persist to Supabase
       const { error } = await supabase
-        .from('cld_nodes')
+        .from("cld_nodes")
         .update({ is_leverage: false })
-        .eq('id', nodeId);
+        .eq("id", nodeId);
       if (error) { toast.error(`更新失敗：${error.message}`); return; }
       invalidateCld();
-      toast.success('已取消斷路點標記');
+      toast.success("已取消斷路點標記");
     } else {
-      // Mark - need reason
       if (editReason.trim().length < 10) {
-        toast.error('斷路點理由至少 10 個字元');
+        toast.error("斷路點理由至少 10 個字元");
         return;
       }
       const { error } = await supabase
-        .from('cld_nodes')
+        .from("cld_nodes")
         .update({ is_leverage: true })
-        .eq('id', nodeId);
+        .eq("id", nodeId);
       if (error) { toast.error(`更新失敗：${error.message}`); return; }
-      setEditReason('');
+      setEditReason("");
       invalidateCld();
-      toast.success('已標記為斷路點');
+      toast.success("已標記為斷路點");
     }
   };
 
-  const handleSelectNode = (nodeId: string) => {
-    setSelectedNodeId(nodeId);
-    const node = causalLoop?.nodes.find((n) => n.id === nodeId);
-    setEditReason(node?.breakpointReason ?? '');
-  };
+  // ── Empty state ─────────────────────────────────────────────────────────
 
   if (!causalLoop) {
     return (
@@ -183,43 +284,12 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
     );
   }
 
-  // Simple SVG-based CLD renderer
-  const renderEdge = (edge: CausalEdge) => {
-    const src = causalLoop.nodes.find((n) => n.id === edge.source);
-    const tgt = causalLoop.nodes.find((n) => n.id === edge.target);
-    if (!src || !tgt) return null;
-
-    const sx = src.position.x + NODE_W / 2;
-    const sy = src.position.y + NODE_H / 2;
-    const tx = tgt.position.x + NODE_W / 2;
-    const ty = tgt.position.y + NODE_H / 2;
-    const color = edge.feedbackType === 'positive' ? '#3B82F6' : '#dc3545';
-    const label = edge.feedbackType === 'positive' ? '+' : '-';
-
-    // Midpoint for label
-    const mx = (sx + tx) / 2;
-    const my = (sy + ty) / 2;
-
-    return (
-      <g key={edge.id}>
-        <line
-          x1={sx} y1={sy} x2={tx} y2={ty}
-          stroke={color}
-          strokeWidth={2}
-          markerEnd={`url(#arrow-${edge.feedbackType})`}
-        />
-        <circle cx={mx} cy={my} r={10} fill="white" stroke={color} strokeWidth={1} />
-        <text x={mx} y={my + 4} textAnchor="middle" fontSize={12} fontWeight="bold" fill={color}>
-          {label}
-        </text>
-      </g>
-    );
-  };
+  // ── Main render ─────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
       {/* Purpose intro */}
-      <SectionIntro text="因果迴路圖（CLD）呈現設計變量之間的因果關係。正回饋 (+) 表示同向變化，負回饋 (-) 表示反向變化。找出迴路中的「斷路點」——即最值得優先突破的瓶頸變量——可以有效打破惡性循環。" />
+      <SectionIntro text="因果迴路圖（CLD）呈現設計變量之間的因果關係。正回饋 (+) 表示同向變化，負回饋 (-) 表示反向變化。找出迴路中的「斷路點」——即最值得優先突破的瓶頸變量——可以有效打破惡性循環。拖拉節點以調整佈局。" />
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">因果迴路圖 (Causal Loop Diagram)</h2>
@@ -229,93 +299,37 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
         </div>
       </div>
 
-      {/* Canvas */}
-      <div className="relative bg-muted/50 rounded-lg border overflow-hidden">
-        {/* Toolbar */}
-        <div className="absolute top-3 left-3 z-10 flex gap-1 bg-background/90 rounded-md border p-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(z + 0.2, 2))}>
-            <ZoomIn className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(z - 0.2, 0.5))}>
-            <ZoomOut className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(1)}>
-            <Maximize2 className="h-3.5 w-3.5" />
-          </Button>
+      {/* React Flow Canvas */}
+      <div className="rounded-lg border overflow-hidden bg-muted/30" style={{ height: 500 }}>
+        <ReactFlow
+          nodes={localNodes}
+          edges={flowEdges}
+          onNodesChange={onNodesChange}
+          onNodeClick={handleNodeClick}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.3}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={20} size={1} color="#e5e7eb" />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-0.5 bg-[#3B82F6]" />
+          <span>正回饋 (+)</span>
         </div>
-
-        {/* AI badge */}
-        <div className="absolute top-3 right-3 z-10">
-          <Badge variant="secondary" className="text-[10px]">AI</Badge>
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-0.5 bg-[#dc3545]" />
+          <span>負回饋 (−)</span>
         </div>
-
-        {/* SVG Canvas */}
-        <div className="overflow-auto" style={{ maxHeight: '450px' }}>
-          <svg
-            width={CANVAS_W * zoom}
-            height={CANVAS_H * zoom}
-            viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-            className="mx-auto"
-          >
-            {/* Arrow markers */}
-            <defs>
-              <marker id="arrow-positive" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#3B82F6" />
-              </marker>
-              <marker id="arrow-negative" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc3545" />
-              </marker>
-            </defs>
-
-            {/* Edges */}
-            {causalLoop.edges.map(renderEdge)}
-
-            {/* Nodes */}
-            {causalLoop.nodes.map((node) => (
-              <g
-                key={node.id}
-                onClick={() => handleSelectNode(node.id)}
-                className="cursor-pointer"
-              >
-                <rect
-                  x={node.position.x}
-                  y={node.position.y}
-                  width={NODE_W}
-                  height={NODE_H}
-                  rx={8}
-                  fill="white"
-                  stroke={node.isBreakpoint ? '#dc3545' : selectedNodeId === node.id ? '#3B82F6' : '#e9ecef'}
-                  strokeWidth={node.isBreakpoint ? 2 : 1}
-                  strokeDasharray={node.isBreakpoint ? '6 3' : 'none'}
-                />
-                {node.isBreakpoint && (
-                  <text x={node.position.x + NODE_W - 10} y={node.position.y + 12} fontSize={10} fill="#dc3545">★</text>
-                )}
-                <text
-                  x={node.position.x + NODE_W / 2}
-                  y={node.position.y + NODE_H / 2 + 4}
-                  textAnchor="middle"
-                  fontSize={11}
-                  fill="#333"
-                >
-                  {node.label}
-                </text>
-              </g>
-            ))}
-          </svg>
-        </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-3 right-3 bg-background/90 rounded-md border px-3 py-2 text-[10px] space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-[#3B82F6]" /> <span>正回饋 (+)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-[#dc3545]" /> <span>負回饋 (-)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 border border-dashed border-[#dc3545]" /> <span>斷路點 ★</span>
-          </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-[2px] border border-dashed border-[#dc3545]" />
+          <span>斷路點 ★</span>
         </div>
       </div>
 

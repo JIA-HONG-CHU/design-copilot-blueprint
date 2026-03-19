@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Star, Loader2, Check } from "lucide-react";
+import { Sparkles, Star, Loader2, Check, Maximize2, Minimize2 } from "lucide-react";
 import {
   ReactFlow,
   Background,
@@ -121,6 +121,16 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editReason, setEditReason] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isFullscreen]);
 
   const selectedNode = causalLoop?.nodes.find((n) => n.id === selectedNodeId) ?? null;
   const breakpointsCount = causalLoop?.nodes.filter((n) => n.isBreakpoint).length ?? 0;
@@ -300,7 +310,23 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
       </div>
 
       {/* React Flow Canvas */}
-      <div className="rounded-lg border overflow-hidden bg-muted/30" style={{ height: 500 }}>
+      <div
+        className={
+          isFullscreen
+            ? "fixed inset-0 z-50 bg-background"
+            : "relative rounded-lg border overflow-hidden bg-muted/30"
+        }
+        style={isFullscreen ? undefined : { height: 500 }}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 z-10"
+          onClick={() => setIsFullscreen((v) => !v)}
+          title={isFullscreen ? "退出全螢幕" : "全螢幕"}
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
         <ReactFlow
           nodes={localNodes}
           edges={flowEdges}

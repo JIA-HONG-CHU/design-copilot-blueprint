@@ -145,7 +145,8 @@ class SocraticRequest(BaseModel):
 
 
 class SocraticQuestion(BaseModel):
-    category: str  # clarification, assumption, consequence, counter, origin, reflection, reframing
+    # 內部欄位叫 category，但可接受輸入 key = type_class
+    category: str = Field(validation_alias="type_class") # clarification, assumption, consequence, counter, origin, reflection, reframing
     text: str
     suggested_tag: str | None = None  # assumption, contradiction, or None
 

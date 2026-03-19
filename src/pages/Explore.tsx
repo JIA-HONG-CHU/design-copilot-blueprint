@@ -11,6 +11,7 @@ import { ExploreGates } from "@/components/explore/ExploreGates";
 import {
   useSocraticQuestions,
   useUpdateSocraticQuestion,
+  useCreateSocraticQuestion,
   useExploreContradictions,
   useCldNodes,
   useCldEdges,
@@ -42,6 +43,7 @@ export default function Explore() {
   const { data: cldNodes = [], isLoading: isLoadingNodes } = useCldNodes(id);
   const { data: cldEdges = [], isLoading: isLoadingEdges } = useCldEdges(id);
   const updateQuestion = useUpdateSocraticQuestion();
+  const createQuestion = useCreateSocraticQuestion();
 
   const isLoading = isLoadingQuestions || isLoadingContradictions || isLoadingNodes || isLoadingEdges;
 
@@ -53,10 +55,20 @@ export default function Explore() {
 
   // Wrapper to let child components update questions via the mutation hook
   const handleUpdateQuestions = useCallback((updated: SocraticQuestion[]) => {
-    // Find changed questions and persist them
     for (const q of updated) {
       const original = questions.find((oq) => oq.id === q.id);
-      if (!original) continue;
+
+      // ✅ 新問題 → 呼叫「新增」API 存進資料庫
+      if (!original) {
+        createQuestion.mutate({
+          projectId: id || '',
+          category: q.category,
+          text: q.text,
+        });
+        continue;
+      }
+
+      // 既有問題 → 檢查是否有變更再更新
       const changed =
         original.answer !== q.answer ||
         original.taggedAsAssumption !== q.taggedAsAssumption ||
@@ -71,7 +83,7 @@ export default function Explore() {
         });
       }
     }
-  }, [questions, updateQuestion, id]);
+  }, [questions, updateQuestion, createQuestion, id]);
 
   // Update URL hash on tab change
   const handleTabChange = useCallback((tab: string) => {

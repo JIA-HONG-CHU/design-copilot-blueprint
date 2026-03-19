@@ -28,6 +28,7 @@ const AI_TAG_LABELS = {
 export function SocraticTab({ questions, onUpdateQuestions, projectId }: SocraticTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<QuestionCategory | 'all'>('all');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
 
   const answeredCount = questions.filter((q) => q.answer && q.answer.trim().length >= 5).length;
   const totalCount = questions.length;
@@ -39,7 +40,18 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
     categoryFilter === 'all' ? questions : questions.filter((q) => q.category === categoryFilter);
 
   const handleAnswer = (qId: string, value: string) => {
-    onUpdateQuestions(questions.map((q) => (q.id === qId ? { ...q, answer: value } : q)));
+    setLocalAnswers((prev) => ({ ...prev, [qId]: value }));
+  };
+  // 離開輸入框時 → 才通知父元件存資料庫
+  const handleAnswerBlur = (qId: string) => {
+    const localValue = localAnswers[qId];
+    if (localValue === undefined) return;
+    // 跟資料庫的值一樣就不存
+    const original = questions.find((q) => q.id === qId);
+    if (original && original.answer === localValue) return;
+    onUpdateQuestions(
+      questions.map((q) => (q.id === qId ? { ...q, answer: localValue } : q))
+    );
   };
 
   const handleConfirmTag = (qId: string) => {
@@ -218,16 +230,20 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId }: Socrati
                     <span className="text-xs text-muted-foreground">您的回答</span>
                   </div>
                   <Textarea
-                    value={q.answer || ''}
+                    value={localAnswers[q.id] ?? q.answer ?? ''}
                     onChange={(e) => handleAnswer(q.id, e.target.value)}
+                    onBlur={() => handleAnswerBlur(q.id)}
                     placeholder="請在此輸入您的回答..."
                     rows={2}
                     maxLength={1000}
                     className="min-h-[60px] bg-background"
                   />
-                  {q.answer && q.answer.trim().length > 0 && q.answer.trim().length < 5 && (
-                    <p className="text-xs text-destructive">回答至少需要 5 個字元</p>
-                  )}
+                  {(() => {
+                    const val = (localAnswers[q.id] ?? q.answer ?? '').trim();
+                    return val.length > 0 && val.length < 5 ? (
+                      <p className="text-xs text-destructive">回答至少需要 5 個字元</p>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* AI auto-detected tag — pending confirmation */}

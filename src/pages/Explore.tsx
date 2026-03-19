@@ -21,6 +21,7 @@ import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
+import { contradictionFormalize } from "@/lib/api";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -65,7 +66,7 @@ export default function Explore() {
     [kpisList],
   );
   const contradictionStrings = useMemo(
-    () => contradictions.map((c) => c.naturalDescription || c.engineeringStatement || ''),
+    () => contradictions.map((c) => c.engineeringStatement || c.description || ''),
     [contradictions],
   );
   const assumptionStrings = useMemo(
@@ -114,7 +115,7 @@ export default function Explore() {
           aiSuggestedTag: q.aiSuggestedTag,
         });
 
-        // When a question is newly tagged as contradiction → create entry in contradictions table
+        // When a question is newly tagged as contradiction → create entry + auto-formalize
         if (q.taggedAsContradiction && !original.taggedAsContradiction && id) {
           const desc = `[${q.category}] ${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
           const now = new Date().toISOString();
@@ -127,8 +128,41 @@ export default function Explore() {
               created_at: now,
               updated_at: now,
             })
-            .then(() => {
+            .select()
+            .single()
+            .then(({ data }) => {
               queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+
+              // Fire-and-forget: auto-formalize via AI
+              if (data?.id) {
+                contradictionFormalize({
+                  project_id: id,
+                  contradiction_id: data.id,
+                  natural_description: desc,
+                  mission: brief?.mission,
+                  constraints: constraintStrings,
+                  kpis: kpiStrings,
+                })
+                  .then((result) => {
+                    supabase
+                      .from('contradictions')
+                      .update({
+                        type: result.type,
+                        improving_param: result.improving_param,
+                        worsening_param: result.worsening_param,
+                        engineering_statement: result.engineering_statement,
+                        physical_contradiction: result.physical_contradiction,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('id', data.id)
+                      .then(() => {
+                        queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+                      });
+                  })
+                  .catch(() => {
+                    // Silent fail — user can retry with "AI 重新識別"
+                  });
+              }
             });
         }
 
@@ -165,7 +199,7 @@ export default function Explore() {
         }
       }
     }
-  }, [questions, updateQuestion, createQuestion, id, queryClient]);
+  }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings]);
 
   // Update URL hash on tab change
   const handleTabChange = useCallback((tab: string) => {

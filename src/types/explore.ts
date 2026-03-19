@@ -36,6 +36,7 @@ export interface ExploreContradiction {
   pcAttributeA: string | null;
   pcAttributeNotA: string | null;
   description: string;
+  engineeringStatement: string | null;
   status: ContradictionStatus;
   source: 'ai' | 'manual';
   createdAt: string;

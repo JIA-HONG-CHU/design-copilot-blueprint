@@ -83,9 +83,10 @@ const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradi
   worseningParam: r.worsening_param,
   pcAttributeA: null, // not stored in DB yet
   pcAttributeNotA: null,
-  description: r.natural_description ?? '',
+  description: r.engineering_statement || r.natural_description || '',
+  engineeringStatement: r.engineering_statement ?? null,
   status: (r.resolved ? 'confirmed' : 'draft') as ContradictionStatus,
-  source: 'manual',
+  source: r.engineering_statement ? 'ai' : 'manual',
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });

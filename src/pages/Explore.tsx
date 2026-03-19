@@ -123,7 +123,7 @@ export default function Explore() {
             .insert({
               project_id: id,
               natural_description: desc,
-              severity: 'medium',
+              severity: 'minor',
               created_at: now,
               updated_at: now,
             })

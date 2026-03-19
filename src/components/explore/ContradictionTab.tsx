@@ -118,7 +118,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         project_id: projectId,
         type: newType,
         natural_description: '',
-        severity: 'medium',
+        severity: 'minor',
         created_at: now,
         updated_at: now,
       })
@@ -197,7 +197,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           .insert({
             project_id: projectId,
             natural_description: desc,
-            severity: 'medium',
+            severity: 'minor',
             created_at: now,
             updated_at: now,
           })

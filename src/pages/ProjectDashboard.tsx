@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProject, useProjectStats } from "@/hooks/api/useProjects";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { useContradictions } from "@/hooks/api/useContradictions";
@@ -34,6 +35,20 @@ import { ArrowLeft, AlertCircle, Calendar, User, RefreshCw } from "lucide-react"
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Invalidate all cached queries for this project on mount so dashboard always shows fresh data
+  useEffect(() => {
+    if (id) {
+      queryClient.invalidateQueries({ queryKey: ['projects', id] });
+      queryClient.invalidateQueries({ queryKey: ['briefs', id] });
+      queryClient.invalidateQueries({ queryKey: ['constraints', id] });
+      queryClient.invalidateQueries({ queryKey: ['kpis', id] });
+      queryClient.invalidateQueries({ queryKey: ['contradictions', id] });
+      queryClient.invalidateQueries({ queryKey: ['assumptions', id] });
+      queryClient.invalidateQueries({ queryKey: ['track', 'assumptions', id] });
+    }
+  }, [id, queryClient]);
 
   const { data: project, isLoading, isError, refetch } = useProject(id);
   const { data: liveStats } = useProjectStats(id);

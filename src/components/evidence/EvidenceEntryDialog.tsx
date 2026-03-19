@@ -114,8 +114,9 @@ export function EvidenceEntryDialog({
   );
 
   const handleKpiChange = (kpiId: string) => {
-    setSelectedKpiId(kpiId);
-    const kpi = kpis?.find((k) => k.id === kpiId);
+    const resolved = kpiId === "__none__" ? "" : kpiId;
+    setSelectedKpiId(resolved);
+    const kpi = kpis?.find((k) => k.id === resolved);
     if (kpi?.unit) setUnit(kpi.unit);
   };
 
@@ -247,12 +248,12 @@ export function EvidenceEntryDialog({
             {kpis && kpis.length > 0 && (
               <div className="space-y-1.5 mb-3">
                 <Label>KPI</Label>
-                <Select value={selectedKpiId} onValueChange={handleKpiChange}>
+                <Select value={selectedKpiId || "__none__"} onValueChange={handleKpiChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="選擇 KPI（選填）" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">不關聯</SelectItem>
+                    <SelectItem value="__none__">不關聯</SelectItem>
                     {kpis.map((k) => (
                       <SelectItem key={k.id} value={k.id}>
                         {k.kpiName} ({k.targetValue} {k.unit})

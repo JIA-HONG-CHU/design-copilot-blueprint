@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h1 className="text-red-500 text-2xl font-bold mb-4">Runtime Error</h1>
 
           {import.meta.env.DEV ? (
-            <pre className="whitespace-pre-wrap bg-[#1a1a1a] text-[#ff6b6b] p-4 rounded-lg overflow-auto max-h-[60vh]">
+            <pre className="whitespace-pre-wrap bg-zinc-900 text-red-400 p-4 rounded-lg overflow-auto max-h-[60vh]">
               {error.message}
               {"\n\n"}
               {error.stack}

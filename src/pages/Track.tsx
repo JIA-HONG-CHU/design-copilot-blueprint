@@ -157,7 +157,7 @@ export default function Track() {
               {saveStatus === 'saving' && 'Saving...'}
               {saveStatus === 'saved' && (
                 <>
-                  <Check className="h-3 w-3 text-[#28a745]" />
+                  <Check className="h-3 w-3 text-green-600" />
                   Saved
                 </>
               )}
@@ -165,7 +165,7 @@ export default function Track() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="h-8 w-1 rounded-full bg-[#F59E0B]" />
+          <div className="h-8 w-1 rounded-full bg-amber-500" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Track — 假設追蹤
@@ -186,7 +186,7 @@ export default function Track() {
         <TabsList className="w-full grid grid-cols-2 h-11">
           <TabsTrigger
             value="kanban"
-            className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-[#F59E0B] rounded-none"
+            className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-amber-500 rounded-none"
           >
             假設 Kanban
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
@@ -195,7 +195,7 @@ export default function Track() {
           </TabsTrigger>
           <TabsTrigger
             value="unknown"
-            className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-[#F59E0B] rounded-none"
+            className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-amber-500 rounded-none"
           >
             未知集合 U
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">

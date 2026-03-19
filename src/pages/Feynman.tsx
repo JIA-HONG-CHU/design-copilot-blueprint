@@ -181,7 +181,7 @@ export default function Feynman() {
   return (
     <div className="page-shell-narrow">
       {/* Header */}
-      <div className="h-1 w-full rounded-full bg-[#10B981]" />
+      <div className="h-1 w-full rounded-full bg-emerald-500" />
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${id}`)} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> 返回
@@ -201,7 +201,7 @@ export default function Feynman() {
       <div className="flex flex-wrap gap-3">
         <Badge className="bg-primary text-primary-foreground px-3 py-1">{entries.length} 條目</Badge>
         <Badge variant="secondary" className="px-3 py-1">{writtenCount} 已寫入</Badge>
-        <Badge className="bg-[#28a745] text-white px-3 py-1">{reviewedCount} 已審閱</Badge>
+        <Badge className="bg-green-600 text-white px-3 py-1">{reviewedCount} 已審閱</Badge>
         <Badge variant="outline" className="px-3 py-1">{coveredAssetTypes}/{totalAssetTypes} 類資產</Badge>
       </div>
 
@@ -232,7 +232,7 @@ export default function Feynman() {
       {/* Knowledge entries */}
       <div className="space-y-4">
         {entries.map((entry, i) => (
-          <Card key={entry.id} className={entry.status === 'reviewed' ? 'border-l-[3px] border-l-[#28a745]' : entry.status === 'written' ? 'border-l-[3px] border-l-primary' : ''}>
+          <Card key={entry.id} className={entry.status === 'reviewed' ? 'border-l-[3px] border-l-green-600' : entry.status === 'written' ? 'border-l-[3px] border-l-primary' : ''}>
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="text-[10px]">AI</Badge>
@@ -245,7 +245,7 @@ export default function Feynman() {
                 </Badge>
                 <Badge
                   className={`text-[10px] text-white ${
-                    entry.status === 'reviewed' ? 'bg-[#28a745]' : entry.status === 'written' ? 'bg-primary' : 'bg-muted-foreground'
+                    entry.status === 'reviewed' ? 'bg-green-600' : entry.status === 'written' ? 'bg-primary' : 'bg-muted-foreground'
                   }`}
                 >
                   {entry.status === 'reviewed' ? '已審閱' : entry.status === 'written' ? '已寫入' : '待處理'}
@@ -285,26 +285,26 @@ export default function Feynman() {
 
       {/* Gate */}
       <Separator />
-      <Card className="border-2 border-[#10B981] bg-[#ECFDF5]">
+      <Card className="border-2 border-emerald-500 bg-emerald-50">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-3">
-            <BookOpen className="h-5 w-5 text-[#10B981]" />
+            <BookOpen className="h-5 w-5 text-emerald-500" />
             <h3 className="text-sm font-semibold">Step 3.3 / Gate 8 完成檢查</h3>
-            <Badge className={`text-xs text-white ${reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? 'bg-[#28a745]' : 'bg-[#dc3545]'}`}>
+            <Badge className={`text-xs text-white ${reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? 'bg-green-600' : 'bg-red-600'}`}>
               {reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? '✅ 完成' : '待完成'}
             </Badge>
           </div>
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
-              {entries.length > 0 ? <CheckCircle className="h-4 w-4 text-[#28a745]" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
+              {entries.length > 0 ? <CheckCircle className="h-4 w-4 text-green-600" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
               <span>至少 1 條知識條目已生成</span>
             </div>
             <div className="flex items-center gap-2">
-              {coveredAssetTypes >= totalAssetTypes ? <CheckCircle className="h-4 w-4 text-[#28a745]" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
+              {coveredAssetTypes >= totalAssetTypes ? <CheckCircle className="h-4 w-4 text-green-600" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
               <span>6 類資產皆已覆蓋 ({coveredAssetTypes}/{totalAssetTypes})</span>
             </div>
             <div className="flex items-center gap-2">
-              {reviewedCount >= entries.length && entries.length > 0 ? <CheckCircle className="h-4 w-4 text-[#28a745]" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
+              {reviewedCount >= entries.length && entries.length > 0 ? <CheckCircle className="h-4 w-4 text-green-600" /> : <span className="h-4 w-4 rounded-full border-2 border-muted-foreground" />}
               <span>所有條目已審閱 ({reviewedCount}/{entries.length})</span>
             </div>
           </div>

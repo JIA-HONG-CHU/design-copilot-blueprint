@@ -274,7 +274,7 @@ export default function Explore() {
               {saveStatus === 'saving' && 'Saving...'}
               {saveStatus === 'saved' && (
                 <>
-                  <Check className="h-3 w-3 text-[#28a745]" />
+                  <Check className="h-3 w-3 text-green-600" />
                   Saved
                 </>
               )}
@@ -282,7 +282,7 @@ export default function Explore() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="h-8 w-1 rounded-full bg-[#3B82F6]" />
+          <div className="h-8 w-1 rounded-full bg-blue-500" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Explore — 問題探索
@@ -298,19 +298,19 @@ export default function Explore() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="w-full grid grid-cols-3 h-11">
-          <TabsTrigger value="socratic" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-[#3B82F6] rounded-none">
+          <TabsTrigger value="socratic" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-blue-500 rounded-none">
             索克拉底問答
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
               {answeredCount}/{questions.length}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="contradictions" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-[#3B82F6] rounded-none">
+          <TabsTrigger value="contradictions" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-blue-500 rounded-none">
             矛盾識別
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
               {tcCount} TC + {pcCount} PC
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="cld" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-[#3B82F6] rounded-none">
+          <TabsTrigger value="cld" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-blue-500 rounded-none">
             因果迴路圖
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
               {breakpointsCount} 斷路點

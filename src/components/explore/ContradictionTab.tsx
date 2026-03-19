@@ -238,7 +238,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     return (
       <Card
         key={c.id}
-        className={`transition-colors ${isConfirmed ? 'border-l-[3px] border-l-[#28a745]' : ''}`}
+        className={`transition-colors ${isConfirmed ? 'border-l-[3px] border-l-green-600' : ''}`}
       >
         <CardContent className="p-4 space-y-3">
           {/* Badges */}
@@ -253,7 +253,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
               <Badge variant="secondary" className="text-[10px]">AI</Badge>
             )}
             {isConfirmed && (
-              <Badge className="bg-[#28a745] text-white text-[10px]">已確認</Badge>
+              <Badge className="bg-green-600 text-white text-[10px]">已確認</Badge>
             )}
           </div>
 
@@ -429,7 +429,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
             <HelpTooltip text={help} />
             <Badge className="text-white text-[10px]" style={{ backgroundColor: color }}>{list.length}</Badge>
             {confirmed > 0 && (
-              <Badge className="bg-[#28a745] text-white text-[10px]">已確認 {confirmed}</Badge>
+              <Badge className="bg-green-600 text-white text-[10px]">已確認 {confirmed}</Badge>
             )}
           </div>
           <div className="flex gap-2">
@@ -487,10 +487,10 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
       {/* Summary stats */}
       <div className="flex flex-wrap gap-2">
-        <Badge className="bg-[#3B82F6] text-white text-xs">TC: {tcList.length}</Badge>
-        <Badge className="bg-[#F59E0B] text-white text-xs">PC: {pcList.length}</Badge>
+        <Badge className="bg-blue-500 text-white text-xs">TC: {tcList.length}</Badge>
+        <Badge className="bg-amber-500 text-white text-xs">PC: {pcList.length}</Badge>
         <Badge variant="secondary" className="text-xs">總計: {contradictions.length}</Badge>
-        <Badge className="bg-[#28a745] text-white text-xs">已確認: {confirmedCount}</Badge>
+        <Badge className="bg-green-600 text-white text-xs">已確認: {confirmedCount}</Badge>
       </div>
 
       {/* TC Section */}

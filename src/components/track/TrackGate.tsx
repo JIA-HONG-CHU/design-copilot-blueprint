@@ -19,10 +19,10 @@ export function TrackGate({ items, onNavigateNext }: TrackGateProps) {
 
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-center gap-3">
-          <div className="h-6 w-1 rounded-full bg-[#F59E0B]" />
+          <div className="h-6 w-1 rounded-full bg-amber-500" />
           <h3 className="text-sm font-semibold">Gate 2.1 — 假設追蹤完整性檢查</h3>
           <Badge
-            className={`text-xs text-white ${allPassed ? 'bg-[#28a745]' : 'bg-[#dc3545]'}`}
+            className={`text-xs text-white ${allPassed ? 'bg-green-600' : 'bg-red-600'}`}
           >
             {allPassed ? 'Gate 2.1 Passed' : 'Gate 2.1 未通過'}
           </Badge>
@@ -32,7 +32,7 @@ export function TrackGate({ items, onNavigateNext }: TrackGateProps) {
           {items.map((item, i) => (
             <div key={i} className="flex items-center gap-2 text-sm">
               {item.passed ? (
-                <CheckCircle className="h-4 w-4 text-[#28a745] shrink-0" />
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
               ) : (
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
               )}
@@ -49,7 +49,7 @@ export function TrackGate({ items, onNavigateNext }: TrackGateProps) {
         {allPassed ? (
           <Button
             onClick={onNavigateNext}
-            className="w-full sm:w-auto bg-[#F59E0B] hover:bg-[#D97706] text-white"
+            className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white"
           >
             前往 Create →
             <ArrowRight className="h-4 w-4 ml-1" />

@@ -513,7 +513,7 @@ export default function DesignReview() {
           </TabsTrigger>
           <TabsTrigger value="experiment" className="text-xs sm:text-sm">
             <Beaker className="h-3.5 w-3.5 mr-1 hidden sm:inline-block" /> 最小實驗
-            {hasGap && <AlertTriangle className="h-3 w-3 ml-1 text-[#F59E0B]" />}
+            {hasGap && <AlertTriangle className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
           <TabsTrigger value="attachments" className="text-xs sm:text-sm">
             <Paperclip className="h-3.5 w-3.5 mr-1 hidden sm:inline-block" /> 附件

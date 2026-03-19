@@ -173,7 +173,7 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
             return (
               <Card
                 key={f.id}
-                className={`transition-all ${isConverted ? 'border-l-[3px] border-l-[#28a745]' : ''} ${isDismissed ? 'opacity-50' : ''}`}
+                className={`transition-all ${isConverted ? 'border-l-[3px] border-l-green-600' : ''} ${isDismissed ? 'opacity-50' : ''}`}
               >
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -213,7 +213,7 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
                     <div className="flex gap-2 pt-1">
                       <Button
                         size="sm"
-                        className="text-xs h-7 bg-[#F59E0B] hover:bg-[#D97706] text-white"
+                        className="text-xs h-7 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={() => handleConvert(f)}
                       >
                         <ArrowRight className="h-3 w-3 mr-1" /> 轉為假設

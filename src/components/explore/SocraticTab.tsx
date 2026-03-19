@@ -168,7 +168,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId, mission =
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">索克拉底問答 — AI 引導式問題探索</h2>
-          <Badge className="bg-[#3B82F6] text-white text-xs">
+          <Badge className="bg-blue-500 text-white text-xs">
             已回答 {answeredCount}/{totalCount}
           </Badge>
         </div>
@@ -209,7 +209,7 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId, mission =
           return (
             <Card
               key={q.id}
-              className={`transition-colors ${isAnswered ? 'border-l-[3px] border-l-[#28a745]' : ''}`}
+              className={`transition-colors ${isAnswered ? 'border-l-[3px] border-l-green-600' : ''}`}
             >
               <CardContent className="p-4 space-y-3">
                 {/* AI question area */}

@@ -230,7 +230,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
               <Badge variant="secondary" className="text-[10px]">AI</Badge>
             )}
             {a.source === 'unknown_convert' && (
-              <Badge variant="secondary" className="text-[10px] bg-[#F59E0B]/15 text-[#D97706]">來自 U</Badge>
+              <Badge variant="secondary" className="text-[10px] bg-amber-500/15 text-amber-600">來自 U</Badge>
             )}
           </div>
 

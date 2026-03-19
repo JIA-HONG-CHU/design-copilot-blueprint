@@ -304,7 +304,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">因果迴路圖 (Causal Loop Diagram)</h2>
         <div className="flex items-center gap-1.5">
-          <Badge className="bg-[#3B82F6] text-white text-xs">{breakpointsCount} 斷路點</Badge>
+          <Badge className="bg-blue-500 text-white text-xs">{breakpointsCount} 斷路點</Badge>
           <HelpTooltip text="「斷路點」是因果迴路中最具槓桿效應的節點。在此處介入改變，可以打破整個迴路的負面循環，是設計創新的最佳切入點。" />
         </div>
       </div>
@@ -346,15 +346,15 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <div className="w-5 h-0.5 bg-[#3B82F6]" />
+          <div className="w-5 h-0.5 bg-blue-500" />
           <span>正回饋 (+)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-5 h-0.5 bg-[#dc3545]" />
+          <div className="w-5 h-0.5 bg-red-600" />
           <span>負回饋 (−)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-5 h-[2px] border border-dashed border-[#dc3545]" />
+          <div className="w-5 h-[2px] border border-dashed border-red-600" />
           <span>斷路點 ★</span>
         </div>
       </div>
@@ -446,7 +446,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
                 <span className="text-xs text-muted-foreground">斷路點狀態</span>
                 {selectedNode.isBreakpoint ? (
                   <div className="space-y-2">
-                    <Badge className="bg-[#dc3545] text-white text-xs">★ 已標記為斷路點</Badge>
+                    <Badge className="bg-red-600 text-white text-xs">★ 已標記為斷路點</Badge>
                     <p className="text-sm">{selectedNode.breakpointReason}</p>
                     <Button
                       size="sm"
@@ -471,7 +471,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
                     )}
                     <Button
                       size="sm"
-                      className="bg-[#F59E0B] hover:bg-[#D97706] text-white"
+                      className="bg-amber-500 hover:bg-amber-600 text-white"
                       onClick={() => handleToggleBreakpoint(selectedNode.id)}
                     >
                       <Star className="h-3 w-3 mr-1" /> 設為斷路點 ★

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,8 @@ import {
 } from "@/hooks/api/useExplore";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/hooks/api/useQueryConfig";
 import type { SocraticQuestion, ExploreContradiction, CausalLoop, GateCheckItem } from "@/types/explore";
 import { ArrowLeft, Check } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -78,6 +81,8 @@ export default function Explore() {
     return { id: `cld-${id}`, nodes: cldNodes, edges: cldEdges };
   }, [cldNodes, cldEdges, id]);
 
+  const queryClient = useQueryClient();
+
   // Wrapper to let child components update questions via the mutation hook
   const handleUpdateQuestions = useCallback((updated: SocraticQuestion[]) => {
     for (const q of updated) {
@@ -106,9 +111,27 @@ export default function Explore() {
           taggedAsAssumption: q.taggedAsAssumption,
           taggedAsContradiction: q.taggedAsContradiction,
         });
+
+        // When a question is newly tagged as contradiction → create entry in contradictions table
+        if (q.taggedAsContradiction && !original.taggedAsContradiction && id) {
+          const desc = `[${q.category}] ${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
+          const now = new Date().toISOString();
+          supabase
+            .from('contradictions')
+            .insert({
+              project_id: id,
+              natural_description: desc,
+              severity: 'medium',
+              created_at: now,
+              updated_at: now,
+            })
+            .then(() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+            });
+        }
       }
     }
-  }, [questions, updateQuestion, createQuestion, id]);
+  }, [questions, updateQuestion, createQuestion, id, queryClient]);
 
   // Update URL hash on tab change
   const handleTabChange = useCallback((tab: string) => {

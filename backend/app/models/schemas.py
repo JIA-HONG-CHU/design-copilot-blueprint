@@ -3,7 +3,7 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -281,15 +281,29 @@ class CldNode(BaseModel):
 
 
 class CldEdge(BaseModel):
-    from_node: str
-    to_node: str
+    model_config = ConfigDict(populate_by_name=True)
+    from_node: str = Field(alias="from")
+    to_node: str = Field(alias="to")
     polarity: str = "+"
+    source_id: str = ""
+
+
+class CldLoop(BaseModel):
+    id: str
+    type: str  # "reinforcing" | "balancing"
+    node_ids: list[str]
+
+
+class CldBreakpoint(BaseModel):
+    node_id: str
+    rationale: str = ""
 
 
 class CldGenerationResponse(BaseModel):
     nodes: list[CldNode]
     edges: list[CldEdge]
-    breakpoints: list[str]
+    loops: list[CldLoop] = Field(default_factory=list)
+    breakpoints: list[CldBreakpoint]
 
 
 # ---------------------------------------------------------------------------

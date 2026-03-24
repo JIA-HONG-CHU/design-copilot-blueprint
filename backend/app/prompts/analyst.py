@@ -79,6 +79,7 @@ Return exactly this JSON structure — four top-level keys, no more, no fewer:
 SOCRATIC_QUESTIONS = """\
 <task>
 Generate Socratic questions that probe the design task below.
+Return exactly one question per category — 7 categories, 7 questions.
 </task>
 
 <context>
@@ -92,29 +93,32 @@ Generate Socratic questions that probe the design task below.
 </context>
 
 <instructions>
-Generate exactly 7 questions — one per type, no more:
+Fill every key in the output JSON below — each key is one category, each value is \
+one question. Do NOT add extra keys or nest arrays.
 
-1. **Clarification** — "What specifically do you mean by X?"
-2. **Assumption** — "Why must we assume X?" → tag: "assumption"
-3. **Consequence** — "If X fails, what is the impact?"
-4. **Counter-example** — "Is there a precedent that succeeded without X?"
-5. **Origin** — "What is the root cause behind this requirement?"
-6. **Action** — "What concrete next step could validate or invalidate this?"
-7. **Reframing** — "If we ignored the current architecture entirely, how would we solve this?"
+- **clarification** — "What specifically do you mean by X?"
+- **assumption** — "Why must we assume X?" → suggested_tag: "assumption"
+- **consequence** — "If X fails, what is the impact?"
+- **counter** — "Is there a precedent that succeeded without X?"
+- **origin** — "What is the root cause behind this requirement?"
+- **action** — "What concrete next step could validate or invalidate this?"
+- **reframing** — "If we ignored the current architecture entirely, how would we solve this?"
 
-If a question hints at a contradiction, add suggested_tag: "contradiction".
+If a question hints at a contradiction, set suggested_tag to "contradiction".
 Do not repeat questions already listed above.
 </instructions>
 
 <output_schema>
 {{
-  "questions": [
-    {{
-      "type_class": "clarification|assumption|consequence|counter|origin|action|reframing",
-      "text": "The question",
-      "suggested_tag": null or "assumption" or "contradiction"
-    }}
-  ]
+  "questions": {{
+    "clarification": {{"text": "...", "suggested_tag": null}},
+    "assumption":    {{"text": "...", "suggested_tag": "assumption"}},
+    "consequence":   {{"text": "...", "suggested_tag": null}},
+    "counter":       {{"text": "...", "suggested_tag": null}},
+    "origin":        {{"text": "...", "suggested_tag": null}},
+    "action":        {{"text": "...", "suggested_tag": null}},
+    "reframing":     {{"text": "...", "suggested_tag": null}}
+  }}
 }}
 </output_schema>
 """

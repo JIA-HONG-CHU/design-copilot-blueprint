@@ -59,6 +59,10 @@ class Settings(BaseSettings):
         default="claude-haiku-4-5",
         validation_alias=AliasChoices("ANTHROPIC_FAST_MODEL", "FAST_MODEL"),
     )
+    anthropic_max_output_tokens: int = Field(
+        default=16384,
+        description="Anthropic API requires max_tokens. Set to model's max output capacity.",
+    )
 
     # --- OpenAI ---
     openai_api_key: str = ""

@@ -453,12 +453,25 @@ export interface CldEdge {
   from_node: string;
   to_node: string;
   polarity: string;
+  source_id: string;
+}
+
+export interface CldLoop {
+  id: string;
+  type: string;
+  node_ids: string[];
+}
+
+export interface CldBreakpoint {
+  node_id: string;
+  rationale: string;
 }
 
 export interface CldGenerateResponse {
   nodes: CldNode[];
   edges: CldEdge[];
-  breakpoints: string[];
+  loops: CldLoop[];
+  breakpoints: CldBreakpoint[];
 }
 
 export function cldGenerate(body: CldGenerateRequest) {

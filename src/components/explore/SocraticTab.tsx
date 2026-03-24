@@ -12,7 +12,7 @@ import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { socraticGenerate, socraticFollowUp, socraticBriefImpact } from "@/lib/api";
 
-const QUESTION_CAP = 28; // 7 categories × 4 rounds max
+const QUESTION_CAP = 28; // 7 categories × 4 rounds max (including follow-ups)
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];
@@ -142,11 +142,12 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         aiTagConfirmed: false,
         aiTagDismissed: false,
       }));
-      // Initial generation: exactly 7 (one per category), deduplicate by category
+      // Initial generation: backend returns exactly 7 (dict keyed by category)
+      // Deduplicate against existing questions by category
       const seen = new Set(questions.map((q) => q.category));
       const deduped = newQuestions.filter((q) => !seen.has(q.category));
       onUpdateQuestions([...questions, ...deduped].slice(0, QUESTION_CAP));
-      toast.success(`AI 已生成 ${newQuestions.length} 個問題`);
+      toast.success(`AI 已生成 ${deduped.length} 個問題`);
     } catch (err) {
       console.error("Socratic generation failed:", err);
       toast.error("AI 生成問題失敗，請確認後端服務是否啟動");

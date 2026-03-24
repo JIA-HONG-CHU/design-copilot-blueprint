@@ -134,30 +134,17 @@ def _estimate_tokens(text: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Model-aware max output token limits — let models use their full capacity
+# max_tokens resolution — no hardcoded limits
 # ---------------------------------------------------------------------------
-
-_MODEL_MAX_OUTPUT: dict[str, int] = {
-    # Anthropic Claude
-    "claude-opus-4-6":   16384,
-    "claude-sonnet-4-6": 16384,
-    "claude-haiku-4-5":  8192,
-    # OpenAI
-    "gpt-4o":            16384,
-    "gpt-4o-mini":       16384,
-    # Google Gemini
-    "gemini-2.5-flash":  65536,
-    "gemini-2.0-flash-lite": 8192,
-}
-_DEFAULT_MAX_OUTPUT = 16384
+# Anthropic API requires max_tokens → use env-configurable setting.
+# OpenAI-compatible APIs → omit max_tokens entirely, let model decide.
 
 
-def _resolve_max_tokens(model: str | None, explicit: int | None) -> int:
-    """Return max_tokens: explicit override if given, else model's known limit."""
+def _resolve_anthropic_max_tokens(explicit: int | None) -> int:
+    """Anthropic requires max_tokens. Use explicit override or config setting."""
     if explicit is not None:
         return explicit
-    model_name = model or settings.default_model
-    return _MODEL_MAX_OUTPUT.get(model_name, _DEFAULT_MAX_OUTPUT)
+    return settings.anthropic_max_output_tokens
 
 
 def _warn_if_high_token_usage(system: str, user_message: str, max_tokens: int) -> None:
@@ -239,13 +226,14 @@ def _call_anthropic(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> str:
     client = _get_anthropic()
+    resolved = _resolve_anthropic_max_tokens(max_tokens)
     response = client.messages.create(
         model=model or settings.default_model,
-        max_tokens=max_tokens,
+        max_tokens=resolved,
         temperature=temperature,
         system=system,
         messages=[{"role": "user", "content": user_message}],
@@ -259,20 +247,23 @@ def _call_openai_compat(
     *,
     provider: LLMProvider,
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> str:
-    """Call any OpenAI-compatible provider (OpenAI / Azure / Gemini / Qwen)."""
+    """Call any OpenAI-compatible provider (OpenAI / Azure / Gemini / Qwen).
+    max_tokens is omitted by default — the model uses its full output capacity."""
     client = _get_openai_compat(provider)
-    response = client.chat.completions.create(
-        model=model or settings.default_model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        messages=[
+    kwargs: dict = {
+        "model": model or settings.default_model,
+        "temperature": temperature,
+        "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_message},
         ],
-    )
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    response = client.chat.completions.create(**kwargs)
     return response.choices[0].message.content or ""
 
 
@@ -281,7 +272,7 @@ def _call_provider(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> str:
     """Route to the active LLM provider."""
@@ -321,10 +312,10 @@ def call_llm_structured(
     max_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> str:
-    """Call LLM and return the text response. max_tokens defaults to model's full capacity."""
-    resolved = _resolve_max_tokens(model, max_tokens)
-    _warn_if_high_token_usage(system, user_message, resolved)
-    return _call_provider(system, user_message, model=model, max_tokens=resolved, temperature=temperature)
+    """Call LLM and return the text response. max_tokens=None lets each provider use its full capacity."""
+    if max_tokens is not None:
+        _warn_if_high_token_usage(system, user_message, max_tokens)
+    return _call_provider(system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
 
 
 @retry_on_transient
@@ -336,11 +327,11 @@ def call_llm_json(
     max_tokens: int | None = None,
     temperature: float = 0.2,
 ) -> str:
-    """Call LLM requesting JSON output. max_tokens defaults to model's full capacity."""
-    resolved = _resolve_max_tokens(model, max_tokens)
-    _warn_if_high_token_usage(system, user_message, resolved)
+    """Call LLM requesting JSON output. max_tokens=None lets each provider use its full capacity."""
+    if max_tokens is not None:
+        _warn_if_high_token_usage(system, user_message, max_tokens)
     json_system = system + "\n\n回覆格式：純 JSON，不要 markdown code block。"
-    raw = _call_provider(json_system, user_message, model=model, max_tokens=resolved, temperature=temperature)
+    raw = _call_provider(json_system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
     return _strip_code_fences(raw)
 
 

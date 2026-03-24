@@ -17,6 +17,7 @@ interface SocraticTabProps {
   onUpdateQuestions: (questions: SocraticQuestion[]) => void;
   onDeleteQuestion?: (questionId: string) => void;
   isBriefStale?: boolean;
+  briefUpdatedAt?: string;
   projectId: string;
   mission?: string;
   constraints?: string[];
@@ -29,7 +30,7 @@ const AI_TAG_LABELS = {
   contradiction: { label: '矛盾', color: '#EC4899', description: 'AI 偵測到此回答涉及設計矛盾，建議納入矛盾識別。' },
 };
 
-export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, isBriefStale = false, projectId, mission = '', constraints = [] }: SocraticTabProps) {
+export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, isBriefStale = false, briefUpdatedAt, projectId, mission = '', constraints = [] }: SocraticTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<QuestionCategory | 'all'>('all');
   const [isGenerating, setIsGenerating] = useState(false);
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
@@ -166,16 +167,17 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
       {/* Purpose intro */}
       <SectionIntro text="AI 會根據您的 Brief 自動生成 7 類蘇格拉底式問題（含重構），引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
-      {/* Brief stale warning */}
+      {/* Brief stale warning — append-only, never replace existing answers */}
       {isBriefStale && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium">Brief 已更新，部分問題可能已過時</p>
-            <p className="text-xs text-muted-foreground">Mission 或約束條件變更後，建議重新生成問題以確保探索方向正確。</p>
+            <p className="text-sm font-medium">Brief 已更新</p>
+            <p className="text-xs text-muted-foreground">已有的問題與回答會保留，AI 將根據最新 Brief 補充新問題。</p>
           </div>
           <Button size="sm" onClick={handleGenerateMore} disabled={isGenerating}>
-            <Sparkles className="h-3.5 w-3.5 mr-1" /> 重新生成
+            {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+            補充新問題
           </Button>
         </div>
       )}
@@ -221,6 +223,7 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
           const hasConfirmedTag = q.aiSuggestedTag && q.aiTagConfirmed;
           const hasDismissedTag = q.aiSuggestedTag && q.aiTagDismissed && !q.aiTagConfirmed;
           const tagConfig = q.aiSuggestedTag ? AI_TAG_LABELS[q.aiSuggestedTag] : null;
+          const isNewAfterBriefUpdate = briefUpdatedAt && q.createdAt && new Date(q.createdAt) > new Date(briefUpdatedAt);
 
           return (
             <Card
@@ -239,6 +242,9 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                       >
                         {config.labelZh}
                       </Badge>
+                      {isNewAfterBriefUpdate && (
+                        <Badge className="text-[10px] bg-emerald-500 text-white">NEW</Badge>
+                      )}
                     </div>
                     {onDeleteQuestion && (
                       <button

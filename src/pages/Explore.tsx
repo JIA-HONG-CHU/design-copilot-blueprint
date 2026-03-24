@@ -354,6 +354,7 @@ export default function Explore() {
             onUpdateQuestions={handleUpdateQuestions}
             onDeleteQuestion={handleDeleteQuestion}
             isBriefStale={isBriefStale}
+            briefUpdatedAt={brief?.updatedAt}
             projectId={id || ''}
             mission={brief?.mission}
             constraints={constraintStrings}

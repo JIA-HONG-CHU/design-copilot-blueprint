@@ -253,8 +253,14 @@ def _call_openai_compat(
     """Call any OpenAI-compatible provider (OpenAI / Azure / Gemini / Qwen).
     max_tokens is omitted by default — the model uses its full output capacity."""
     client = _get_openai_compat(provider)
+    resolved_model = model or settings.default_model
+    if not resolved_model:
+        raise ValueError(
+            f"No model configured for provider '{settings.llm_provider.value}'. "
+            f"Set the corresponding *_DEFAULT_MODEL in .env."
+        )
     kwargs: dict = {
-        "model": model or settings.default_model,
+        "model": resolved_model,
         "temperature": temperature,
         "messages": [
             {"role": "system", "content": system},

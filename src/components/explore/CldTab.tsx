@@ -20,6 +20,26 @@ import {
   MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+const cldStyles = `
+  .react-flow__controls {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .react-flow__controls-button {
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+    fill: hsl(var(--foreground));
+    color: hsl(var(--foreground));
+  }
+  .react-flow__controls-button:hover {
+    background: hsl(var(--accent));
+  }
+  .react-flow__controls-button svg {
+    fill: hsl(var(--foreground));
+  }
+`;
 import Dagre from "@dagrejs/dagre";
 import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -303,6 +323,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
 
   return (
     <div className="space-y-5">
+      <style>{cldStyles}</style>
       {/* Purpose intro */}
       <SectionIntro text="因果迴路圖（CLD）呈現設計變量之間的因果關係。正回饋 (+) 表示同向變化，負回饋 (-) 表示反向變化。找出迴路中的「斷路點」——即最值得優先突破的瓶頸變量——可以有效打破惡性循環。拖拉節點以調整佈局。" />
 

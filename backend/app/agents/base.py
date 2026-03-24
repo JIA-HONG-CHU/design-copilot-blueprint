@@ -133,6 +133,33 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
+# ---------------------------------------------------------------------------
+# Model-aware max output token limits — let models use their full capacity
+# ---------------------------------------------------------------------------
+
+_MODEL_MAX_OUTPUT: dict[str, int] = {
+    # Anthropic Claude
+    "claude-opus-4-6":   16384,
+    "claude-sonnet-4-6": 16384,
+    "claude-haiku-4-5":  8192,
+    # OpenAI
+    "gpt-4o":            16384,
+    "gpt-4o-mini":       16384,
+    # Google Gemini
+    "gemini-2.5-flash":  65536,
+    "gemini-2.0-flash-lite": 8192,
+}
+_DEFAULT_MAX_OUTPUT = 16384
+
+
+def _resolve_max_tokens(model: str | None, explicit: int | None) -> int:
+    """Return max_tokens: explicit override if given, else model's known limit."""
+    if explicit is not None:
+        return explicit
+    model_name = model or settings.default_model
+    return _MODEL_MAX_OUTPUT.get(model_name, _DEFAULT_MAX_OUTPUT)
+
+
 def _warn_if_high_token_usage(system: str, user_message: str, max_tokens: int) -> None:
     """Log a warning if the estimated input tokens exceed 80% of max_tokens."""
     estimated = _estimate_tokens(system + user_message)
@@ -291,12 +318,13 @@ def call_llm_structured(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 16384,
+    max_tokens: int | None = None,
     temperature: float = 0.3,
 ) -> str:
-    """Call LLM and return the text response."""
-    _warn_if_high_token_usage(system, user_message, max_tokens)
-    return _call_provider(system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
+    """Call LLM and return the text response. max_tokens defaults to model's full capacity."""
+    resolved = _resolve_max_tokens(model, max_tokens)
+    _warn_if_high_token_usage(system, user_message, resolved)
+    return _call_provider(system, user_message, model=model, max_tokens=resolved, temperature=temperature)
 
 
 @retry_on_transient
@@ -305,13 +333,14 @@ def call_llm_json(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 16384,
+    max_tokens: int | None = None,
     temperature: float = 0.2,
 ) -> str:
-    """Call LLM requesting JSON output. Strips markdown fences if present."""
-    _warn_if_high_token_usage(system, user_message, max_tokens)
+    """Call LLM requesting JSON output. max_tokens defaults to model's full capacity."""
+    resolved = _resolve_max_tokens(model, max_tokens)
+    _warn_if_high_token_usage(system, user_message, resolved)
     json_system = system + "\n\n回覆格式：純 JSON，不要 markdown code block。"
-    raw = _call_provider(json_system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
+    raw = _call_provider(json_system, user_message, model=model, max_tokens=resolved, temperature=temperature)
     return _strip_code_fences(raw)
 
 
@@ -321,7 +350,7 @@ def call_llm_json_parsed(
     *,
     response_model: type[T],
     model: str | None = None,
-    max_tokens: int = 16384,
+    max_tokens: int | None = None,
     temperature: float = 0.2,
 ) -> T:
     """Call LLM for JSON, then parse into a Pydantic model."""

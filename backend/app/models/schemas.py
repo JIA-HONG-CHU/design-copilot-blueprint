@@ -281,9 +281,8 @@ class CldNode(BaseModel):
 
 
 class CldEdge(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    from_node: str = Field(alias="from")
-    to_node: str = Field(alias="to")
+    from_node: str = Field(validation_alias="from")
+    to_node: str = Field(validation_alias="to")
     polarity: str = "+"
     source_id: str = ""
 

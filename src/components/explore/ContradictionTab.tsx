@@ -145,6 +145,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const handleAiReidentify = (type: ContradictionType) => {
     setAiLoadingType(type);
     runGuarded(async () => {
+    try {
       const subset = contradictions.filter((c) => c.type === type);
       const targets = subset.filter(
         (c) => c.description && !c.improvingParam && !c.worseningParam && !c.pcAttributeA

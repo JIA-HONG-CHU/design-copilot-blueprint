@@ -12,11 +12,14 @@ from app.models.schemas import (
     SocraticFollowUpResponse,
     SocraticBriefImpactRequest,
     SocraticBriefImpactResponse,
+    SocraticAutoTagRequest,
+    SocraticAutoTagResponse,
 )
 from app.agents.analyst import (
     generate_socratic_questions,
     analyze_socratic_depth,
     evaluate_brief_impact,
+    auto_tag_socratic,
 )
 
 router = APIRouter()
@@ -38,3 +41,9 @@ def questions_follow_up(req: SocraticFollowUpRequest):
 def questions_brief_impact(req: SocraticBriefImpactRequest):
     """Evaluate which questions are affected by a Brief change and suggest replacements."""
     return evaluate_brief_impact(req)
+
+
+@router.post("/questions/auto-tag", response_model=SocraticAutoTagResponse)
+def questions_auto_tag(req: SocraticAutoTagRequest):
+    """AI analyses untagged Q&A for hidden assumptions and implied contradictions."""
+    return auto_tag_socratic(req)

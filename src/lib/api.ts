@@ -400,6 +400,38 @@ export function socraticBriefImpact(body: SocraticBriefImpactRequest) {
   return request<SocraticBriefImpactResponse>("/questions/brief-impact", body);
 }
 
+// ─── Socratic Auto-Tag ──────────────────────────────────────────────────────
+
+export interface UntaggedQuestionItem {
+  id: string;
+  category: string;
+  text: string;
+  answer: string;
+}
+
+export interface SocraticAutoTagRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  existing_assumptions?: string[];
+  existing_contradictions?: string[];
+  untagged_questions: UntaggedQuestionItem[];
+}
+
+export interface AutoTagSuggestionResult {
+  question_id: string;
+  suggested_tag: string;
+  reason: string;
+}
+
+export interface SocraticAutoTagResponse {
+  suggestions: AutoTagSuggestionResult[];
+}
+
+export function socraticAutoTag(body: SocraticAutoTagRequest) {
+  return request<SocraticAutoTagResponse>("/questions/auto-tag", body);
+}
+
 // ─── CLD ────────────────────────────────────────────────────────────────────
 
 export interface CldGenerateRequest {

@@ -31,6 +31,8 @@ interface ContradictionRow {
   type: string | null;
   severity: string;
   resolved: boolean;
+  source_question_id: string | null;
+  source_type: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +50,8 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   type: (r.type === 'TC' || r.type === 'PC' ? r.type : null) as 'TC' | 'PC' | null,
   severity: (validSeverities.has(r.severity) ? r.severity : DEFAULT_SEVERITY) as ContradictionSeverity,
   resolved: (r as any).resolved ?? false,
+  sourceQuestionId: r.source_question_id ?? null,
+  sourceType: (r.source_type ?? 'manual') as Contradiction['sourceType'],
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });

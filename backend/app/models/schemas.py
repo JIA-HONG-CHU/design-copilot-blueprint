@@ -233,6 +233,34 @@ class SocraticBriefImpactResponse(BaseModel):
     unaffected_ids: list[str] = Field(default_factory=list)
 
 
+# --- Socratic Auto-Tag (hidden assumption/contradiction detection) ---
+
+class UntaggedQuestion(BaseModel):
+    id: str
+    category: str
+    text: str
+    answer: str = ""
+
+
+class SocraticAutoTagRequest(BaseModel):
+    project_id: str
+    mission: str
+    constraints: list[str] = Field(default_factory=list)
+    existing_assumptions: list[str] = Field(default_factory=list)
+    existing_contradictions: list[str] = Field(default_factory=list)
+    untagged_questions: list[UntaggedQuestion]
+
+
+class AutoTagSuggestion(BaseModel):
+    question_id: str
+    suggested_tag: str  # "assumption" | "contradiction" | "none"
+    reason: str = ""
+
+
+class SocraticAutoTagResponse(BaseModel):
+    suggestions: list[AutoTagSuggestion] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Step 3: CLD Generation
 # ---------------------------------------------------------------------------

@@ -70,11 +70,18 @@ export default function Explore() {
     [kpisList],
   );
   const contradictionStrings = useMemo(
-    () => contradictions.map((c) => c.engineeringStatement || c.description || ''),
+    () => contradictions.map((c) => {
+      const stmt = c.engineeringStatement || c.description || '';
+      const src = c.source === 'ai' ? ', from: ai' : '';
+      return `[${c.id.slice(0, 8)}, ${c.type}${src}] ${stmt}`;
+    }),
     [contradictions],
   );
   const assumptionStrings = useMemo(
-    () => trackAssumptions.map((a) => a.description),
+    () => trackAssumptions.map((a) => {
+      const src = a.source === 'explore_tag' ? ', from: socratic' : '';
+      return `[${a.assumptionCode || a.id?.slice(0, 8) || '?'}${src}] ${a.description}`;
+    }),
     [trackAssumptions],
   );
 
@@ -128,6 +135,8 @@ export default function Explore() {
             .insert({
               project_id: id,
               natural_description: desc,
+              source_question_id: q.id,
+              source_type: 'socratic',
               severity: DEFAULT_SEVERITY,
               created_at: now,
               updated_at: now,

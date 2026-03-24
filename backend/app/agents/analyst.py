@@ -17,6 +17,7 @@ from app.prompts.analyst import (
     SOCRATIC_QUESTIONS,
     SOCRATIC_FOLLOW_UP,
     SOCRATIC_BRIEF_IMPACT,
+    SOCRATIC_AUTO_TAG,
     CLD_GENERATION,
     ANTI_ANCHOR_GENERATION,
     CONTRADICTION_FORMALIZATION,
@@ -42,6 +43,8 @@ from app.models.schemas import (
     SocraticFollowUpResponse,
     SocraticBriefImpactRequest,
     SocraticBriefImpactResponse,
+    SocraticAutoTagRequest,
+    SocraticAutoTagResponse,
     CldGenerationRequest,
     CldGenerationResponse,
     AntiAnchorRequest,
@@ -221,6 +224,25 @@ def evaluate_brief_impact(req: SocraticBriefImpactRequest) -> SocraticBriefImpac
     data.setdefault("affected", [])
     data.setdefault("unaffected_ids", [])
     return SocraticBriefImpactResponse(**data)
+
+
+def auto_tag_socratic(req: SocraticAutoTagRequest) -> SocraticAutoTagResponse:
+    """Analyse untagged Socratic Q&A for hidden assumptions/contradictions."""
+    untagged_text = "\n".join(
+        f"[{q.id}] Q ({q.category}): {q.text}\nA: {q.answer}"
+        for q in req.untagged_questions
+        if q.answer
+    ) or "（無未標記的已回答問題）"
+    prompt = SOCRATIC_AUTO_TAG.format(
+        mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+        existing_assumptions="\n".join(f"- {a}" for a in req.existing_assumptions) or "（尚無）",
+        existing_contradictions="\n".join(f"- {c}" for c in req.existing_contradictions) or "（尚無）",
+        untagged_questions=untagged_text,
+    )
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    return SocraticAutoTagResponse(**data)
 
 
 def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:

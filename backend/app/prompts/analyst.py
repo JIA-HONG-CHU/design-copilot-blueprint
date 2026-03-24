@@ -215,6 +215,63 @@ questions are still valid and which need to be replaced.
 
 
 # ---------------------------------------------------------------------------
+# Socratic Auto-Tag (analyse untagged Q&A for hidden assumptions/contradictions)
+# ---------------------------------------------------------------------------
+
+SOCRATIC_AUTO_TAG = """\
+<task>
+Analyse the following answered Socratic questions that have NOT been tagged as \
+assumption or contradiction. Identify which ones contain hidden assumptions or \
+implied contradictions that the user may have overlooked.
+</task>
+
+<context>
+<mission>{mission}</mission>
+<constraints>
+{constraints}
+</constraints>
+<existing_assumptions>
+{existing_assumptions}
+</existing_assumptions>
+<existing_contradictions>
+{existing_contradictions}
+</existing_contradictions>
+</context>
+
+<untagged_questions>
+{untagged_questions}
+</untagged_questions>
+
+<instructions>
+1. For each untagged Q&A, determine if the answer reveals:
+   - A **hidden assumption** — something taken for granted that could be wrong.
+   - An **implied contradiction** — a trade-off or conflict between two desirable properties.
+   - **Neither** — the answer is purely informational with no hidden implications.
+
+2. Do NOT duplicate existing assumptions or contradictions listed above.
+
+3. For each suggested tag, explain WHY this Q&A reveals an assumption or contradiction \
+(the "reason" field). This helps the engineer decide whether to accept the tag.
+
+4. Be conservative — only tag when there is genuine evidence in the answer text. \
+Do not invent implications that are not supported by what the user actually wrote.
+</instructions>
+
+<output_schema>
+{{
+  "suggestions": [
+    {{
+      "question_id": "the-question-id",
+      "suggested_tag": "assumption",
+      "reason": "The answer assumes X without evidence, which could fail if Y"
+    }}
+  ]
+}}
+</output_schema>
+"""
+
+
+# ---------------------------------------------------------------------------
 # CLD Generation
 # ---------------------------------------------------------------------------
 

@@ -77,13 +77,18 @@ function toFlowNodes(causalNodes: CausalNode[]): Node[] {
       width: NODE_W,
       height: NODE_H,
       borderRadius: 8,
-      border: n.isBreakpoint ? "2px dashed #dc3545" : "1px solid #e9ecef",
-      background: n.isBreakpoint ? "#fff5f5" : "#ffffff",
+      border: n.isBreakpoint
+        ? "2px dashed hsl(var(--destructive))"
+        : "1px solid hsl(var(--border))",
+      background: n.isBreakpoint
+        ? "hsl(var(--destructive) / 0.08)"
+        : "hsl(var(--card))",
+      color: "hsl(var(--card-foreground))",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       fontSize: 12,
-      fontWeight: n.isBreakpoint ? 600 : 400,
+      fontWeight: n.isBreakpoint ? 600 : 500,
       cursor: "pointer",
     },
   }));
@@ -92,7 +97,7 @@ function toFlowNodes(causalNodes: CausalNode[]): Node[] {
 function toFlowEdges(causalEdges: CausalEdge[]): Edge[] {
   return causalEdges.map((e) => {
     const isPositive = e.feedbackType === "positive";
-    const color = isPositive ? "#3B82F6" : "#dc3545";
+    const color = isPositive ? "#3B82F6" : "#EF4444";
     return {
       id: e.id,
       source: e.source,
@@ -100,7 +105,7 @@ function toFlowEdges(causalEdges: CausalEdge[]): Edge[] {
       animated: false,
       label: isPositive ? "+" : "−",
       labelStyle: { fill: color, fontWeight: 700, fontSize: 14 },
-      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9 },
+      labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.95 },
       labelBgPadding: [4, 4] as [number, number],
       labelBgBorderRadius: 4,
       style: { stroke: color, strokeWidth: 2 },
@@ -338,7 +343,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
           maxZoom={2}
           proOptions={{ hideAttribution: true }}
         >
-          <Background gap={20} size={1} color="#e5e7eb" />
+          <Background gap={20} size={1} color="hsl(var(--border) / 0.5)" />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>

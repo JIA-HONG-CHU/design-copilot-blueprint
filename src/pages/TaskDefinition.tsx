@@ -150,7 +150,6 @@ export default function TaskDefinition() {
             onChange={(e) => form.setMission(e.target.value)}
             placeholder="在 [情境] 下，系統必須 [行為]，且 [指標] 不得超標"
             rows={4}
-            maxLength={500}
             className={cn(
               "min-h-[100px]",
               form.missionReady && "border-l-[3px] border-l-success"
@@ -179,7 +178,7 @@ export default function TaskDefinition() {
                 </Button>
               )}
             </div>
-            <span>{form.mission.length}/500</span>
+            <span>{form.mission.length}字</span>
           </div>
           {form.showMissionSuggestion && (
             <>

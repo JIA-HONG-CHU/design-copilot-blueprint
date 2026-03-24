@@ -110,6 +110,10 @@ def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
 
     raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
     data = json.loads(raw)
+    # Defensive defaults — LLM may omit optional fields
+    data.setdefault("new_contradictions", [])
+    data.setdefault("force_pause", False)
+    data.setdefault("pause_reason", "")
     data["phase"] = req.phase  # echo phase back
     # model_validator handles key normalisation + score scaling
     return ConvergenceScanResponse(**data)

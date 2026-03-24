@@ -92,7 +92,6 @@ export function AITaskDefinitionCard({ data, missionReady, onRegenerate }: AITas
                             setEditData((prev) => prev ? { ...prev, [key]: e.target.value } : prev)
                           }
                           rows={2}
-                          maxLength={500}
                           className="bg-background"
                         />
                       ) : (

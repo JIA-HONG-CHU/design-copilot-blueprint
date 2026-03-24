@@ -62,14 +62,24 @@ export function MissionSummaryCard({
       return;
     }
     if (isLabelMapLoading) return;
-    setConstraintLabelMap(dbLabelMap);
+
+    if (!isSameLabelMap(constraintLabelMap, dbLabelMap)) {
+      setConstraintLabelMap(dbLabelMap);
+    }
     setInitialized(true);
-  }, [projectId, isLabelMapLoading, dbLabelMap]);
+  }, [projectId, isLabelMapLoading, dbLabelMap, constraintLabelMap]);
 
   const hardConstraintClassifyResult = useMemo(
     () => classifyHardConstraints(hardConstraintItems, constraintLabelMap),
     [hardConstraintItems, constraintLabelMap],
   );
+
+  const isSameLabelMap = (a: Record<string, string>, b: Record<string, string>) => {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((key) => a[key] === b[key]);
+  };
 
   const persistLabelMap = (
     nextMap: Record<string, string>,
@@ -128,9 +138,16 @@ export function MissionSummaryCard({
   };
 
   useEffect(() => {
-    if (!initialized || !hardConstraintClassifyResult.hasUpdates || !canManageLabels) return;
-    setConstraintLabelMap(hardConstraintClassifyResult.nextLabelMap);
-    persistLabelMap(hardConstraintClassifyResult.nextLabelMap, {
+    if (!initialized || !canManageLabels) return;
+
+    const { hasUpdates, nextLabelMap } = hardConstraintClassifyResult;
+    if (!hasUpdates) return;
+
+    // Avoid same value setState → redundant re-render
+    if (isSameLabelMap(constraintLabelMap, nextLabelMap)) return;
+
+    setConstraintLabelMap(nextLabelMap);
+    persistLabelMap(nextLabelMap, {
       action: "auto_classify_sync",
       actor: {
         id: user?.id ?? "unknown",
@@ -141,13 +158,13 @@ export function MissionSummaryCard({
     });
   }, [
     initialized,
-    hardConstraintClassifyResult,
-    projectId,
-    entryId,
-    createLabelMap,
-    updateLabelMap,
     canManageLabels,
-    user,
+    hardConstraintClassifyResult.hasUpdates,
+    hardConstraintClassifyResult.nextLabelMap,
+    constraintLabelMap,
+    user?.id,
+    user?.email,
+    user?.user_metadata?.display_name,
   ]);
 
   const hardConstraintGroups = hardConstraintClassifyResult.groups;

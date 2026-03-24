@@ -46,8 +46,7 @@ export const briefValidationSchema = z.object({
   mission: z
     .string()
     .trim()
-    .min(10, "Mission 為必填項，且需至少 10 個字元。")
-    .max(500, "Mission 不可超過 500 個字元。"),
+    .min(10, "Mission 為必填項，且需至少 10 個字元。"),
   constraints: z
     .array(
       z.object({
@@ -88,7 +87,7 @@ export interface TaskDefinitionData {
 }
 
 export const taskDefinitionSchema = z.object({
-  mission: z.string().trim().min(10).max(500),
+  mission: z.string().trim().min(10),
   hardConstraints: z.array(z.string().trim().min(5).max(200)),
   softObjectives: z.array(z.string().trim().min(5).max(200)),
   nonGoals: z.array(z.string().trim().min(5).max(200)),

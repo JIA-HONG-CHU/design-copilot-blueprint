@@ -92,7 +92,7 @@ Generate Socratic questions that probe the design task below.
 </context>
 
 <instructions>
-Cover all seven Socratic question types, at least one question per type:
+Generate exactly 7 questions — one per type, no more:
 
 1. **Clarification** — "What specifically do you mean by X?"
 2. **Assumption** — "Why must we assume X?" → tag: "assumption"

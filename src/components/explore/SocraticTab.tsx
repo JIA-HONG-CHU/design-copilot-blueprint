@@ -142,7 +142,10 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         aiTagConfirmed: false,
         aiTagDismissed: false,
       }));
-      onUpdateQuestions([...questions, ...newQuestions].slice(0, QUESTION_CAP));
+      // Initial generation: exactly 7 (one per category), deduplicate by category
+      const seen = new Set(questions.map((q) => q.category));
+      const deduped = newQuestions.filter((q) => !seen.has(q.category));
+      onUpdateQuestions([...questions, ...deduped].slice(0, QUESTION_CAP));
       toast.success(`AI 已生成 ${newQuestions.length} 個問題`);
     } catch (err) {
       console.error("Socratic generation failed:", err);

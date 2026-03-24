@@ -234,7 +234,8 @@ Rules:
 
 CONVERGENCE_SCAN = """\
 <task>
-Scan the current alternatives and contradictions to assess convergence health.
+Perform a parameter-level cross-check of alternatives against contradictions \
+to detect secondary contradictions and compute convergence health.
 </task>
 
 <context>
@@ -253,29 +254,77 @@ Scan the current alternatives and contradictions to assess convergence health.
 </contradictions>
 </context>
 
-<instructions>
-1. Identify secondary contradictions — new conflicts introduced by proposed solutions.
-2. Grade each: Fatal / Major / Minor.
-   - Fatal: concept is fundamentally infeasible.
-   - Major: requires additional solving before proceeding.
-   - Minor: log in risk register, does not block progress.
-3. Compute a convergence_score (0–1; 1 = fully converged).
-4. Assess architecture health:
-   - > 0.8 → healthy
-   - 0.5–0.8 → warning
-   - < 0.5 → critical
-5. If unresolved Fatal contradictions exist → force_pause = true.
-</instructions>
+<method>
+For EACH alternative, perform this analysis:
+
+1. **Identify resolved contradictions** — which original contradictions does this \
+alternative's mechanism address? Use `resolves_contradiction_ids` and mechanism text.
+
+2. **Parameter impact analysis** — for the alternative's mechanism:
+   - Which TRIZ parameters does it IMPROVE? (from the contradiction it resolves)
+   - Which TRIZ parameters may it WORSEN? (side-effects of its mechanism)
+   - For each worsened parameter, check if it conflicts with any other contradiction's \
+     improving_param or any constraint/KPI.
+
+3. **Cross-alternative interference** — check if two alternatives' mechanisms \
+require mutually exclusive physical states (e.g., one needs high rigidity, another \
+needs flexibility in the same component).
+
+4. **PC state conflict** — for contradictions of type PC, check if any alternative \
+forces a state that contradicts the physical_contradiction's required dual state.
+
+5. **Record secondary contradictions** with:
+   - The specific parameters or physical properties in conflict
+   - severity: fatal (physically impossible) / major (requires redesign) / minor (risk only)
+   - type: TC (two parameters trade off) or PC (same parameter needs opposite states)
+   - improving_param / worsening_param numbers if identifiable
+</method>
+
+<convergence_formula>
+After identifying all secondary contradictions, compute these intermediate values:
+
+  total_contradictions = count of all contradictions (original + new secondary)
+  resolved_or_minor = original contradictions marked resolved + minor secondary (non-blocking)
+  fatal_unresolved = count of fatal contradictions (original + secondary) not resolved
+  major_unresolved = count of major contradictions (original + secondary) not resolved
+  clean_alternatives = alternatives that introduced 0 fatal/major secondary contradictions
+  total_alternatives = count of all alternatives
+
+  convergence_score = round(
+    0.40 × (resolved_or_minor / max(total_contradictions, 1))
+    + 0.25 × (1 if fatal_unresolved == 0 else 0)
+    + 0.15 × (1 if major_unresolved == 0 else 0)
+    + 0.20 × (clean_alternatives / max(total_alternatives, 1))
+  ) × 100
+
+Show all intermediate values in reasoning_trace.
+
+Architecture health thresholds:
+  - convergence_score > 80  → "healthy"
+  - 50 ≤ convergence_score ≤ 80 → "warning"
+  - convergence_score < 50  → "critical"
+
+If any unresolved Fatal contradiction exists → force_pause = true.
+</convergence_formula>
 
 <output_schema>
 {{
-  "secondary_contradictions": [
-    {{"description": "...", "severity": "major", "source_alternative": "..."}}
+  "reasoning_trace": "Step-by-step parameter cross-check: [alt] improves P14 but worsens P26 ... intermediate: total=5, resolved_or_minor=3, fatal=0, major=1, clean=2/3 → score=round(0.40×0.6+0.25×1+0.15×0+0.20×0.67)×100=63",
+  "new_contradictions": [
+    {{
+      "description": "Alternative X improves weight but introduces thermal coupling at controller MOSFETs",
+      "severity": "major",
+      "source_alternative": "alternative-id-or-name",
+      "type": "TC",
+      "improving_param": 1,
+      "worsening_param": 17,
+      "reasoning": "Integrated housing reduces mass (P1) but creates thermal path from motor to controller (P17), exceeding junction temp limit under sustained load"
+    }}
   ],
-  "convergence_score": 0.72,
+  "convergence_score": 63,
   "architecture_health": "warning",
   "force_pause": false,
-  "summary": "Brief assessment"
+  "pause_reason": ""
 }}
 </output_schema>
 """

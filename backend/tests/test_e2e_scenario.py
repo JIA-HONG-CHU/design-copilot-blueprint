@@ -289,15 +289,20 @@ _RISK_ANALYSIS_RESPONSE = json.dumps({
 })
 
 _CONVERGENCE_SCAN_RESPONSE = json.dumps({
+    "reasoning_trace": "Alt 'Axial-Flux Ferrite Mid-Drive' improves P1(weight) but worsens P17(temperature) due to integrated housing. intermediate: total=2, resolved_or_minor=0, fatal=0, major=1, clean=0/1 → score=round(0.40*0+0.25*1+0.15*0+0.20*0)*100=25",
     "new_contradictions": [
         {
             "description": "Integrated housing thermal coupling creates hotspot at controller MOSFETs when motor runs at sustained high load",
             "severity": "major",
             "source_alternative": "Axial-Flux Ferrite Mid-Drive",
+            "type": "TC",
+            "improving_param": 1,
+            "worsening_param": 17,
+            "reasoning": "Integrated die-cast housing reduces mass (P1) but creates thermal path from motor windings to controller MOSFETs (P17), exceeding Tj limit under sustained hill-climb load",
         },
     ],
-    "convergence_score": 0.72,
-    "architecture_health": "warning",
+    "convergence_score": 0.25,
+    "architecture_health": "critical",
     "force_pause": False,
     "pause_reason": "",
 })
@@ -825,21 +830,31 @@ class TestEbikeE2EScenario:
             "project_id": PROJECT_ID,
             "alternatives": [
                 {
+                    "id": "alt-001",
                     "name": "Axial-Flux Ferrite Mid-Drive",
                     "mechanism": "Axial-flux with ferrite Halbach, ribbon winding, integrated housing",
-                    "must_pass": True,
+                    "source": "triz_tc",
+                    "resolves_contradiction_ids": ["ctr-001"],
                 },
             ],
             "contradictions": [
                 {
-                    "description": "Efficiency vs weight (TC)",
+                    "id": "ctr-001",
+                    "natural_description": "Efficiency vs weight (TC)",
                     "type": "TC",
+                    "severity": "major",
                     "resolved": True,
+                    "improving_param": 14,
+                    "worsening_param": 1,
+                    "engineering_statement": "Improving efficiency worsens weight",
                 },
                 {
-                    "description": "Housing thermal conductivity vs insulation (PC)",
+                    "id": "ctr-002",
+                    "natural_description": "Housing thermal conductivity vs insulation (PC)",
                     "type": "PC",
+                    "severity": "major",
                     "resolved": False,
+                    "physical_contradiction": "Housing must be thermally conductive for cooling yet electrically insulating for safety",
                 },
             ],
         })
@@ -847,8 +862,8 @@ class TestEbikeE2EScenario:
         assert resp.status_code == 200
         conv = resp.json()
 
-        assert isinstance(conv["convergence_score"], float)
-        assert 0 <= conv["convergence_score"] <= 1
+        assert isinstance(conv["convergence_score"], (int, float))
+        assert 0 <= conv["convergence_score"] <= 100
         assert conv["architecture_health"] in ("healthy", "warning", "critical")
         assert isinstance(conv["force_pause"], bool)
 

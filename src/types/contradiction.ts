@@ -16,6 +16,7 @@ export interface Contradiction {
   worseningParam: number | null;
   engineeringStatement: string;
   physicalContradiction: string;
+  type: 'TC' | 'PC' | null;
   severity: ContradictionSeverity;
   resolved: boolean;
   createdAt: string;

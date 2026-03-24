@@ -3,7 +3,7 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -357,10 +357,32 @@ class ActionSuggestResponse(BaseModel):
 # Contradiction Convergence (Step 5a-6)
 # ---------------------------------------------------------------------------
 
+class ConvergenceAlternativeInput(BaseModel):
+    """Rich alternative payload for convergence scanning."""
+    id: str
+    name: str
+    mechanism: str
+    source: str = ""  # triz_tc / triz_pc / triz_sf / scamper / manual / ai_integrated
+    resolves_contradiction_ids: list[str] = Field(default_factory=list)
+
+
+class ConvergenceContradictionInput(BaseModel):
+    """Rich contradiction payload for convergence scanning."""
+    id: str
+    natural_description: str
+    severity: str  # fatal / major / minor
+    resolved: bool = False
+    type: str | None = None  # TC or PC
+    improving_param: int | None = None  # TRIZ 39-param number
+    worsening_param: int | None = None
+    engineering_statement: str = ""
+    physical_contradiction: str = ""
+
+
 class ConvergenceScanRequest(BaseModel):
     project_id: str
-    alternatives: list[dict]
-    contradictions: list[dict]
+    alternatives: list[ConvergenceAlternativeInput]
+    contradictions: list[ConvergenceContradictionInput]
     mission: str = ""
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
@@ -370,14 +392,32 @@ class SecondaryContradiction(BaseModel):
     description: str
     severity: str  # fatal, major, minor
     source_alternative: str
+    type: str = "TC"  # TC or PC
+    improving_param: int | None = None
+    worsening_param: int | None = None
+    reasoning: str = ""
 
 
 class ConvergenceScanResponse(BaseModel):
     new_contradictions: list[SecondaryContradiction]
-    convergence_score: float
+    convergence_score: float  # 0-100 integer scale
     architecture_health: str  # healthy, warning, critical
     force_pause: bool = False
     pause_reason: str = ""
+    reasoning_trace: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keys(cls, values):
+        # Accept LLM output key 'secondary_contradictions' -> 'new_contradictions'
+        if isinstance(values, dict):
+            if "secondary_contradictions" in values and "new_contradictions" not in values:
+                values["new_contradictions"] = values.pop("secondary_contradictions")
+            # Accept 0-1 scale and normalise to 0-100
+            score = values.get("convergence_score", 0)
+            if isinstance(score, (int, float)) and score <= 1.0:
+                values["convergence_score"] = round(score * 100)
+        return values
 
 
 # ---------------------------------------------------------------------------

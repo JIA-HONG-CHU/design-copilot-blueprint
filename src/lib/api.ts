@@ -517,10 +517,30 @@ export function actionSuggest(body: ActionSuggestRequest) {
 
 // ─── Convergence ────────────────────────────────────────────────────────────
 
+export interface ConvergenceAlternativeInput {
+  id: string;
+  name: string;
+  mechanism: string;
+  source: string;
+  resolves_contradiction_ids: string[];
+}
+
+export interface ConvergenceContradictionInput {
+  id: string;
+  natural_description: string;
+  severity: string;
+  resolved: boolean;
+  type: string | null;
+  improving_param: number | null;
+  worsening_param: number | null;
+  engineering_statement: string;
+  physical_contradiction: string;
+}
+
 export interface ConvergenceScanRequest {
   project_id: string;
-  alternatives: Record<string, unknown>[];
-  contradictions: Record<string, unknown>[];
+  alternatives: ConvergenceAlternativeInput[];
+  contradictions: ConvergenceContradictionInput[];
   mission?: string;
   constraints?: string[];
   kpis?: string[];
@@ -530,14 +550,19 @@ export interface SecondaryContradictionResult {
   description: string;
   severity: string;
   source_alternative: string;
+  type: string;
+  improving_param: number | null;
+  worsening_param: number | null;
+  reasoning: string;
 }
 
 export interface ConvergenceScanResponse {
   new_contradictions: SecondaryContradictionResult[];
-  convergence_score: number;
+  convergence_score: number;  // 0-100
   architecture_health: string;
   force_pause: boolean;
   pause_reason: string;
+  reasoning_trace: string;
 }
 
 export function convergenceScan(body: ConvergenceScanRequest) {

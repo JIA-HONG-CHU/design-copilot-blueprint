@@ -45,6 +45,7 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   worseningParam: r.worsening_param,
   engineeringStatement: r.engineering_statement ?? '',
   physicalContradiction: r.physical_contradiction ?? '',
+  type: (r.type === 'TC' || r.type === 'PC' ? r.type : null) as 'TC' | 'PC' | null,
   severity: (validSeverities.has(r.severity) ? r.severity : DEFAULT_SEVERITY) as ContradictionSeverity,
   resolved: (r as any).resolved ?? false,
   createdAt: r.created_at,

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useAiOperationGuard } from "@/hooks/useAiOperationGuard";
 import { SocraticTab } from "@/components/explore/SocraticTab";
 import { ContradictionTab } from "@/components/explore/ContradictionTab";
 import { CldTab } from "@/components/explore/CldTab";
@@ -45,6 +46,7 @@ export default function Explore() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const { isRunning: isAiRunning, startOp, endOp } = useAiOperationGuard();
 
   // --- API hooks ---
   const { data: questions = [], isLoading: isLoadingQuestions } = useSocraticQuestions(id);
@@ -130,6 +132,7 @@ export default function Explore() {
         if (q.taggedAsContradiction && !original.taggedAsContradiction && id) {
           const desc = `[${q.category}] ${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
           const now = new Date().toISOString();
+          startOp();
           supabase
             .from('contradictions')
             .insert({
@@ -146,7 +149,6 @@ export default function Explore() {
             .then(({ data }) => {
               queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
 
-              // Fire-and-forget: auto-formalize via AI
               if (data?.id) {
                 contradictionFormalize({
                   project_id: id,
@@ -174,16 +176,17 @@ export default function Explore() {
                         queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
                       });
                   })
-                  .catch(() => {
-                    // Silent fail — user can retry with "AI 重新識別"
-                  });
+                  .catch(() => {})
+                  .finally(() => endOp());
+              } else {
+                endOp();
               }
             });
         }
 
         // When a question is newly tagged as assumption → create entry in assumptions table
         if (q.taggedAsAssumption && !original.taggedAsAssumption && id) {
-          // Count existing assumptions to generate next code
+          startOp();
           supabase
             .from('assumptions')
             .select('id', { count: 'exact', head: true })
@@ -209,12 +212,13 @@ export default function Explore() {
                 .then(() => {
                   queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
                   queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
-                });
+                })
+                .finally(() => endOp());
             });
         }
       }
     }
-  }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings]);
+  }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings, startOp, endOp]);
 
   // Delete a single Socratic question (Gmail-style: immediate delete + undo re-insert)
   const handleDeleteQuestion = useCallback((qId: string) => {

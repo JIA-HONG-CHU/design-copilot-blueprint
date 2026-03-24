@@ -45,6 +45,7 @@ import type { CausalLoop, CausalNode, CausalEdge } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { cldGenerate } from "@/lib/api";
+import { useAiOperationGuard } from "@/hooks/useAiOperationGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
 
@@ -144,6 +145,7 @@ function toFlowEdges(causalEdges: CausalEdge[]): Edge[] {
 export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis }: CldTabProps) {
   const qc = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const { runGuarded, isMountedRef } = useAiOperationGuard();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editReason, setEditReason] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -196,73 +198,73 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
     setEditReason(cn?.breakpointReason ?? "");
   }, [causalLoop]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     setIsGenerating(true);
-    try {
-      const result = await cldGenerate({
-        project_id: projectId,
-        contradictions,
-        assumptions,
-        mission,
-        constraints,
-        kpis,
-      });
-
-      // Delete existing CLD data for this project
-      await supabase.from("cld_edges").delete().eq("project_id", projectId);
-      await supabase.from("cld_nodes").delete().eq("project_id", projectId);
-
-      // Persist nodes (position will be computed by dagre on render)
-      const nodeRows = result.nodes.map((n, i) => ({
-        project_id: projectId,
-        label: n.label,
-        x: i * 150,
-        y: 0,
-        node_type: n.type || "variable",
-        is_leverage: result.breakpoints.includes(n.id),
-      }));
-
-      const { data: insertedNodes, error: nodesErr } = await supabase
-        .from("cld_nodes")
-        .insert(nodeRows)
-        .select();
-      if (nodesErr) throw nodesErr;
-
-      // Build mapping from backend node IDs to Supabase IDs
-      const idMap = new Map<string, string>();
-      result.nodes.forEach((n, i) => {
-        if (insertedNodes?.[i]) {
-          idMap.set(n.id, insertedNodes[i].id);
-        }
-      });
-
-      // Persist edges with mapped node IDs
-      const edgeRows = result.edges
-        .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))
-        .map((e) => ({
+    runGuarded(async () => {
+      try {
+        const result = await cldGenerate({
           project_id: projectId,
-          from_node: idMap.get(e.from_node)!,
-          to_node: idMap.get(e.to_node)!,
-          polarity: e.polarity === "+" ? "positive" : "negative",
+          contradictions,
+          assumptions,
+          mission,
+          constraints,
+          kpis,
+        });
+
+        await supabase.from("cld_edges").delete().eq("project_id", projectId);
+        await supabase.from("cld_nodes").delete().eq("project_id", projectId);
+
+        const nodeRows = result.nodes.map((n, i) => ({
+          project_id: projectId,
+          label: n.label,
+          x: i * 150,
+          y: 0,
+          node_type: n.type || "variable",
+          is_leverage: result.breakpoints.includes(n.id),
         }));
 
-      if (edgeRows.length > 0) {
-        const { error: edgesErr } = await supabase.from("cld_edges").insert(edgeRows);
-        if (edgesErr) throw edgesErr;
-      }
+        const { data: insertedNodes, error: nodesErr } = await supabase
+          .from("cld_nodes")
+          .insert(nodeRows)
+          .select();
+        if (nodesErr) throw nodesErr;
 
-      invalidateCld();
-      toast.success("AI 已生成因果迴路圖");
-    } catch (err) {
-      console.error("CLD generation failed:", err);
-      const { mockCausalLoop } = await import("@/data/mockExplore");
-      if (mockCausalLoop[projectId]) {
-        onUpdateCausalLoop(mockCausalLoop[projectId]);
+        const idMap = new Map<string, string>();
+        result.nodes.forEach((n, i) => {
+          if (insertedNodes?.[i]) {
+            idMap.set(n.id, insertedNodes[i].id);
+          }
+        });
+
+        const edgeRows = result.edges
+          .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))
+          .map((e) => ({
+            project_id: projectId,
+            from_node: idMap.get(e.from_node)!,
+            to_node: idMap.get(e.to_node)!,
+            polarity: e.polarity === "+" ? "positive" : "negative",
+          }));
+
+        if (edgeRows.length > 0) {
+          const { error: edgesErr } = await supabase.from("cld_edges").insert(edgeRows);
+          if (edgesErr) throw edgesErr;
+        }
+
+        invalidateCld();
+        toast.success("AI 已生成因果迴路圖");
+      } catch (err) {
+        console.error("CLD generation failed:", err);
+        if (isMountedRef.current) {
+          const { mockCausalLoop } = await import("@/data/mockExplore");
+          if (mockCausalLoop[projectId]) {
+            onUpdateCausalLoop(mockCausalLoop[projectId]);
+          }
+        }
+        toast.error("AI 生成失敗，已載入範例資料");
+      } finally {
+        if (isMountedRef.current) setIsGenerating(false);
       }
-      toast.error("AI 生成失敗，已載入範例資料");
-    } finally {
-      setIsGenerating(false);
-    }
+    });
   };
 
   const handleToggleBreakpoint = async (nodeId: string) => {

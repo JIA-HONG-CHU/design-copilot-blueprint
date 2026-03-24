@@ -17,6 +17,7 @@ import { DEFAULT_SEVERITY } from "@/types/contradiction";
 import type { ExploreContradiction, ContradictionType } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
+import { useAiOperationGuard } from "@/hooks/useAiOperationGuard";
 
 interface ContradictionTabProps {
   contradictions: ExploreContradiction[];
@@ -31,6 +32,7 @@ interface ContradictionTabProps {
 export function ContradictionTab({ contradictions, onUpdateContradictions, hasAnswers, projectId, mission, constraints, kpis }: ContradictionTabProps) {
   const qc = useQueryClient();
   const [aiLoadingType, setAiLoadingType] = useState<ContradictionType | null>(null);
+  const { runGuarded, isMountedRef } = useAiOperationGuard();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<ExploreContradiction>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -140,9 +142,9 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
   // ── AI re-identify (per type) ─────────────────────────────────────────
 
-  const handleAiReidentify = async (type: ContradictionType) => {
+  const handleAiReidentify = (type: ContradictionType) => {
     setAiLoadingType(type);
-    try {
+    runGuarded(async () => {
       const subset = contradictions.filter((c) => c.type === type);
       const targets = subset.filter(
         (c) => c.description && !c.improvingParam && !c.worseningParam && !c.pcAttributeA
@@ -225,8 +227,9 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       console.error('AI re-identify failed:', err);
       toast.error('AI 識別失敗，請稍後重試');
     } finally {
-      setAiLoadingType(null);
+      if (isMountedRef.current) setAiLoadingType(null);
     }
+    });
   };
 
   // ── Render a single contradiction card ────────────────────────────────

@@ -7,7 +7,7 @@
  *   - Each round: call convergenceScan → process secondary contradictions
  *   - Fatal/Major → auto-trigger next round (no iteration limit)
  *   - Minor → risk register (non-blocking)
- *   - Converged when convergence_score === 100 or no new fatal/major
+ *   - Converged when convergence_score >= 80 or no new fatal/major
  *   - Halted when architecture_health is critical/circular or force_pause
  *
  * Accepts real Contradiction[] from Supabase (via useContradictions) and
@@ -28,6 +28,7 @@ import {
   getApiErrorMessage,
 } from '@/lib/api';
 import type {
+  ConvergenceAlternativeInput,
   ConvergenceScanResponse,
   SecondaryContradictionResult,
 } from '@/lib/api';
@@ -42,7 +43,7 @@ export interface UseConvergenceLoopOptions {
   /** Real contradictions from Supabase via useContradictions(). */
   contradictions: Contradiction[];
   /** Alternatives to evaluate (passed through to convergenceScan). */
-  alternatives?: Record<string, unknown>[];
+  alternatives?: ConvergenceAlternativeInput[];
   /** Phase 1 context for richer AI reasoning. */
   mission?: string;
   constraints?: string[];
@@ -201,6 +202,11 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
             natural_description: c.naturalDescription,
             severity: c.severity,
             resolved: c.resolved ?? false,
+            type: c.type ?? null,
+            improving_param: c.improvingParam,
+            worsening_param: c.worseningParam,
+            engineering_statement: c.engineeringStatement,
+            physical_contradiction: c.physicalContradiction,
           })),
           mission,
           constraints,
@@ -268,7 +274,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       // Determine health and convergence
       const health = mapArchitectureHealth(scanResult.architecture_health);
       const confidence = scanResult.convergence_score;
-      const isConverged = confidence >= 100 || (!hasNewFatalMajor && iteration > 0);
+      const isConverged = confidence >= 80 || (!hasNewFatalMajor && iteration > 0);
       const isHalted = scanResult.force_pause || health === 'critical' || health === 'circular';
 
       const nextStatus = isHalted
@@ -315,8 +321,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     abortRef.current = false;
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    if (!projectId || contradictions.length === 0) {
-      // Nothing to explore
+    if (!projectId || contradictions.length === 0 || alternatives.length === 0) {
+      // Need both contradictions and alternatives to run convergence
       setState({ ...initialState });
       return;
     }
@@ -438,6 +444,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   // ------------------------------------------------------------------
   const addContradiction = useCallback((description: string, severity: ContradictionSeverity, sourceBranchId: string) => {
     const newId = `sc-ext-${Date.now()}`;
+    const isFatalMajor = severity === 'fatal' || severity === 'major';
+
     setState((prev) => {
       const newNode: ConvergenceNode = {
         id: newId,
@@ -448,23 +456,41 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         x: Math.max(...prev.graph.nodes.map((n) => n.x), 0) + 160,
         y: 180,
       };
-      const isFatalMajor = severity === 'fatal' || severity === 'major';
+      const updatedFatal = severity === 'fatal'
+        ? { ...prev.fatalCount, total: prev.fatalCount.total + 1 }
+        : prev.fatalCount;
+      const updatedMajor = severity === 'major'
+        ? { ...prev.majorCount, total: prev.majorCount.total + 1 }
+        : prev.majorCount;
+      const updatedMinor = severity === 'minor' ? prev.minorCount + 1 : prev.minorCount;
+      const updatedGraph = {
+        nodes: [...prev.graph.nodes, newNode],
+        edges: prev.graph.edges,
+      };
+
+      // Auto re-scan: schedule next round when fatal/major injected
+      if (isFatalMajor) {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          runScanRound(
+            prev.iteration + 1,
+            prev.branches,
+            updatedGraph,
+            prev.riskRegister,
+            updatedFatal,
+            updatedMajor,
+            updatedMinor,
+          );
+        }, STEP_DELAY_MS);
+      }
+
       return {
         ...prev,
         status: isFatalMajor ? 'exploring' : prev.status,
-        graph: {
-          nodes: [...prev.graph.nodes, newNode],
-          edges: prev.graph.edges,
-        },
-        fatalCount:
-          severity === 'fatal'
-            ? { ...prev.fatalCount, total: prev.fatalCount.total + 1 }
-            : prev.fatalCount,
-        majorCount:
-          severity === 'major'
-            ? { ...prev.majorCount, total: prev.majorCount.total + 1 }
-            : prev.majorCount,
-        minorCount: severity === 'minor' ? prev.minorCount + 1 : prev.minorCount,
+        graph: updatedGraph,
+        fatalCount: updatedFatal,
+        majorCount: updatedMajor,
+        minorCount: updatedMinor,
         confidence: isFatalMajor
           ? Math.round(
               ((prev.fatalCount.resolved + prev.majorCount.resolved) /
@@ -474,7 +500,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
           : prev.confidence,
       };
     });
-  }, []);
+  }, [runScanRound]);
 
   return {
     state,

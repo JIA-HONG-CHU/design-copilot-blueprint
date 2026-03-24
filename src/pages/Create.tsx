@@ -195,7 +195,13 @@ export default function Create() {
   const convergenceLoop = useConvergenceLoop({
     projectId: id,
     contradictions: contradictionsQuery.data ?? [],
-    alternatives: alternatives.map((a) => ({ id: a.id, name: a.name, mechanism: a.mechanism })),
+    alternatives: alternatives.map((a) => ({
+      id: a.id,
+      name: a.name,
+      mechanism: a.mechanism,
+      source: a.source,
+      resolves_contradiction_ids: a.keyAssumptionIds ?? [],
+    })),
     mission: briefMission,
     constraints: constraintStrings,
     kpis: kpiStrings,
@@ -346,10 +352,18 @@ export default function Create() {
     }
   };
 
-  const setTrizStatus = (tsId: string, status: TrizActionStatus) => {
-    // Optimistic local update
-    setLocalTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status } : t)));
-    updateTrizSolution.mutate({ id: tsId, status });
+  // TRIZ state transition guard — preserve traceability of human edits
+  const TRIZ_VALID_TRANSITIONS: Record<TrizActionStatus, TrizActionStatus[]> = {
+    pending:  ['adopted', 'skipped', 'edited'],
+    adopted:  ['pending', 'skipped'],
+    skipped:  ['pending'],
+    edited:   ['adopted', 'skipped'],  // edited → pending blocked (traceability)
+  };
+  const setTrizStatus = (tsId: string, next: TrizActionStatus) => {
+    const current = localTrizSolutions.find((t) => t.id === tsId)?.status;
+    if (current && !TRIZ_VALID_TRANSITIONS[current].includes(next)) return;
+    setLocalTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status: next } : t)));
+    updateTrizSolution.mutate({ id: tsId, status: next });
   };
   const toggleSubsystem = (ssId: string) => {
     const ss = subsystems.find(s => s.id === ssId);

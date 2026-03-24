@@ -12,7 +12,7 @@ import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { socraticGenerate, socraticFollowUp, socraticBriefImpact } from "@/lib/api";
 
-const QUESTION_CAP = 12;
+const QUESTION_CAP = 14;
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];

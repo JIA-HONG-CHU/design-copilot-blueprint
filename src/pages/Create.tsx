@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
   useAntiAnchorRoutes,
   useCreateAntiAnchorRoute,
   useUpdateAntiAnchorRoute,
+  useDeleteAntiAnchorRoute,
   useTrizSolutions,
   useUpdateTrizSolution,
   useSubsystems,
@@ -157,6 +158,7 @@ export default function Create() {
   // ── API Hooks: mutations ──
   const createAntiAnchorRoute = useCreateAntiAnchorRoute();
   const updateAntiAnchorRoute = useUpdateAntiAnchorRoute();
+  const deleteAntiAnchorRouteMut = useDeleteAntiAnchorRoute();
   const updateTrizSolution = useUpdateTrizSolution();
   const createSubsystem = useCreateSubsystem();
   const updateSubsystemMut = useUpdateSubsystem();
@@ -403,6 +405,39 @@ export default function Create() {
     resetSsForm();
     setEditingSubsystemId(null);
   };
+  const pendingDeleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const deleteAntiAnchorRoute = (routeId: string) => {
+    const idx = localRoutes.findIndex(r => r.id === routeId);
+    if (idx === -1) return;
+    const removed = localRoutes[idx];
+    setLocalRoutes(prev => prev.filter(r => r.id !== routeId));
+
+    // Cancel any previous pending timer for the same route
+    const existing = pendingDeleteTimers.current.get(routeId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      pendingDeleteTimers.current.delete(routeId);
+      deleteAntiAnchorRouteMut.mutate({ id: routeId });
+    }, 5000);
+    pendingDeleteTimers.current.set(routeId, timer);
+
+    toast(`已刪除「${removed.name}」`, {
+      duration: 5000,
+      action: {
+        label: "復原",
+        onClick: () => {
+          clearTimeout(timer);
+          pendingDeleteTimers.current.delete(routeId);
+          setLocalRoutes(prev => {
+            const next = [...prev];
+            next.splice(Math.min(idx, next.length), 0, removed);
+            return next;
+          });
+        },
+      },
+    });
+  };
   const deleteSubsystem = (ssId: string) => {
     setLocalSubsystems(prev => prev.filter(s => s.id !== ssId));
     deleteSubsystemMut.mutate({ id: ssId });
@@ -615,11 +650,16 @@ export default function Create() {
             {routes.map((r, i) => (
               <Card key={r.id} className="overflow-hidden border-l-[3px] border-l-accent">
                 <CardContent className="p-5 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
-                    <Badge variant="secondary" className="text-[10px] gap-1">
-                      <Sparkles className="h-2.5 w-2.5" /> AI
-                    </Badge>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
+                      <Badge variant="secondary" className="text-[10px] gap-1">
+                        <Sparkles className="h-2.5 w-2.5" /> AI
+                      </Badge>
+                    </div>
+                    <button onClick={() => deleteAntiAnchorRoute(r.id)} className="p-1 rounded hover:bg-destructive/10" title="刪除此路線">
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
                   </div>
                   <p className="text-sm font-medium">{r.name}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">{r.description}</p>

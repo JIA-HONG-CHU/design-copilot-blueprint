@@ -74,6 +74,7 @@ export {
   useAntiAnchorRoutes,
   useCreateAntiAnchorRoute,
   useUpdateAntiAnchorRoute,
+  useDeleteAntiAnchorRoute,
   useTrizSolutions,
   useCreateTrizSolution,
   useUpdateTrizSolution,

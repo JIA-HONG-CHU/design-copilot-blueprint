@@ -223,6 +223,14 @@ export function useUpdateAntiAnchorRoute() {
   });
 }
 
+export function useDeleteAntiAnchorRoute() {
+  return useSupabaseMutation<unknown, { id: string }>({
+    table: 'anti_anchor_routes',
+    type: 'delete',
+    invalidateKeys: [queryKeys.anti_anchor_routes.all],
+  });
+}
+
 // ---------------------------------------------------------------------------
 // TRIZ Solutions
 // ---------------------------------------------------------------------------

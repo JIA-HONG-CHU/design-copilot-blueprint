@@ -270,7 +270,6 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
           const hasConfirmedTag = q.aiSuggestedTag && q.aiTagConfirmed;
           const hasDismissedTag = q.aiSuggestedTag && q.aiTagDismissed && !q.aiTagConfirmed;
           const tagConfig = q.aiSuggestedTag ? AI_TAG_LABELS[q.aiSuggestedTag] : null;
-          const isNewAfterBriefUpdate = briefUpdatedAt && q.createdAt && new Date(q.createdAt) > new Date(briefUpdatedAt);
           const isReplaced = !!q.replacedAt;
 
           return (
@@ -306,9 +305,6 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                       </Badge>
                       {isReplaced && (
                         <Badge className="text-[10px] bg-amber-400 text-amber-950">已替換</Badge>
-                      )}
-                      {isNewAfterBriefUpdate && !isReplaced && (
-                        <Badge className="text-[10px] bg-emerald-500 text-white">NEW</Badge>
                       )}
                     </div>
                     {onDeleteQuestion && (

@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-# RD Design Copilot v2.0
+# RD Design Copilot v2.1
 
 ---
 
@@ -8,10 +8,10 @@
 | 項目 | 內容 |
 |------|------|
 | **產品名稱** | RD Design Copilot |
-| **版本** | v2.0 |
+| **版本** | v2.1 |
 | **文件狀態** | Draft |
 | **建立日期** | 2026-02-01 |
-| **最後更新** | 2026-03-12 |
+| **最後更新** | 2026-03-24 |
 | **文件擁有者** | [PM 姓名] |
 | **相關文件** | RD_Design_Copilot_整合流程.md, RD_Design_Copilot_State_Machine.md, AI_Agent_Architecture.md, MUST_Rulebook_Template.md, Evidence_Matrix_Risk_Register_Template.md, Pre_CAD_Review_Template.md |
 
@@ -209,15 +209,18 @@
 | 功能編號 | 功能名稱 | 優先級 | 描述 | 對應 Step |
 |---------|---------|--------|------|----------|
 | **F2.1** | 假設台帳管理 | P0 | 建立/更新/追蹤假設（6 欄：內容/依據/後果/驗證/成本/週期） | Step 4 |
-| **F2.2** | Anti-Anchor Sprint | P0 | 引導產生 3 種非典型架構概念，至少 1 條非對標路線。驗證 Diversity Score ≥ 0.4 | Step 5-0 |
-| **F2.3** | AutoTRIZ 解法生成 + 矛盾收斂圖 + 架構健康度監控 | P0 | 規則引擎查表（矛盾矩陣/分離原則/76 標準解）+ LLM 原理具體化 + **矛盾收斂圖 (Contradiction Convergence Graph)**：解法與 CLD/Interface Contract 交叉比對，新矛盾分級為 Fatal/Major/Minor，Fatal + Major 必須求解到完全收斂。**架構健康度監控**：節點 > 5 → 強制暫停回到 Step 1 重新定義；循環矛盾 → 強制暫停要求重構 | Step 5a |
+| **F2.2** | Anti-Anchor Sprint | P0 | 引導產生 3 種非典型架構概念，至少 1 條非對標路線。驗證 Diversity Score ≥ 0.4。保留 `mechanism`、`cross_domain_source`、`validation_passport`。每個概念可晉升為 Step 5 候選方案 (source: `anti_anchor`)。Prompt 採用第一性原理：物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛 | Step 5-0 |
+| **F2.3** | AutoTRIZ 解法生成 + 矛盾收斂圖 (Phase A/B) + 架構健康度監控 | P0 | 規則引擎查表（矛盾矩陣/分離原則/76 標準解）+ LLM 原理具體化 + **矛盾收斂圖 (Contradiction Convergence Graph)**，分為兩階段：**Phase A**（Step 2 起，僅矛盾空間健康度：inter-contradiction 衝突、循環依賴、覆蓋缺口，不需方案）公式使用 well_formed/non_circular/no_fatal/coverage 權重；**Phase B**（Step 5 後自動觸發，完整方案×矛盾交叉檢查）公式使用 resolved/fatal/major/clean_alts 權重。Phase A 收斂 + 方案出現 → 自動啟動 Phase B。**架構健康度監控**：節點 > 5 → 強制暫停回到 Step 1 重新定義；循環矛盾 → 強制暫停要求重構 | Step 2-5a |
 | **F2.4** | SCAMPER 變形 | P0 | 對每個子系統執行 SCAMPER，輸出 7 欄結構化結果 | Step 5c |
-| **F2.5** | AI 方案生成 | P0 | 整合 TRIZ + SCAMPER，輸出含 Interface Contract (6 維) 的完整方案規格 | Step 5d |
+| **F2.5** | AI 方案生成 | P0 | 整合 TRIZ 已採納解法 + SCAMPER 已採納變形 + 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)，輸出含 Interface Contract (6 維) + Validation Passport 的完整方案規格 | Step 5d |
 | **F2.6** | MUST 快篩 (Step 5e) | P0 | 基於 MUST Rulebook (M1-M6) 做 Go/No-Go 淘汰（E0-E1 證據等級） | Step 5e |
 | **F2.7** | Pre-CAD 設計審查 | P0 | 依 Pre-CAD Review Template 審查，MUST 項 Pass/Conditional/Fail + 定性評估 | Step P |
 | **F2.8** | 方案集合管理 | P0 | 管理 3-5 條架構級路線，每條含機制+假設+風險+驗證+Interface Contract | Step 5-P |
 | **F2.9** | Gate 4, Gate P 檢查 | P0 | 驗證各 Gate 通過條件 | Step 4, P |
 | **F2.10** | 知識增強注入 (Phase II) | P1 | RAG 檢索內部專利/歷史方案，Web 搜尋外部專利/新材料文獻 | Step 4-P |
+| **F2.11** | Validation Passport 生成 | P0 | 為每個候選方案（TRIZ、SCAMPER、Anti-Anchor、手動）生成自我宣告的驗證記錄：`assumptions[]`（含 content, category, evidence_level E0-E4, worst_consequence, worst_severity, suggested_experiment）、`weak_points[]`、`required_verifications[]`（優先排序）、`confidence_level`（0-1） | Step 5d |
+| **F2.12** | 索克拉底追問與深度分析 | P1 | 分析回答深度，自動生成後續追問 | Step 2 |
+| **F2.13** | Brief 變更影響評估 | P1 | 評估 Brief 變更對哪些索克拉底問題有影響 | Step 1-2 |
 
 #### Phase III: 收斂與驗證 (Step 6-7)
 
@@ -264,13 +267,16 @@
 3. 至少 1 條必須是「跟競品在物理介面或核心機制上不相容」的路線
 
 **輸出**
-- 3 條非典型架構概念
+- 3 條非典型架構概念，每條保留 `mechanism`、`cross_domain_source`、`validation_passport`
 - 每條概念的初步 M1/M4 可行性判斷
+- 每條概念可被「晉升」為 Step 5 候選方案 (source: `anti_anchor`)
 
 **驗收條件**
 - [ ] 產出至少 3 條非典型架構概念
 - [ ] DS ≥ 0.4
 - [ ] 至少 1 條通過 Anti-Anchor Gate（非對標且初步通過 M1, M4）
+- [ ] 每條概念包含 `mechanism`、`cross_domain_source`、`validation_passport`
+- [ ] Prompt 包含第一性原理要素（物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛）
 
 ---
 
@@ -521,9 +527,34 @@ KT_決策記錄:
 │ assumptions  │      │ file_path    │      │ severity     │
 │ risks        │      │ description  │      │ level        │
 │ must_results │      │ source       │      │ mitigation   │
-│ status       │      │ status       │      │ owner        │
-│ version      │      │ version      │      │ status       │
-└──────────────┘      └──────────────┘      └──────────────┘
+│ validation_  │      │ status       │      │ owner        │
+│   passport   │      │ version      │      │ status       │
+│ source       │      └──────────────┘      └──────────────┘
+│  (triz|      │
+│  scamper|    │
+│  anti_anchor|│
+│  manual)     │
+│ status       │
+│ version      │
+└──────────────┘
+
+┌──────────────────────────────┐
+│   Validation Passport        │
+│   (方案驗證護照)              │
+├──────────────────────────────┤
+│ assumptions[]:               │
+│   content, category,         │
+│   evidence_level (E0-E4),    │
+│   worst_consequence,         │
+│   worst_severity,            │
+│   suggested_experiment       │
+│ weak_points[]                │
+│ required_verifications[]     │
+│   (priority-ordered)         │
+│ confidence_level (0-1)       │
+└──────────────────────────────┘
+
+AlternativeSource: 'triz' | 'scamper' | 'anti_anchor' | 'manual'
 
 工件狀態流轉: Draft → Reviewed → Verified → Baselined → Released
 ```
@@ -609,7 +640,16 @@ KT_決策記錄:
 | **檔案儲存** | S3 / MinIO | 證據檔案 |
 | **部署** | Docker | 容器化部署 |
 
-### 9.3 Multi-Agent 架構
+### 9.3 核心 API Endpoints
+
+| Method | Endpoint | 說明 | 對應 Step |
+|--------|----------|------|----------|
+| POST | `/convergence/scan` | 收斂掃描：Phase A（矛盾空間健康度，Step 2 起）/ Phase B（方案×矛盾交叉檢查，Step 5 後自動觸發） | Step 2-5a |
+| POST | `/alternatives/validation-passport` | 為任意候選方案生成 Validation Passport | Step 5d |
+| POST | `/questions/follow-up` | 分析索克拉底回答深度，生成後續追問 | Step 2 |
+| POST | `/questions/brief-impact` | 評估 Brief 變更對哪些索克拉底問題有影響 | Step 1-2 |
+
+### 9.4 Multi-Agent 架構
 
 | Agent | 職責 | 主要工具 |
 |-------|------|---------|
@@ -619,7 +659,7 @@ KT_決策記錄:
 | **Evaluator Agent** | MUST 篩選、WANT 評分、Evidence 追蹤 | 規則引擎 |
 | **Knowledge Agent** | RAG 檢索、Web 搜尋、知識回寫 | 向量 DB + Web API |
 
-### 9.4 整合需求
+### 9.5 整合需求
 
 | 整合對象 | 整合方式 | 優先級 |
 |---------|---------|--------|

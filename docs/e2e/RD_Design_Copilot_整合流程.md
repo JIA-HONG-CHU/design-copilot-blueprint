@@ -56,7 +56,7 @@ Copilot 最小資料模型將圍繞以下 6 個核心物件，實現專家知識
 1.  **Constraint**：需求、硬限制、軟目標、非目標。
 2.  **Contradiction (TRIZ)**：改善參數、惡化參數、工程描述、物理矛盾。
 3.  **Breakpoint**：斷路點：介入位置、可操作參數。
-4.  **Concept Route**：架構路線：機制、介面契約、預估 BOM、風險、Evidence Matrix。
+4.  **Concept Route**：架構路線：機制、介面契約、預估 BOM、風險、Evidence Matrix、**Validation Passport**、**source**（`triz` | `scamper` | `anti_anchor` | `manual`）。
 5.  **Evidence**：仿真報告、計算書、測試報告、供應商回覆、量測數據。
 6.  **Risk**：風險登錄 (FMEA-like)，包含失效模式、機率、嚴重度、緩解措施。
 
@@ -483,16 +483,24 @@ flowchart LR
 
 ### 5.1 Anti-Anchor Sprint (反路徑依賴機制)
 
-**目的**：刻意打破資深 RD 的路徑依賴和對標思維，主動探索非典型架構。
+**目的**：刻意打破資深 RD 的路徑依賴和對標思維，主動探索非典型架構。Anti-Anchor **不再是孤島**——每個概念保留 `mechanism`、`cross_domain_source`、`validation_passport`，可被「晉升」為 Step 5 候選方案 (source: `anti_anchor`)。
 
+*   **Prompt 設計（第一性原理）**：
+    - 要求物理原則：每個概念必須聲明其依賴的物理定律/原理
+    - 因果鏈量化預期：預期效果需量化（數量級即可）
+    - 邊界條件：明確在什麼條件下此概念會失效
+    - 邏輯謬誤守衛：AI 自我檢查是否有循環論證、訴諸權威、類比過度等
 *   **產出 3 種「非典型架構」概念**：
     1.  不同能量傳遞/減速概念 (e.g., 非齒輪傳動, 磁力傳動)
     2.  不同感測/控制閉環概念 (e.g., 無感測器控制, 基於視覺的動態調整)
     3.  不同模組拆分/維修策略概念 (e.g., 模組化快拆, 耗材一體化設計)
 *   **規則**：**至少 1 條必須是「跟競品在物理介面或核心機制上不相容」的路線**。
+*   **保留欄位**：每條概念保留 `mechanism`、`cross_domain_source`、`validation_passport`（含 assumptions[]、weak_points[]、required_verifications[]、confidence_level）。
+*   **晉升機制**：通過 Anti-Anchor Gate 的概念可被 RD 或 AI 標記為「晉升」，直接進入 Step 5d 的候選池 (source: `anti_anchor`)。
 
 **Anti-Anchor Gate 檢查點 (Step 5-0 → Step 5a)**
 > ✅ 三條概念路線中，至少有一條是「非對標」且初步判斷能通過 MUST 的 **M1 (空間約束)** 和 **M4 (解耦程度)**。
+> ✅ 每條概念包含 `mechanism`、`cross_domain_source`、`validation_passport`。
 
 ### 5.2 流程架構 (更新)
 
@@ -507,7 +515,8 @@ graph TD
         S5a --"解法方向<br>(工程對映指出受影響子系統)"--> S5b["5b: 子系統定義<br>(散熱/支撐/傳動/控制器/隔振)"]
         S5b --"每個子系統"--> S5c["5c: SCAMPER 模組變形<br>對每個子系統 × 7 動作<br>輸出: 七欄規格"]
 
-        S5a --> S5d["5d: AI 方案生成<br>整合 TRIZ + SCAMPER<br>附帶: 機制+假設+風險+robust+最小驗證+Interface Contract"]
+        S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> S5d["5d: AI 方案生成<br>整合 TRIZ + SCAMPER + Anti-Anchor<br>附帶: 機制+假設+風險+robust+最小驗證+Interface Contract+Validation Passport"]
+        S5a --> S5d
         S5c --> S5d
 
         S5d --> S5e["5e: MUST 快篩<br>Go/No-Go 淘汰 (可機器執行規則)<br>留下 3-5 條架構級路線"]
@@ -527,11 +536,26 @@ graph TD
 > | 5a-5 品質校驗 | **規則 + 人審** | 檢查工程對映是否違反已知約束 |
 > | **5a-6 二次矛盾掃描** | **LLM + 規則** | 每個解法與 CLD/Interface Contract 交叉比對，識別受影響模組，檢查是否產生新矛盾 |
 >
-> **矛盾收斂圖 (Contradiction Convergence Graph)**
+> **矛盾收斂圖 (Contradiction Convergence Graph) — Phase A / Phase B**
+>
+> 收斂掃描分為兩個階段：
+>
+> **Phase A（矛盾空間健康度，Step 2 起可執行）**：
+> - 分析矛盾空間的 inter-contradiction 衝突、循環依賴、覆蓋缺口
+> - **不需要方案/替代方案**，從 Step 2 識別出矛盾後即可運行
+> - 收斂分數公式使用 `well_formed`、`non_circular`、`no_fatal`、`coverage` 權重
+> - API: `POST /convergence/scan` (phase=A)
+>
+> **Phase B（方案交叉檢查，Step 5 後自動觸發）**：
+> - 完整的 alternative × contradiction 交叉比對，檢查二次矛盾
+> - 收斂分數公式使用 `resolved`、`fatal`、`major`、`clean_alts` 權重
+> - API: `POST /convergence/scan` (phase=B)
+>
+> **自動轉換**：Phase A 收斂 + 方案出現 → 自動啟動 Phase B。
 >
 > TRIZ 解法本身是新的設計決策，會改變模組間的交互作用，可能產生二次矛盾。**所有致命和重大矛盾都必須被解決**——目標是在 Pre-CAD 階段就達成高信心。
 >
-> **掃描邏輯**：
+> **Phase B 掃描邏輯**：
 >
 > 1. 每個 TRIZ 工程對映產出後，自動比對 CLD 中的耦合迴路和 Interface Contract 的 6 個維度
 > 2. 識別解法改變了哪些介面的物理特性（例如：液冷方案新增了密封介面）
@@ -562,8 +586,13 @@ graph TD
 > Gate P 門檻：Confidence = 100%（所有 Fatal 和 Major 矛盾完全收斂）。
 >
 > ```
-> 5a 矛盾收斂圖:
->   TRIZ 解法 → 5a-6 矛盾掃描 + 分級
+> Phase A (Step 2 起, 不需方案):
+>   矛盾空間 → 健康度掃描
+>     ├─ well_formed ✓, non_circular ✓, no_fatal ✓, coverage ✓ → Phase A 收斂
+>     └─ 任一不通過 → 提示修正矛盾定義
+>
+> Phase B (Step 5 後自動觸發, Phase A 收斂 + 方案出現):
+>   TRIZ 解法 → 5a-6 方案×矛盾交叉掃描 + 分級
 >     ├─ 無新矛盾 → 進入 5b ✓
 >     ├─ Minor 矛盾 → 記入 Risk Register → 進入 5b ✓
 >     ├─ Major 矛盾 → 加入矛盾收斂圖 → 回到 5a-1 求解
@@ -619,12 +648,15 @@ TRIZ_解法_[編號]:
 
 ### 5d AI 方案生成規格 (工件: Concept Route, Interface)
 
+> **候選來源**：Step 5d 整合三類候選——(1) TRIZ 已採納解法、(2) SCAMPER 已採納變形、(3) 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)。每個候選方案由 AI 生成 Validation Passport。
+> **API**: `POST /alternatives/validation-passport`
+
 **每個方案必須附帶**
 
 ```yaml
 方案_[編號]:
   名稱: [簡短描述]
-  來源: [TRIZ原理#X + SCAMPER動作Y]
+  來源: [TRIZ原理#X + SCAMPER動作Y | anti_anchor]
 
   機制說明:
     物理原理: [為什麼有效]
@@ -660,6 +692,23 @@ TRIZ_解法_[編號]:
     方法: [測試/計算/樣品]
     週期: [預估]
     成本: [預估]
+
+  **validation_passport:**
+    assumptions:
+      - content: [假設內容]
+        category: [structural | thermal | manufacturing | ...]
+        evidence_level: [E0-E4]
+        worst_consequence: [若假設錯誤的最壞後果]
+        worst_severity: [critical | major | minor]
+        suggested_experiment: [建議驗證實驗]
+    weak_points:
+      - [已知弱點/限制]
+    required_verifications:  # 優先排序
+      - [最高優先驗證項目]
+      - [次優先驗證項目]
+    confidence_level: [0-1]
+
+  source: [triz | scamper | anti_anchor | manual]  # AlternativeSource
 ```
 
 ### 5e MUST 快篩 (黑帽篩選) (可機器執行規則)

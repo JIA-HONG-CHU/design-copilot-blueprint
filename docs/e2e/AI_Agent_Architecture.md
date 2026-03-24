@@ -1,8 +1,9 @@
 # AI Agent 架構設計：RD Design Copilot E2E 自動化
 
-> **版本**：v1.2 | **日期**：2026-03-12
+> **版本**：v1.3 | **日期**：2026-03-24
 > **目的**：從 AI Agent 角度重新梳理 E2E 流程，定義自動化等級與多代理協作機制，重點解決 RD 路徑依賴問題。
-> **對齊依據**：`RD_Design_Copilot_整合流程.md` v1.6 + `RD_Design_Copilot_State_Machine.md` v1.4
+> **對齊依據**：`RD_Design_Copilot_整合流程.md` v1.6 + `RD_Design_Copilot_State_Machine.md` v1.6
+> **v1.3 更新**：收斂掃描拆為 Phase A（矛盾空間健康度，Step 2 起）/Phase B（方案交叉檢查，Step 5 後自動觸發）；Analyst Agent 新增 socratic follow-up（回答深度分析 + 追問生成）、brief-impact（Brief 變更影響評估）、first-principles Anti-Anchor（第一性原理 prompt）；Evaluator Agent 新增 Validation Passport 生成；Anti-Anchor 概念可晉升為 Step 5 候選方案（`AlternativeSource` 新增 `'anti_anchor'`）；Step 5d 整合 TRIZ + SCAMPER + Anti-Anchor 候選，每個方案自帶 Validation Passport；新增 3 個 API endpoints。
 > **v1.2 更新**：Knowledge Agent 新增 Source Ingestion 能力（多模態素材解讀）；Analyst Agent 新增 Contradiction Convergence Graph 能力（矛盾收斂圖：掃描 + 分級 Fatal/Major/Minor + 追蹤完全收斂）；TRIZ Solver Agent 輸出新增受影響模組清單與潛在二次矛盾；序列圖更新 Step 1 素材上傳流程和 Step 5a 矛盾收斂迴圈（不設次數上限，目標完全收斂）。
 
 ---
@@ -13,9 +14,9 @@
 
 | Agent | 職責 | 核心能力 | 綁定工具 |
 |-------|------|---------|---------|
-| **Analyst Agent** | 需求解構、索克拉底問答（含第七類「重構」提問）、因果迴路建模、矛盾識別、假設質疑、**約束可行性驗證 (Constraint Feasibility Check)**、**問題框架挑戰 (Problem Reframing)**、**矛盾收斂圖管理 + 架構健康度監控**：掃描二次矛盾、分級 (Fatal/Major/Minor)、追蹤收斂、節點 > 5 強制暫停 | 語意理解、結構化拆解、隱含假設偵測、**物理可行性分析、問題重構、解法-模組耦合影響分析、矛盾分級判定** | LLM、Prompt Template、Functional Model Generator |
+| **Analyst Agent** | 需求解構、索克拉底問答（含第七類「重構」提問）、**索克拉底追問（回答深度分析 + 後續追問生成）**、**Brief 變更影響評估**、因果迴路建模、矛盾識別、假設質疑、**約束可行性驗證 (Constraint Feasibility Check)**、**問題框架挑戰 (Problem Reframing)**、**第一性原理 Anti-Anchor（物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛）**、**矛盾收斂圖管理 (Phase A/B) + 架構健康度監控**：Phase A（Step 2 起，矛盾空間健康度）、Phase B（Step 5 後自動觸發，方案交叉檢查）、掃描二次矛盾、分級 (Fatal/Major/Minor)、追蹤收斂、節點 > 5 強制暫停 | 語意理解、結構化拆解、隱含假設偵測、**物理可行性分析、問題重構、解法-模組耦合影響分析、矛盾分級判定、回答深度分析、Brief 變更追蹤** | LLM、Prompt Template、Functional Model Generator |
 | **TRIZ Solver Agent** | AutoTRIZ 規則查表 + LLM 原理具體化 + SCAMPER 變形。輸出增加：**受影響模組清單 + 潛在二次矛盾** | 矛盾矩陣查表、分離原理匹配、76 標準解映射、原理實體化 | TRIZ Knowledge Base (Prompt MD)、LLM、RAG |
-| **Evaluator Agent** | MUST 規則驗證、KT 決策分析、證據品質評分、Gate 判定 | 規則引擎、加權評分、風險評估 | MUST Rulebook、Evidence Matrix、Risk Register、LLM |
+| **Evaluator Agent** | MUST 規則驗證、KT 決策分析、證據品質評分、Gate 判定、**Validation Passport 生成**（為每個候選方案生成 assumptions[]、weak_points[]、required_verifications[]、confidence_level）、**Phase A/B 收斂判定** | 規則引擎、加權評分、風險評估、**驗證護照生成** | MUST Rulebook、Evidence Matrix、Risk Register、LLM |
 | **Knowledge Agent** | 企業 RAG 檢索、Web 文獻搜尋、跨域類比、知識回寫、**多模態素材解讀 (Source Ingestion)** | 向量檢索、Web Scraping、文件分類、Citation 生成、**多模態文件解析 (PDF/圖片/Excel → 結構化提取)** | Vector DB、Web Search API、Document Store、**Multimodal LLM** |
 
 ### 1.2 Orchestrator（編排器）
@@ -96,11 +97,11 @@ graph TB
 | **2** | **理解全貌** (索克拉底問答) | I | **AI-Driven** | Analyst + Knowledge | 參與問答、確認假設與矛盾 | **高** — 慣用架構偏見 | Contradiction, Assumption |
 | **3** | **系統建模** (因果迴路 + TRIZ 矛盾 + 斷路點) | I | **AI-Driven** | Analyst + TRIZ Solver | 校準矛盾句、確認斷路點 | **高** — 傾向忽略矛盾 | Contradiction, Breakpoint |
 | **4** | **假設與驗證規劃** (HDA + 未知集合) | II | AI-Assisted | Analyst + Knowledge | 填寫假設台帳、定義未知集合 | 中 | Assumption |
-| **5-0** | **Anti-Anchor Sprint** (反路徑依賴) | II | **Fully Auto** | Analyst + Knowledge | 審核非典型架構 | **最高** — Anti-Anchor 核心 | — |
-| **5a** | **TRIZ 解矛盾** (矩陣查表 + 原理具體化 + **矛盾收斂圖掃描**，Fatal/Major 完全收斂) | II | **Fully Auto** | TRIZ Solver + Analyst + Knowledge | 確認矛盾分級、審核深度告警 | **高** — 解法錨定 | Concept Route (部分) |
+| **5-0** | **Anti-Anchor Sprint** (反路徑依賴，第一性原理 prompt，概念可晉升為 Step 5 候選) | II | **Fully Auto** | Analyst + Knowledge | 審核非典型架構 | **最高** — Anti-Anchor 核心 | — |
+| **5a** | **TRIZ 解矛盾** (矩陣查表 + 原理具體化 + **矛盾收斂圖 Phase B 掃描**，Fatal/Major 完全收斂) | II | **Fully Auto** | TRIZ Solver + Analyst + Knowledge | 確認矛盾分級、審核深度告警 | **高** — 解法錨定 | Concept Route (部分) |
 | **5b** | **子系統定義** (受影響子系統識別) | II | AI-Driven | Analyst | 確認子系統清單 | 中 | Concept Route (部分) |
 | **5c** | **SCAMPER 模組變形** (每子系統 × 7 動作) | II | **Fully Auto** | TRIZ Solver + Knowledge | 僅選擇 | 高 — 變形慣性 | Concept Route (部分) |
-| **5d** | **AI 方案生成** (整合 TRIZ + SCAMPER) | II | **AI-Driven** | Analyst + TRIZ Solver | 審核方案規格 | 中 | Concept Route, Interface |
+| **5d** | **AI 方案生成** (整合 TRIZ + SCAMPER + Anti-Anchor 晉升，每方案附 Validation Passport) | II | **AI-Driven** | Analyst + TRIZ Solver + Evaluator | 審核方案規格 | 中 | Concept Route, Interface |
 | **5e** | **MUST 快篩** (Go/No-Go 淘汰) | II | **AI-Driven** | Evaluator | 確認 MUST 判定結果 | 低 | Concept Route |
 | **P** | **Pre-CAD 設計審查** (Pre-CAD Gate) | II | **AI-Driven** | Evaluator | 審核 Gate P 結果、決策保留路線 | 低 | Pre-CAD Review Report |
 | **6** | **設計審查** (CAD Gate - MVP CAD Review) | III | AI-Assisted | Evaluator + Knowledge | 繪製 MVP CAD、填寫 DR EM、黑帽質疑 | 低 | Evidence Matrix, Risk, MVP CAD Model |
@@ -253,9 +254,9 @@ sequenceDiagram
     ORC->>EA: Gate 4 檢查
     EA-->>ORC: Gate 4 通過
 
-    ORC->>AA: Step 5-0 Anti-Anchor Sprint
+    ORC->>AA: Step 5-0 Anti-Anchor Sprint (第一性原理 prompt)
     ORC->>KA: Step 5-0 - 跨域架構搜尋
-    AA-->>ORC: 3 種非典型架構概念
+    AA-->>ORC: 3 種非典型架構概念 (保留 mechanism/cross_domain_source/validation_passport, 可晉升為候選)
     ORC->>EA: Anti-Anchor Gate 檢查
     EA-->>ORC: Anti-Anchor Gate 通過
 
@@ -264,7 +265,7 @@ sequenceDiagram
         ORC->>TA: Step 5a - 矩陣查表 + 原理具體化
         ORC->>KA: Step 5a - 佐證搜尋 (專利/文獻)
         TA-->>ORC: 每條矛盾 ≥3 條工程對映 + 受影響模組清單
-        ORC->>AA: Step 5a-6 矛盾收斂圖掃描 + 分級 + 架構健康度監控
+        ORC->>AA: Step 5a-6 矛盾收斂圖 Phase B 掃描 + 分級 + 架構健康度監控
         alt 收斂圖節點 > 5
             AA-->>ORC: 🛑 強制暫停: 架構根本性問題
             ORC->>RD: 回到 Step 1 重新定義或換架構方向
@@ -286,8 +287,10 @@ sequenceDiagram
         TA-->>ORC: 每子系統 × 7 動作變形
     end
 
-    ORC->>AA: Step 5d AI 方案生成 - 整合 TRIZ + SCAMPER
+    ORC->>AA: Step 5d AI 方案生成 - 整合 TRIZ + SCAMPER + Anti-Anchor 晉升
     AA-->>ORC: Concept Route (Draft) + Interface Contract
+    ORC->>EA: 為每個候選方案生成 Validation Passport
+    EA-->>ORC: Validation Passport (assumptions[], weak_points[], required_verifications[], confidence_level)
 
     ORC->>EA: Step 5e MUST 快篩
     EA-->>ORC: 快篩結果 (保留 3-5 條路線)
@@ -409,7 +412,10 @@ AI介入: ◐    ●    ●    ◐    ●    ●    ●    ●    ●    ●    
 | **Problem Reframing** | **Step 2** | **Analyst** | **§Step 2 第七類「重構」提問** |
 | **Source Ingestion** | **Step 1** | **Knowledge** | **§Step 1 多模態素材輸入** |
 | Forced Divergence | Step 5-0 + 5a | TRIZ Solver + Analyst | §5.1 Anti-Anchor Sprint + §5a TRIZ 解矛盾 |
-| **Contradiction Convergence Graph + Architecture Health Monitor** | **Step 5a-6** | **Analyst + TRIZ Solver** | **§5a 矛盾收斂圖 (Fatal/Major 完全收斂) + 架構健康度 (節點>5 強制暫停)** |
+| **Contradiction Convergence Graph Phase A/B + Architecture Health Monitor** | **Step 2-5a** | **Analyst + TRIZ Solver + Evaluator** | **§5a 矛盾收斂圖 Phase A (矛盾空間健康度) + Phase B (方案交叉檢查) + 架構健康度 (節點>5 強制暫停)** |
+| **Validation Passport Generation** | **Step 5d** | **Evaluator** | **每個候選方案自帶 Validation Passport** |
+| **Socratic Follow-up** | **Step 2** | **Analyst** | **回答深度分析 + 後續追問生成** |
+| **Brief Impact Analysis** | **Step 1-2** | **Analyst** | **Brief 變更影響評估** |
 | Cross-Domain Search | Step 5a/5c 並行 | Knowledge | §5.0 知識增強輸入 (Web 外部專利/新材料) |
 | Anti-Anchor Gate | Step 5-0 → 5a | Evaluator | §5.1 Anti-Anchor Gate 檢查點 |
 | Diversity Score | Step 5e → Gate P | Evaluator | §Gate 5 檢查點 (≥3 路線 + ≥1 Anti-Anchor) |
@@ -436,10 +442,12 @@ analyst_agent:
     - assumption_extractor        # Step 2 假設質疑
     - constraint_feasibility_checker  # Step 1 約束可行性驗證 (物理極限分析)
     - problem_reframer               # Step 2 問題框架挑戰 (重構提問)
-    - contradiction_convergence_graph # Step 5a-6 矛盾收斂圖 (掃描+分級+追蹤收斂, Fatal/Major 完全收斂)
+    - contradiction_convergence_graph # Step 5a-6 矛盾收斂圖 Phase A/B (掃描+分級+追蹤收斂, Fatal/Major 完全收斂)
     - architecture_health_monitor    # Step 5a-6 架構健康度監控 (節點>5 強制暫停, 循環偵測)
     - scamper_checklist           # Step 5c SCAMPER 模板 (交由 TRIZ Solver 執行)
-    - anti_anchor_generator       # Step 5-0 非典型架構生成
+    - anti_anchor_generator       # Step 5-0 非典型架構生成 (第一性原理 prompt, 保留 mechanism/cross_domain_source/validation_passport)
+    - socratic_follow_up          # Step 2 回答深度分析 + 後續追問生成
+    - brief_impact_analyzer       # Step 1-2 Brief 變更影響評估
   prompts:
     - system: "你是一位機械工程系統分析師..."
 
@@ -468,6 +476,8 @@ evaluator_agent:
     - diversity_score_calculator  # Gate P 前方案多樣性
     - pre_cad_reviewer            # Step P 5 維度審查
     - anti_anchor_gate_checker    # Step 5-0→5a 反錨定檢查
+    - validation_passport_generator # Step 5d 為每個候選方案生成 Validation Passport
+    - convergence_phase_judge       # Phase A/B 收斂判定
   templates:
     - MUST_Rulebook_Template.md
     - Pre_CAD_Review_Template.md
@@ -524,6 +534,17 @@ orchestrator_state:
     assumption: "verified"
     concept_route: "draft"
 ```
+
+---
+
+## §6.4 API Endpoints
+
+| Method | Endpoint | Agent | 說明 |
+|--------|----------|-------|------|
+| POST | `/convergence/scan` | Analyst + Evaluator | 收斂掃描：Phase A（矛盾空間健康度，Step 2 起）/ Phase B（方案×矛盾交叉檢查，Step 5 後自動觸發） |
+| POST | `/alternatives/validation-passport` | Evaluator | 為任意候選方案生成 Validation Passport（assumptions[], weak_points[], required_verifications[], confidence_level） |
+| POST | `/questions/follow-up` | Analyst | 分析索克拉底回答深度，生成後續追問 |
+| POST | `/questions/brief-impact` | Analyst | 評估 Brief 變更對哪些索克拉底問題有影響 |
 
 ---
 

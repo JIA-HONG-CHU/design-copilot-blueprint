@@ -3,6 +3,7 @@
 本文件以程式設計角度繪製 `RD Design Copilot 整合流程 (E2E)` 的狀態機圖，並說明每個階段的 Roles & Responsibilities (R&R)。
 本文件核心概念為 **雙層狀態機 (Dual-Layer State Machine)**，同時管理 **流程狀態 (Process State)** 與 **工件狀態 (Artifact State)**。
 
+> **v1.6 更新**：收斂掃描拆為 Phase A（矛盾空間健康度）/Phase B（方案交叉檢查），Anti-Anchor 可晉升為候選方案，每個方案自帶 Validation Passport。
 > **v1.5 更新**：新增三層 AI 主動質疑機制——Gate 1 增加約束可行性驗證、Step 2 索克拉底擴展為七類（增加「重構」提問）、Step 5a-6 增加架構健康度監控（節點 > 5 或循環矛盾 → 強制回到 Step 1）。AI 角色從 solver 升級為 challenger。
 > **v1.4 更新**：Step 5 內部子流程新增「5a-6: 矛盾收斂圖 (Contradiction Convergence Graph)」，Fatal/Major 矛盾必須完全收斂（不設次數上限），Minor 矛盾記入 Risk Register。新增 Pre-CAD Confidence Score。
 > **v1.3 更新**：統一 Gate C 位置定義（Step 6 完成時判定），修正工件狀態轉換對照表，修正 Baselined 拼寫。
@@ -62,7 +63,7 @@ stateDiagram-v2
     S8 --> [*] : Gate 8 (COMPLETED)
 ```
 
-> **Note**: Step 5 內部子流程 (5-0 Anti-Anchor Sprint → 5a TRIZ → 5b 子系統 → 5c SCAMPER → 5d AI 方案 → 5e MUST 快篩) 詳見下方「Step 5 內部子流程」圖。
+> **Note**: Step 5 內部子流程 (5-0 Anti-Anchor Sprint → 5a TRIZ → 5b 子系統 → 5c SCAMPER → 5d AI 方案 → 5e MUST 快篩) 詳見下方「Step 5 內部子流程」圖。Anti-Anchor 概念現可晉升為 Step 5 候選方案 (source: `anti_anchor`)，不再是孤島。
 
 #### Step 5 內部子流程
 
@@ -70,7 +71,7 @@ stateDiagram-v2
 stateDiagram-v2
     state "5-0: Anti-Anchor Sprint" as S5_0
     state "5a: TRIZ 解矛盾" as S5a
-    state "5a-6: 矛盾收斂圖掃描 + 分級" as S5a6
+    state "5a-6: 矛盾收斂圖掃描 + 分級 (Phase A/B)" as S5a6
     state "5b: 子系統定義" as S5b
     state "5c: SCAMPER 變形" as S5c
     state "5d: AI 方案生成" as S5d
@@ -89,7 +90,13 @@ stateDiagram-v2
     S5e --> [*]
 ```
 
-> **矛盾收斂圖 + 架構健康度監控 (5a-6)**：每個 TRIZ 工程對映產出後，自動與 CLD/Interface Contract 交叉比對，檢查解法是否產生新矛盾。新矛盾分級為 Fatal/Major/Minor：
+> **矛盾收斂圖 + 架構健康度監控 (5a-6)**：收斂掃描分為兩個階段：
+>
+> - **Phase A（矛盾空間健康度，Step 2 起可執行）**：分析矛盾空間的 inter-contradiction 衝突、循環依賴、覆蓋缺口。**不需要方案/替代方案**。收斂分數公式使用 `well_formed`、`non_circular`、`no_fatal`、`coverage` 權重。
+> - **Phase B（方案交叉檢查，Step 5 後自動觸發）**：完整的 alternative × contradiction 交叉比對，檢查二次矛盾。收斂分數公式使用 `resolved`、`fatal`、`major`、`clean_alts` 權重。
+> - **自動轉換**：Phase A 收斂 + 方案出現 → 自動啟動 Phase B。
+>
+> 新矛盾分級為 Fatal/Major/Minor：
 > - **Fatal + Major**：必須回到 5a 繼續求解，直到完全收斂。**不設硬性次數上限**。
 > - **Minor**：記入 Risk Register，不阻擋流程。
 > - **架構健康度監控**（非告警，是強制停止）：
@@ -241,12 +248,12 @@ flowchart LR
     - 審查 AI 生成的解法方向、SCAMPER 變形及完整方案。
     - 定義 MUST 條件並執行 Go/No-Go 判定。
 - **AI (Copilot) R&R**:
-    - **5-0 Anti-Anchor Sprint**: 引導產生非典型架構概念。
+    - **5-0 Anti-Anchor Sprint**: 引導產生非典型架構概念。保留 `mechanism`、`cross_domain_source`、`validation_passport`。每個概念可「晉升」為 Step 5 候選方案 (source: `anti_anchor`)。Prompt 採用第一性原理：物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛。
     - **5a TRIZ 解矛盾**: 根據矛盾句生成原理+抽象策略+工程對映。
-    - **5a-6 矛盾收斂圖掃描**: 每個解法與 CLD/Interface Contract 交叉比對並分級（Fatal/Major/Minor）。Fatal + Major 矛盾必須繼續求解直到完全收斂（不設次數上限）；Minor 矛盾記入 Risk Register。深度 > 3 層或循環矛盾時觸發人類審核告警。
+    - **5a-6 矛盾收斂圖掃描 (Phase A/B)**：**Phase A**（Step 2 起，矛盾空間健康度：inter-contradiction 衝突、循環依賴、覆蓋缺口，不需方案）；**Phase B**（Step 5 後自動觸發，完整方案×矛盾交叉比對）。Phase A 收斂 + 方案出現 → 自動啟動 Phase B。Fatal + Major 矛盾必須繼續求解直到完全收斂（不設次數上限）；Minor 矛盾記入 Risk Register。深度 > 3 層或循環矛盾時觸發人類審核告警。
     - **5b 子系統定義**: 識別受影響子系統。
     - **5c SCAMPER 模組變形**: 對每個子系統執行 SCAMPER 動作。
-    - **5d AI 方案生成**: 整合 TRIZ 解法 + SCAMPER 變形，生成完整方案規格 (含 Interface Contract)。
+    - **5d AI 方案生成**: 整合 TRIZ 已採納解法 + SCAMPER 已採納變形 + 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)，生成完整方案規格 (含 Interface Contract + Validation Passport)。每個候選方案自帶 Validation Passport（assumptions[]、weak_points[]、required_verifications[]、confidence_level）。
     - **5e MUST 快篩**: 對候選方案逐項檢查 MUST 條件，不通過者淘汰。
 - **平行處理**: 不同矛盾句的 TRIZ 解法、不同子系統的 SCAMPER 變形可並行執行。
 - **Gate P (Pre-CAD Gate) 前提**: 至少保留 3 條「架構級」路線，其中包含至少 1 條 Anti-Anchor 路線。每條路線都有完整的方案規格 (機制、假設、風險、最小驗證)，並產出初步的 **Interface Contract**。每條路線的 **MUST Rule** 都經過判斷，並提供對應的初步證據。**核心工件 Concept Route, Interface 狀態: Draft → Reviewed**。

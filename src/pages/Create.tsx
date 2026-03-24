@@ -701,6 +701,15 @@ export default function Create() {
   // ── Step 2: TRIZ Convergence (AI Autonomous) ──
   function renderTrizConvergence() {
     const { state, startExploration, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
+    const contradictionsList = contradictionsQuery.data ?? [];
+    const canStartConvergence = !!id && contradictionsList.length > 0 && alternatives.length > 0;
+
+    const handleStartExploration = () => {
+      if (!id) { toast.error("缺少專案 ID"); return; }
+      if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
+      if (alternatives.length === 0) { toast.warning("尚未建立任何方案，請先在「方案組裝」步驟建立至少一個方案，再執行收斂分析"); return; }
+      startExploration();
+    };
 
     return (
       <div className="space-y-5">
@@ -739,9 +748,17 @@ export default function Create() {
                 </CardContent>
               </Card>
             ))}
-            <Button variant="outline" size="sm" onClick={startExploration} className="text-xs gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              重新執行 AI 矛盾收斂
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStartExploration}
+              disabled={state.status === 'exploring'}
+              className="text-xs gap-1.5"
+            >
+              {state.status === 'exploring'
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Sparkles className="h-3.5 w-3.5" />}
+              {state.status === 'exploring' ? '收斂分析中...' : '重新執行 AI 矛盾收斂'}
             </Button>
           </div>
         )}
@@ -760,16 +777,52 @@ export default function Create() {
                   持續迴圈直到所有 Fatal 和 Major 矛盾完全收斂。
                 </p>
               </div>
-              <Button onClick={startExploration} size="lg" className="gap-2">
-                <Sparkles className="h-4 w-4" />
-                啟動 AI 矛盾收斂探索
-                <Badge variant="secondary" className="text-[10px] ml-1">Fully Auto</Badge>
+              <Button
+                onClick={handleStartExploration}
+                disabled={state.status === 'exploring'}
+                size="lg"
+                className="gap-2"
+              >
+                {state.status === 'exploring'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Sparkles className="h-4 w-4" />}
+                {state.status === 'exploring' ? 'AI 收斂分析中...' : '啟動 AI 矛盾收斂探索'}
+                {state.status !== 'exploring' && (
+                  <Badge variant="secondary" className="text-[10px] ml-1">Fully Auto</Badge>
+                )}
               </Button>
+              {!canStartConvergence && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {contradictionsList.length === 0
+                    ? '需先完成矛盾識別（深度探索階段）'
+                    : alternatives.length === 0
+                      ? '需先建立方案（方案組裝步驟）'
+                      : ''}
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Exploring / Converged: show dashboard + graph + branches */}
+        {/* Exploring: show loading banner + dashboard + graph + branches */}
+        {state.status === 'exploring' && state.iteration === 0 && (
+          <Card className="border-primary/50 bg-primary/5">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="relative">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                <Sparkles className="h-4 w-4 text-primary absolute -top-1 -right-1 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">AI 正在執行參數交叉分析...</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  掃描 {contradictionsList.length} 條矛盾 x {alternatives.length} 個方案，
+                  檢測二次矛盾與架構衝突
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {state.status !== 'idle' && (
           <>
             <ConvergenceDashboard state={state} />

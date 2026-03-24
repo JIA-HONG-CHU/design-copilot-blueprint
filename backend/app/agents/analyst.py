@@ -180,6 +180,12 @@ async def generate_5w1h(req: TaskDef5W1HRequest) -> TaskDef5W1HResponse:
     )
 
 
+_VALID_CATEGORIES = {
+    "clarification", "assumption", "consequence",
+    "counter", "origin", "action", "reframing",
+}
+
+
 def generate_socratic_questions(req: SocraticRequest) -> SocraticResponse:
     prompt = SOCRATIC_QUESTIONS.format(
         mission=req.mission,
@@ -188,6 +194,15 @@ def generate_socratic_questions(req: SocraticRequest) -> SocraticResponse:
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
+    # Prompt uses dict keyed by category → convert to list
+    q_raw = data.get("questions", {})
+    if isinstance(q_raw, dict):
+        questions_list = [
+            {"type_class": cat, **v}
+            for cat, v in q_raw.items()
+            if cat in _VALID_CATEGORIES and isinstance(v, dict)
+        ]
+        data["questions"] = questions_list
     return SocraticResponse(**data)
 
 
@@ -253,9 +268,9 @@ def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
         constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
         kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
     )
-    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    raw = call_llm_json(ANALYST_SYSTEM, prompt, max_tokens=8192)
     data = json.loads(raw)
-    return CldGenerationResponse(**data)
+    return CldGenerationResponse.model_validate(data)
 
 
 def formalize_contradiction(req: ContradictionFormalizeRequest) -> ContradictionFormalizeResponse:

@@ -229,12 +229,17 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
           .select();
         if (nodesErr) throw nodesErr;
 
+        // Map AI node IDs → Supabase UUIDs via label matching
+        // (positional matching is unreliable — Supabase doesn't guarantee insert order)
+        const labelToSupaId = new Map<string, string>();
+        for (const row of insertedNodes ?? []) {
+          labelToSupaId.set(row.label, row.id);
+        }
         const idMap = new Map<string, string>();
-        result.nodes.forEach((n, i) => {
-          if (insertedNodes?.[i]) {
-            idMap.set(n.id, insertedNodes[i].id);
-          }
-        });
+        for (const n of result.nodes) {
+          const supaId = labelToSupaId.get(n.label);
+          if (supaId) idMap.set(n.id, supaId);
+        }
 
         const edgeRows = result.edges
           .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))

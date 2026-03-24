@@ -145,7 +145,7 @@ the answer is already thorough.
 <instructions>
 - A "shallow" answer: < 20 chars, or restates the question, or only addresses surface level.
 - A "thorough" answer: addresses root cause, mentions specific trade-offs, or reveals assumptions.
-- Generate at most 7 follow-ups (one per category that needs it). Every category is eligible for a follow-up.
+- Generate at most 7 follow-ups (one per category that needs it). Every category is eligible for follow-up. Each category supports up to 3 additional rounds of follow-up (4 rounds total including the initial question).
 - If ALL answers are thorough, return empty follow_ups and depth_sufficient: true.
 - Each follow-up must explain WHY it's needed (the "reason" field).
 </instructions>

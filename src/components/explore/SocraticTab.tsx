@@ -10,7 +10,9 @@ import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
-import { socraticGenerate } from "@/lib/api";
+import { socraticGenerate, socraticFollowUp, socraticBriefImpact } from "@/lib/api";
+
+const QUESTION_CAP = 10;
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];
@@ -120,7 +122,7 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
     toast.success('已恢復 AI 建議');
   };
 
-  const handleGenerateMore = async () => {
+  const handleGenerateInitial = async () => {
     setIsGenerating(true);
     try {
       const result = await socraticGenerate({
@@ -140,11 +142,54 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         aiTagConfirmed: false,
         aiTagDismissed: false,
       }));
-      onUpdateQuestions([...questions, ...newQuestions]);
-      toast.success(`AI 已生成 ${newQuestions.length} 個新問題`);
+      onUpdateQuestions([...questions, ...newQuestions].slice(0, QUESTION_CAP));
+      toast.success(`AI 已生成 ${newQuestions.length} 個問題`);
     } catch (err) {
       console.error("Socratic generation failed:", err);
       toast.error("AI 生成問題失敗，請確認後端服務是否啟動");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Brief impact: AI evaluates affected questions and replaces them
+  const handleBriefImpact = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await socraticBriefImpact({
+        project_id: projectId,
+        new_mission: mission,
+        new_constraints: constraints,
+        existing_questions: questions.map((q) => ({
+          id: q.id,
+          category: q.category,
+          text: q.text,
+          answer: q.answer ?? '',
+        })),
+      });
+      if (result.affected.length === 0) {
+        toast.success('所有問題仍然有效，無需替換');
+      } else {
+        const replacementMap = new Map(result.affected.map((a) => [a.id, a]));
+        const updated = questions.map((q) => {
+          const replacement = replacementMap.get(q.id);
+          if (!replacement) return q;
+          return {
+            ...q,
+            text: replacement.replacement.text,
+            category: (replacement.replacement.category || q.category) as QuestionCategory,
+            answer: null, // reset answer for replaced question
+            aiSuggestedTag: (replacement.replacement.suggested_tag as 'assumption' | 'contradiction' | null) ?? null,
+            aiTagConfirmed: false,
+            aiTagDismissed: false,
+          };
+        });
+        onUpdateQuestions(updated);
+        toast.success(`已替換 ${result.affected.length} 題，保留 ${result.unaffected_ids.length} 題`);
+      }
+    } catch (err) {
+      console.error("Brief impact evaluation failed:", err);
+      toast.error("AI 評估失敗，請確認後端服務是否啟動");
     } finally {
       setIsGenerating(false);
     }
@@ -155,8 +200,9 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
       <div className="text-center py-16 space-y-3">
         <p className="text-muted-foreground font-medium">尚無問題</p>
         <p className="text-sm text-muted-foreground">請確認 Brief 已完成，AI 將自動生成問題</p>
-        <Button onClick={handleGenerateMore} disabled={isGenerating}>
-          <Sparkles className="h-4 w-4 mr-1" /> 生成問題
+        <Button onClick={handleGenerateInitial} disabled={isGenerating}>
+          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+          生成問題
         </Button>
       </div>
     );
@@ -167,17 +213,17 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
       {/* Purpose intro */}
       <SectionIntro text="AI 會根據您的 Brief 自動生成 7 類蘇格拉底式問題（含重構），引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
-      {/* Brief stale warning — append-only, never replace existing answers */}
+      {/* Brief stale warning — replace affected, preserve unaffected */}
       {isBriefStale && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium">Brief 已更新</p>
-            <p className="text-xs text-muted-foreground">已有的問題與回答會保留，AI 將根據最新 Brief 補充新問題。</p>
+            <p className="text-xs text-muted-foreground">AI 將評估哪些問題受影響並建議替換，已回答的有效內容會保留。</p>
           </div>
-          <Button size="sm" onClick={handleGenerateMore} disabled={isGenerating}>
+          <Button size="sm" onClick={handleBriefImpact} disabled={isGenerating}>
             {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-            補充新問題
+            AI 評估影響
           </Button>
         </div>
       )}
@@ -367,21 +413,23 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         })}
       </div>
 
-      {/* Batch confirm bar */}
+      {/* Batch confirm bar — triggers tagging + depth analysis + follow-up */}
       {answeredCount > 0 && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div className="flex-1">
               <p className="text-sm font-medium">本輪回答確認</p>
               <p className="text-xs text-muted-foreground">
-                已回答 {answeredCount} 題，{answeredCategories}/6 類別覆蓋。確認後 AI 將根據回答內容分析假設與矛盾。
+                已回答 {answeredCount} 題，{answeredCategories}/7 類別覆蓋。確認後 AI 分析標記 + 評估深度，必要時追問。
               </p>
             </div>
             <Button
+              disabled={isGenerating}
               onClick={async () => {
+                setIsGenerating(true);
                 toast.success(`已確認 ${answeredCount} 題回答，AI 正在分析...`);
 
-                // Heuristic tagger: analyzes answer content + question category
+                // Step 1: Heuristic tagging
                 const tagByHeuristic = (q: SocraticQuestion): 'assumption' | 'contradiction' | null => {
                   const a = q.answer ?? '';
                   const isAssumption = q.category === 'assumption'
@@ -395,68 +443,67 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                   return null;
                 };
 
+                let tagged = questions.map((q) => {
+                  if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
+                    const tag = tagByHeuristic(q);
+                    if (tag) return { ...q, aiSuggestedTag: tag };
+                  }
+                  return q;
+                });
+                onUpdateQuestions(tagged);
+
+                // Step 2: AI depth analysis + follow-up (if under cap)
                 try {
-                  // Call AI to generate analysis — the API returns new questions
-                  // with suggested_tag, which we use as supplementary signal
-                  const answeredTexts = questions
+                  const answeredQs = tagged
                     .filter((q) => q.answer && q.answer.trim().length >= 5)
-                    .map((q) => `[${q.category}] Q: ${q.text} A: ${q.answer}`);
-                  const result = await socraticGenerate({
+                    .map((q) => ({ id: q.id, category: q.category, question: q.text, answer: q.answer! }));
+
+                  const result = await socraticFollowUp({
                     project_id: projectId,
-                    mission: answeredTexts.join('\n'),
+                    mission,
                     constraints,
-                    existing_questions: questions.map((q) => q.text),
+                    answered_questions: answeredQs,
                   });
 
-                  // Count returned tags by type — use as distribution signal
-                  const aiAssumptionCount = result.questions.filter((q) => q.suggested_tag === 'assumption').length;
-                  const aiContradictionCount = result.questions.filter((q) => q.suggested_tag === 'contradiction').length;
-                  const aiHasSignal = aiAssumptionCount > 0 || aiContradictionCount > 0;
-
-                  const updated = questions.map((q) => {
-                    if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
-                      // Primary: heuristic based on answer content
-                      const hTag = tagByHeuristic(q);
-                      if (hTag) return { ...q, aiSuggestedTag: hTag };
-                      // Secondary: if AI detected assumptions/contradictions exist,
-                      // tag assumption-category questions as assumptions
-                      if (aiHasSignal && q.category === 'assumption') {
-                        return { ...q, aiSuggestedTag: 'assumption' as const };
-                      }
-                    }
-                    return q;
-                  });
-                  onUpdateQuestions(updated);
-                  toast.info('AI 分析完成，請檢查標記建議');
+                  if (result.depth_sufficient) {
+                    toast.success('AI 判定回答深度充分，探索完成！');
+                  } else if (result.follow_ups.length > 0 && questions.length < QUESTION_CAP) {
+                    const slots = QUESTION_CAP - questions.length;
+                    const followUps: SocraticQuestion[] = result.follow_ups.slice(0, slots).map((f, i) => ({
+                      id: `fu-${Date.now()}-${i}`,
+                      category: f.category as QuestionCategory,
+                      text: f.text,
+                      answer: null,
+                      taggedAsAssumption: false,
+                      taggedAsContradiction: false,
+                      aiSuggestedTag: null,
+                      aiTagConfirmed: false,
+                      aiTagDismissed: false,
+                    }));
+                    onUpdateQuestions([...tagged, ...followUps]);
+                    toast.info(`AI 追問 ${followUps.length} 題（深度不足的類別）`);
+                  } else {
+                    toast.info('AI 分析完成，請檢查標記建議');
+                  }
                 } catch {
-                  // Fallback: pure heuristic when backend unavailable
-                  const updated = questions.map((q) => {
-                    if (q.answer && q.answer.trim().length >= 5 && !q.aiSuggestedTag && !q.aiTagDismissed) {
-                      const tag = tagByHeuristic(q);
-                      if (tag) return { ...q, aiSuggestedTag: tag };
-                    }
-                    return q;
-                  });
-                  onUpdateQuestions(updated);
-                  toast.info('AI 分析完成（離線模式），請檢查標記建議');
+                  toast.info('標記完成（深度分析離線，已跳過追問）');
                 }
+                setIsGenerating(false);
               }}
               className="shrink-0"
             >
-              <Check className="h-4 w-4 mr-1" /> 確認本輪回答
+              {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+              確認本輪回答
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Bottom buttons */}
-      <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={handleGenerateMore} disabled={isGenerating}>
-          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-          AI 生成更多問題
-          <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-        </Button>
-      </div>
+      {/* Question cap indicator */}
+      <p className="text-xs text-muted-foreground text-center">
+        {questions.length}/{QUESTION_CAP} 題
+        {questions.length >= QUESTION_CAP && ' — 已達上限'}
+      </p>
     </div>
   );
 }

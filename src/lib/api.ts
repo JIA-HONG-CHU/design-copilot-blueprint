@@ -354,6 +354,52 @@ export function socraticGenerate(body: SocraticGenerateRequest) {
   return request<SocraticGenerateResponse>("/questions/generate", body);
 }
 
+// ─── Socratic Follow-up & Brief Impact ─────────────────────────────────────
+
+export interface SocraticFollowUpRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  answered_questions: { id?: string; category: string; question: string; answer: string }[];
+}
+
+export interface FollowUpItem {
+  category: string;
+  text: string;
+  reason: string;
+}
+
+export interface SocraticFollowUpResponse {
+  follow_ups: FollowUpItem[];
+  depth_sufficient: boolean;
+}
+
+export function socraticFollowUp(body: SocraticFollowUpRequest) {
+  return request<SocraticFollowUpResponse>("/questions/follow-up", body);
+}
+
+export interface SocraticBriefImpactRequest {
+  project_id: string;
+  new_mission: string;
+  new_constraints?: string[];
+  existing_questions: { id: string; category: string; text: string; answer?: string }[];
+}
+
+export interface AffectedQuestionItem {
+  id: string;
+  reason: string;
+  replacement: { category: string; text: string; suggested_tag?: string | null };
+}
+
+export interface SocraticBriefImpactResponse {
+  affected: AffectedQuestionItem[];
+  unaffected_ids: string[];
+}
+
+export function socraticBriefImpact(body: SocraticBriefImpactRequest) {
+  return request<SocraticBriefImpactResponse>("/questions/brief-impact", body);
+}
+
 // ─── CLD ────────────────────────────────────────────────────────────────────
 
 export interface CldGenerateRequest {

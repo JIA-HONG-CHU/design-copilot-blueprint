@@ -15,6 +15,8 @@ from app.prompts.analyst import (
     KPI_SUGGESTION,
     TASK_DEF_5W1H,
     SOCRATIC_QUESTIONS,
+    SOCRATIC_FOLLOW_UP,
+    SOCRATIC_BRIEF_IMPACT,
     CLD_GENERATION,
     ANTI_ANCHOR_GENERATION,
     CONTRADICTION_FORMALIZATION,
@@ -36,6 +38,10 @@ from app.models.schemas import (
     EvidenceReference,
     SocraticRequest,
     SocraticResponse,
+    SocraticFollowUpRequest,
+    SocraticFollowUpResponse,
+    SocraticBriefImpactRequest,
+    SocraticBriefImpactResponse,
     CldGenerationRequest,
     CldGenerationResponse,
     AntiAnchorRequest,
@@ -180,6 +186,41 @@ def generate_socratic_questions(req: SocraticRequest) -> SocraticResponse:
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
     return SocraticResponse(**data)
+
+
+def analyze_socratic_depth(req: SocraticFollowUpRequest) -> SocraticFollowUpResponse:
+    """Analyze answer depth and generate targeted follow-up questions."""
+    qa_text = "\n".join(
+        f"[{q.category}] Q: {q.question}\nA: {q.answer}" for q in req.answered_questions
+    )
+    prompt = SOCRATIC_FOLLOW_UP.format(
+        mission=req.mission,
+        constraints="\n".join(f"- {c}" for c in req.constraints),
+        answered_questions=qa_text,
+    )
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    data.setdefault("follow_ups", [])
+    data.setdefault("depth_sufficient", len(data["follow_ups"]) == 0)
+    return SocraticFollowUpResponse(**data)
+
+
+def evaluate_brief_impact(req: SocraticBriefImpactRequest) -> SocraticBriefImpactResponse:
+    """Evaluate which Socratic questions are affected by a Brief change."""
+    q_text = "\n".join(
+        f"- id={q.id} [{q.category}] Q: {q.text}" + (f" A: {q.answer}" if q.answer else "")
+        for q in req.existing_questions
+    )
+    prompt = SOCRATIC_BRIEF_IMPACT.format(
+        new_mission=req.new_mission,
+        new_constraints="\n".join(f"- {c}" for c in req.new_constraints),
+        existing_questions=q_text,
+    )
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    data.setdefault("affected", [])
+    data.setdefault("unaffected_ids", [])
+    return SocraticBriefImpactResponse(**data)
 
 
 def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:

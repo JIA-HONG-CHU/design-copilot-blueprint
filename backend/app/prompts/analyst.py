@@ -120,6 +120,101 @@ Do not repeat questions already listed above.
 """
 
 # ---------------------------------------------------------------------------
+# Socratic Follow-up (answer depth analysis)
+# ---------------------------------------------------------------------------
+
+SOCRATIC_FOLLOW_UP = """\
+<task>
+Analyze the depth and quality of each answered Socratic question below.
+For answers that are too shallow, vague, or missing key aspects, generate
+ONE targeted follow-up question for that category. Skip categories where
+the answer is already thorough.
+</task>
+
+<context>
+<mission>{mission}</mission>
+<constraints>
+{constraints}
+</constraints>
+</context>
+
+<answered_questions>
+{answered_questions}
+</answered_questions>
+
+<instructions>
+- A "shallow" answer: < 20 chars, or restates the question, or only addresses surface level.
+- A "thorough" answer: addresses root cause, mentions specific trade-offs, or reveals assumptions.
+- Generate at most 3 follow-ups total. Prefer categories with the shallowest answers.
+- If ALL answers are thorough, return empty follow_ups and depth_sufficient: true.
+- Each follow-up must explain WHY it's needed (the "reason" field).
+</instructions>
+
+<output_schema>
+{{
+  "follow_ups": [
+    {{
+      "type_class": "clarification|assumption|consequence|counter|origin|action|reframing",
+      "text": "The follow-up question",
+      "reason": "Why this follow-up is needed"
+    }}
+  ],
+  "depth_sufficient": true or false
+}}
+</output_schema>
+"""
+
+
+# ---------------------------------------------------------------------------
+# Socratic Brief Impact Evaluation
+# ---------------------------------------------------------------------------
+
+SOCRATIC_BRIEF_IMPACT = """\
+<task>
+The user has updated their design Brief. Evaluate which existing Socratic
+questions are still valid and which need to be replaced.
+</task>
+
+<new_brief>
+<mission>{new_mission}</mission>
+<constraints>
+{new_constraints}
+</constraints>
+</new_brief>
+
+<existing_questions>
+{existing_questions}
+</existing_questions>
+
+<instructions>
+- A question is "affected" if its premise, scope, or target no longer aligns
+  with the updated mission/constraints.
+- For each affected question, provide a replacement question in the same category.
+- Questions with user answers that are still relevant should be marked unaffected.
+- Preserve as many existing questions as possible — only replace truly invalidated ones.
+- Return ALL question IDs in either affected or unaffected_ids (no missing IDs).
+</instructions>
+
+<output_schema>
+{{
+  "affected": [
+    {{
+      "id": "the-question-id",
+      "reason": "Why this question is no longer valid",
+      "replacement": {{
+        "type_class": "same-category",
+        "text": "The replacement question",
+        "suggested_tag": null or "assumption" or "contradiction"
+      }}
+    }}
+  ],
+  "unaffected_ids": ["id-1", "id-2"]
+}}
+</output_schema>
+"""
+
+
+# ---------------------------------------------------------------------------
 # CLD Generation
 # ---------------------------------------------------------------------------
 

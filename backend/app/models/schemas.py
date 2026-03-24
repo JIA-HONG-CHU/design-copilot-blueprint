@@ -177,6 +177,62 @@ class SocraticResponse(BaseModel):
     questions: list[SocraticQuestion]
 
 
+# --- Socratic Follow-up (answer depth analysis) ---
+
+class AnsweredQuestion(BaseModel):
+    id: str = ""
+    category: str
+    question: str
+    answer: str
+
+
+class SocraticFollowUpRequest(BaseModel):
+    """Analyze answer depth and generate targeted follow-up questions."""
+    project_id: str
+    mission: str
+    constraints: list[str] = Field(default_factory=list)
+    answered_questions: list[AnsweredQuestion]
+
+
+class FollowUpItem(BaseModel):
+    category: str
+    text: str
+    reason: str  # why this follow-up is needed
+
+
+class SocraticFollowUpResponse(BaseModel):
+    follow_ups: list[FollowUpItem] = Field(default_factory=list)
+    depth_sufficient: bool = False
+
+
+# --- Socratic Brief Impact Evaluation ---
+
+class ExistingQuestionItem(BaseModel):
+    id: str
+    category: str
+    text: str
+    answer: str = ""
+
+
+class SocraticBriefImpactRequest(BaseModel):
+    """Evaluate which Socratic questions are affected by a Brief change."""
+    project_id: str
+    new_mission: str
+    new_constraints: list[str] = Field(default_factory=list)
+    existing_questions: list[ExistingQuestionItem]
+
+
+class AffectedQuestionItem(BaseModel):
+    id: str
+    reason: str
+    replacement: SocraticQuestion
+
+
+class SocraticBriefImpactResponse(BaseModel):
+    affected: list[AffectedQuestionItem] = Field(default_factory=list)
+    unaffected_ids: list[str] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Step 3: CLD Generation
 # ---------------------------------------------------------------------------

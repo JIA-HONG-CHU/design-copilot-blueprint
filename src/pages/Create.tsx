@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -405,30 +405,28 @@ export default function Create() {
     resetSsForm();
     setEditingSubsystemId(null);
   };
-  const pendingDeleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const deleteAntiAnchorRoute = (routeId: string) => {
     const idx = localRoutes.findIndex(r => r.id === routeId);
     if (idx === -1) return;
     const removed = localRoutes[idx];
+
+    // Immediately delete from DB and optimistic UI
     setLocalRoutes(prev => prev.filter(r => r.id !== routeId));
-
-    // Cancel any previous pending timer for the same route
-    const existing = pendingDeleteTimers.current.get(routeId);
-    if (existing) clearTimeout(existing);
-
-    const timer = setTimeout(() => {
-      pendingDeleteTimers.current.delete(routeId);
-      deleteAntiAnchorRouteMut.mutate({ id: routeId });
-    }, 5000);
-    pendingDeleteTimers.current.set(routeId, timer);
+    deleteAntiAnchorRouteMut.mutate({ id: routeId });
 
     toast(`已刪除「${removed.name}」`, {
       duration: 5000,
       action: {
         label: "復原",
         onClick: () => {
-          clearTimeout(timer);
-          pendingDeleteTimers.current.delete(routeId);
+          // Undo = re-insert the removed item
+          createAntiAnchorRoute.mutate({
+            project_id: id!,
+            name: removed.name,
+            description: removed.description || undefined,
+            is_non_typical: true,
+            source: 'ai',
+          });
           setLocalRoutes(prev => {
             const next = [...prev];
             next.splice(Math.min(idx, next.length), 0, removed);

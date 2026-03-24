@@ -11,6 +11,7 @@ export interface SocraticQuestion {
   aiSuggestedTag: 'assumption' | 'contradiction' | null; // AI auto-detected tag
   aiTagConfirmed: boolean; // user confirmed
   aiTagDismissed: boolean; // user dismissed the suggestion
+  createdAt?: string;
 }
 
 export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh: string; color: string }> = {

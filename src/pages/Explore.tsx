@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { SocraticTab } from "@/components/explore/SocraticTab";
 import { ContradictionTab } from "@/components/explore/ContradictionTab";
 import { CldTab } from "@/components/explore/CldTab";
@@ -13,6 +14,7 @@ import {
   useSocraticQuestions,
   useUpdateSocraticQuestion,
   useCreateSocraticQuestion,
+  useDeleteSocraticQuestion,
   useExploreContradictions,
   useCldNodes,
   useCldEdges,
@@ -51,6 +53,7 @@ export default function Explore() {
   const { data: cldEdges = [], isLoading: isLoadingEdges } = useCldEdges(id);
   const updateQuestion = useUpdateSocraticQuestion();
   const createQuestion = useCreateSocraticQuestion();
+  const deleteQuestionMut = useDeleteSocraticQuestion();
 
   // Phase 1 context for downstream agents
   const { data: brief } = useBrief(id);
@@ -204,6 +207,33 @@ export default function Explore() {
     }
   }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings]);
 
+  // Delete a single Socratic question (Gmail-style: immediate delete + undo re-insert)
+  const handleDeleteQuestion = useCallback((qId: string) => {
+    const removed = questions.find((q) => q.id === qId);
+    if (!removed || !id) return;
+    deleteQuestionMut.mutate({ id: qId, projectId: id });
+    toast(`已刪除問題`, {
+      duration: 5000,
+      action: {
+        label: "復原",
+        onClick: () => {
+          createQuestion.mutate({ projectId: id, category: removed.category, text: removed.text });
+        },
+      },
+    });
+  }, [questions, id, deleteQuestionMut, createQuestion]);
+
+  // Brief staleness detection: brief updated after latest question was created
+  const isBriefStale = useMemo(() => {
+    if (!brief?.updatedAt || questions.length === 0) return false;
+    const briefTime = new Date(brief.updatedAt).getTime();
+    // Find the earliest question creation time (if all questions were created before the brief update, they're stale)
+    const latestQuestionTime = Math.max(...questions.map((q) => new Date(q.createdAt ?? 0).getTime()));
+    // If latestQuestionTime is 0 (no createdAt), use a fallback: check if any question exists before brief update
+    if (latestQuestionTime <= 0) return false;
+    return briefTime > latestQuestionTime;
+  }, [brief?.updatedAt, questions]);
+
   // Update URL hash on tab change
   const handleTabChange = useCallback((tab: string) => {
     const t = tab as TabKey;
@@ -322,6 +352,8 @@ export default function Explore() {
           <SocraticTab
             questions={questions}
             onUpdateQuestions={handleUpdateQuestions}
+            onDeleteQuestion={handleDeleteQuestion}
+            isBriefStale={isBriefStale}
             projectId={id || ''}
             mission={brief?.mission}
             constraints={constraintStrings}

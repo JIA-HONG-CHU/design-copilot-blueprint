@@ -54,6 +54,7 @@ const mapSocraticRow = (r: SocraticQuestionRow): SocraticQuestion => ({
   // DB has no columns for these — derive from tag state
   aiTagConfirmed: !!(r.ai_suggested_tag && (r.tagged_as_assumption || r.tagged_as_contradiction)),
   aiTagDismissed: false,
+  createdAt: r.created_at,
 });
 
 // ---------------------------------------------------------------------------
@@ -237,6 +238,29 @@ export function useUpdateSocraticQuestion() {
     },
     onError: (err) => {
       toast.error(`更新問題失敗：${err.message}`);
+    },
+  });
+}
+
+export function useDeleteSocraticQuestion() {
+  const qc = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { id: string; projectId: string }
+  >({
+    mutationFn: async (vars) => {
+      const { error } = await supabase
+        .from('socratic_questions')
+        .delete()
+        .eq('id', vars.id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.socratic_questions.byProject(vars.projectId) });
+    },
+    onError: (err) => {
+      toast.error(`刪除問題失敗：${err.message}`);
     },
   });
 }

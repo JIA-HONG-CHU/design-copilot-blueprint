@@ -31,6 +31,7 @@ export {
   useSocraticQuestions,
   useCreateSocraticQuestion,
   useUpdateSocraticQuestion,
+  useDeleteSocraticQuestion,
   useExploreContradictions,
   useMutateCldNode,
   useMutateCldEdge,

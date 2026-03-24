@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Sparkles, Loader2, Check, X, Lightbulb } from "lucide-react";
+import { Sparkles, Loader2, Check, X, Lightbulb, Trash2, AlertTriangle } from "lucide-react";
 import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -15,6 +15,8 @@ import { socraticGenerate } from "@/lib/api";
 interface SocraticTabProps {
   questions: SocraticQuestion[];
   onUpdateQuestions: (questions: SocraticQuestion[]) => void;
+  onDeleteQuestion?: (questionId: string) => void;
+  isBriefStale?: boolean;
   projectId: string;
   mission?: string;
   constraints?: string[];
@@ -27,7 +29,7 @@ const AI_TAG_LABELS = {
   contradiction: { label: '矛盾', color: '#EC4899', description: 'AI 偵測到此回答涉及設計矛盾，建議納入矛盾識別。' },
 };
 
-export function SocraticTab({ questions, onUpdateQuestions, projectId, mission = '', constraints = [] }: SocraticTabProps) {
+export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, isBriefStale = false, projectId, mission = '', constraints = [] }: SocraticTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<QuestionCategory | 'all'>('all');
   const [isGenerating, setIsGenerating] = useState(false);
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
@@ -164,6 +166,20 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId, mission =
       {/* Purpose intro */}
       <SectionIntro text="AI 會根據您的 Brief 自動生成 7 類蘇格拉底式問題（含重構），引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
+      {/* Brief stale warning */}
+      {isBriefStale && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Brief 已更新，部分問題可能已過時</p>
+            <p className="text-xs text-muted-foreground">Mission 或約束條件變更後，建議重新生成問題以確保探索方向正確。</p>
+          </div>
+          <Button size="sm" onClick={handleGenerateMore} disabled={isGenerating}>
+            <Sparkles className="h-3.5 w-3.5 mr-1" /> 重新生成
+          </Button>
+        </div>
+      )}
+
       {/* Progress */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -214,14 +230,25 @@ export function SocraticTab({ questions, onUpdateQuestions, projectId, mission =
               <CardContent className="p-4 space-y-3">
                 {/* AI question area */}
                 <div className="bg-muted rounded-md p-3 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="secondary" className="text-[10px]">AI</Badge>
-                    <Badge
-                      className="text-[10px] text-white"
-                      style={{ backgroundColor: config.color }}
-                    >
-                      {config.labelZh}
-                    </Badge>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">AI</Badge>
+                      <Badge
+                        className="text-[10px] text-white"
+                        style={{ backgroundColor: config.color }}
+                      >
+                        {config.labelZh}
+                      </Badge>
+                    </div>
+                    {onDeleteQuestion && (
+                      <button
+                        onClick={() => onDeleteQuestion(q.id)}
+                        className="p-1 rounded hover:bg-destructive/10"
+                        title="刪除此問題"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm">{q.text}</p>
                 </div>

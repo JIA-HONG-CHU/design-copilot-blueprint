@@ -707,7 +707,7 @@ export default function Create() {
     const handleStartExploration = () => {
       if (!id) { toast.error("缺少專案 ID"); return; }
       if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
-      if (alternatives.length === 0) { toast.warning("尚未建立任何方案，請先在「方案組裝」步驟建立至少一個方案，再執行收斂分析"); return; }
+      if (alternatives.length === 0) { toast.warning("尚未建立任何方案，請先完成 Step 5（方案）建立至少一個方案，再回到此步驟執行收斂分析"); return; }
       startExploration();
     };
 
@@ -794,9 +794,9 @@ export default function Create() {
               {!canStartConvergence && (
                 <p className="text-xs text-muted-foreground mt-2">
                   {contradictionsList.length === 0
-                    ? '需先完成矛盾識別（深度探索階段）'
+                    ? '前置條件：需先在「深度探索」階段完成矛盾識別'
                     : alternatives.length === 0
-                      ? '需先建立方案（方案組裝步驟）'
+                      ? '前置條件：需先完成 Step 5（方案）建立至少一個方案'
                       : ''}
                 </p>
               )}

@@ -539,11 +539,12 @@ export interface ConvergenceContradictionInput {
 
 export interface ConvergenceScanRequest {
   project_id: string;
-  alternatives: ConvergenceAlternativeInput[];
+  alternatives?: ConvergenceAlternativeInput[];  // optional — empty for Phase A
   contradictions: ConvergenceContradictionInput[];
   mission?: string;
   constraints?: string[];
   kpis?: string[];
+  phase?: "A" | "B";  // "A" = contradiction-only, "B" = full cross-check
 }
 
 export interface SecondaryContradictionResult {
@@ -563,6 +564,7 @@ export interface ConvergenceScanResponse {
   force_pause: boolean;
   pause_reason: string;
   reasoning_trace: string;
+  phase: "A" | "B";
 }
 
 export function convergenceScan(body: ConvergenceScanRequest) {

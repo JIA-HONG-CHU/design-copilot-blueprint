@@ -206,6 +206,15 @@ export default function Create() {
     constraints: constraintStrings,
     kpis: kpiStrings,
   });
+  // Auto-trigger Phase B when Phase A converged and alternatives become available
+  const phaseAConverged = convergenceLoop.state.phase === 'A' && convergenceLoop.state.status === 'converged';
+  useEffect(() => {
+    if (phaseAConverged && alternatives.length > 0 && (contradictionsQuery.data?.length ?? 0) > 0) {
+      convergenceLoop.startExploration(); // will auto-detect Phase B
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseAConverged, alternatives.length]);
+
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
@@ -702,12 +711,11 @@ export default function Create() {
   function renderTrizConvergence() {
     const { state, startExploration, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
     const contradictionsList = contradictionsQuery.data ?? [];
-    const canStartConvergence = !!id && contradictionsList.length > 0 && alternatives.length > 0;
+    const canStartConvergence = !!id && contradictionsList.length > 0;
 
     const handleStartExploration = () => {
       if (!id) { toast.error("缺少專案 ID"); return; }
       if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
-      if (alternatives.length === 0) { toast.warning("尚未建立任何方案，請先完成 Step 5（方案）建立至少一個方案，再回到此步驟執行收斂分析"); return; }
       startExploration();
     };
 
@@ -770,11 +778,10 @@ export default function Create() {
                 <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">AI 矛盾收斂探索</h3>
+                <h3 className="text-lg font-semibold">AI 矛盾空間健康度分析</h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                  AI 將自動對每條矛盾進行深度探索（TC / PC / SF 三路徑），
-                  掃描二次矛盾並分級（Fatal / Major / Minor），
-                  持續迴圈直到所有 Fatal 和 Major 矛盾完全收斂。
+                  AI 將分析矛盾間的交互衝突、循環依賴與覆蓋盲區，
+                  確認問題空間定義完善。方案建立後（Step 5）會自動執行完整收斂掃描。
                 </p>
               </div>
               <Button
@@ -793,11 +800,7 @@ export default function Create() {
               </Button>
               {!canStartConvergence && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  {contradictionsList.length === 0
-                    ? '前置條件：需先在「深度探索」階段完成矛盾識別'
-                    : alternatives.length === 0
-                      ? '前置條件：需先完成 Step 5（方案）建立至少一個方案'
-                      : ''}
+                  前置條件：需先在「深度探索」階段完成矛盾識別
                 </p>
               )}
             </CardContent>
@@ -813,10 +816,13 @@ export default function Create() {
                 <Sparkles className="h-4 w-4 text-primary absolute -top-1 -right-1 animate-pulse" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold">AI 正在執行參數交叉分析...</h3>
+                <h3 className="text-sm font-semibold">
+                  {state.phase === 'A' ? 'AI 正在分析矛盾空間健康度...' : 'AI 正在執行參數交叉分析...'}
+                </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  掃描 {contradictionsList.length} 條矛盾 x {alternatives.length} 個方案，
-                  檢測二次矛盾與架構衝突
+                  {state.phase === 'A'
+                    ? `分析 ${contradictionsList.length} 條矛盾的交互衝突、循環依賴與覆蓋盲區`
+                    : `掃描 ${contradictionsList.length} 條矛盾 x ${alternatives.length} 個方案，檢測二次矛盾與架構衝突`}
                 </p>
               </div>
             </CardContent>

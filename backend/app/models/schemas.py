@@ -381,17 +381,18 @@ class ConvergenceContradictionInput(BaseModel):
 
 class ConvergenceScanRequest(BaseModel):
     project_id: str
-    alternatives: list[ConvergenceAlternativeInput]
+    alternatives: list[ConvergenceAlternativeInput] = Field(default_factory=list)
     contradictions: list[ConvergenceContradictionInput]
     mission: str = ""
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
+    phase: str = "B"  # "A" = contradiction-only, "B" = full cross-check
 
 
 class SecondaryContradiction(BaseModel):
     description: str
     severity: str  # fatal, major, minor
-    source_alternative: str
+    source_alternative: str = ""  # empty in Phase A (no alternatives)
     type: str = "TC"  # TC or PC
     improving_param: int | None = None
     worsening_param: int | None = None
@@ -405,6 +406,7 @@ class ConvergenceScanResponse(BaseModel):
     force_pause: bool = False
     pause_reason: str = ""
     reasoning_trace: str = ""
+    phase: str = "B"  # echo back which phase produced this result
 
     @model_validator(mode="before")
     @classmethod

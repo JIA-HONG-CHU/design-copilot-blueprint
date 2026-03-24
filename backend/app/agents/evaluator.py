@@ -10,6 +10,7 @@ from app.prompts.evaluator import (
     EVALUATOR_SYSTEM,
     RISK_ANALYSIS,
     CONVERGENCE_SCAN,
+    CONVERGENCE_SCAN_PHASE_A,
     MUST_EVALUATION,
     PRE_CAD_ANALYSIS,
     WANT_CRITERIA_SEED,
@@ -82,21 +83,34 @@ def seed_want_criteria(req: WantSeedRequest) -> WantSeedResponse:
 
 
 def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
-    prompt = CONVERGENCE_SCAN.format(
-        alternatives=json.dumps(
-            [a.model_dump() for a in req.alternatives],
-            ensure_ascii=False, indent=2,
-        ),
-        contradictions=json.dumps(
-            [c.model_dump() for c in req.contradictions],
-            ensure_ascii=False, indent=2,
-        ),
-        mission=req.mission or "（未提供）",
-        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
-        kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+    contradiction_json = json.dumps(
+        [c.model_dump() for c in req.contradictions],
+        ensure_ascii=False, indent=2,
     )
+    mission = req.mission or "（未提供）"
+    constraints = "\n".join(f"- {c}" for c in req.constraints) or "（尚無）"
+    kpis = "\n".join(f"- {k}" for k in req.kpis) or "（尚無）"
+
+    if req.phase == "A":
+        # Phase A: contradiction-only health check (no alternatives needed)
+        prompt = CONVERGENCE_SCAN_PHASE_A.format(
+            contradictions=contradiction_json,
+            mission=mission, constraints=constraints, kpis=kpis,
+        )
+    else:
+        # Phase B: full alternative × contradiction cross-check
+        prompt = CONVERGENCE_SCAN.format(
+            alternatives=json.dumps(
+                [a.model_dump() for a in req.alternatives],
+                ensure_ascii=False, indent=2,
+            ),
+            contradictions=contradiction_json,
+            mission=mission, constraints=constraints, kpis=kpis,
+        )
+
     raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
     data = json.loads(raw)
+    data["phase"] = req.phase  # echo phase back
     # model_validator handles key normalisation + score scaling
     return ConvergenceScanResponse(**data)
 

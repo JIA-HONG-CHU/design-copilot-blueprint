@@ -1,17 +1,17 @@
 # TRIZ → SCAMPER 收斂管線：設計概念與流程圖
 
-> **v3 (2026-03-24)**：對齊程式碼實作，修正 5 項設計決策。
-> - 控制權：後端 AI 主導（`/convergence/scan` 統一 API）
-> - TRIZ 狀態機：加入 `edited` 狀態 + 轉換守衛
-> - SCAMPER 新矛盾回饋：自動 re-scan（E2E 閉環）
-> - Health 閾值：`<4 healthy / 4-5 warning / >5 critical / circular`
-> - Step 2 gate：`converged || hasTrizData`
+> **v4 (2026-03-24)**：收斂掃描拆為雙階段，解決 Step 2 依賴 Step 5 資料的設計矛盾。
+> - **Phase A**（Step 2）：矛盾空間健康度分析 — 只需 contradictions，不需 alternatives
+> - **Phase B**（Step 5 後自動觸發）：方案 × 矛盾完整交叉檢查 — 需要 alternatives
+> - 自動轉換：Phase A converged + alternatives 出現 → 自動啟動 Phase B
+> - 收斂公式：Phase A 側重 well-formed / circular / coverage；Phase B 側重 resolved / fatal / clean_alts
+> - SCAMPER 回饋閉環：維持不變（此時 alternatives 已存在，自動走 Phase B）
 
 ---
 
 ## 1. 主流程總覽
 
-**設計哲學**：Phase 2 是一條 **發散→收斂** 管線。前 4 步發散產出解法，後 3 步收斂篩選。中間由 AI 收斂迴圈自動偵測二次矛盾並決定何時停止。
+**設計哲學**：Phase 2 是一條 **發散→收斂** 管線。前 4 步發散產出解法，後 3 步收斂篩選。收斂掃描分為兩階段：**Phase A**（Step 2，矛盾空間健康度）只需矛盾資料；**Phase B**（Step 5 後自動觸發）需要方案資料做完整交叉檢查。
 
 ```mermaid
 flowchart TB
@@ -32,14 +32,19 @@ flowchart TB
 
             T_INPUT --> TC & PC & SF
 
-            subgraph CONV_LOOP["useConvergenceLoop — AI 自主收斂"]
+            subgraph CONV_LOOP["useConvergenceLoop — AI 自主收斂（雙階段）"]
                 direction TB
-                CL1["POST /convergence/scan"]
-                CL2["回傳: new_contradictions[]<br/>+ convergence_score<br/>+ architecture_health<br/>+ force_pause"]
+                CL_PHASE{"phase?"}
+                CL_A["Phase A: 矛盾空間健康度<br/>Input: contradictions only<br/>分析: 交互衝突 / 循環依賴 / 覆蓋盲區"]
+                CL_B["Phase B: 方案交叉檢查<br/>Input: contradictions + alternatives<br/>分析: 二次矛盾 / 參數衝突"]
+                CL1["POST /convergence/scan<br/>+ phase: A|B"]
+                CL2["回傳: new_contradictions[]<br/>+ convergence_score<br/>+ architecture_health<br/>+ force_pause + phase"]
                 CL3{"收斂判定"}
                 CL4["converged<br/>score ≥ 80 或<br/>無新 fatal/major"]
                 CL5["exploring<br/>排程下一輪<br/>delay: 1500ms"]
                 CL6["halted<br/>force_pause 或<br/>health = critical/circular"]
+                CL_PHASE -->|"A (no alts)"| CL_A --> CL1
+                CL_PHASE -->|"B (has alts)"| CL_B --> CL1
                 CL1 --> CL2 --> CL3
                 CL3 --> CL4
                 CL3 --> CL5
@@ -112,9 +117,11 @@ flowchart TB
 
 | 決策 | 說明 |
 |------|------|
-| 後端 AI 主導 | 前端 (`useConvergenceLoop`) 只是迴圈 driver，每輪呼叫 `/convergence/scan` API，後端 AI 負責矛盾偵測、severity 分類、health 評估。前端不做任何矛盾分析邏輯 |
+| 雙階段收斂 | Phase A（Step 2）只需矛盾，分析問題空間健康度；Phase B（Step 5 後）需要方案，做完整交叉檢查。自動偵測 `alternatives.length > 0` 決定 phase |
+| 後端 AI 主導 | 前端 (`useConvergenceLoop`) 只是迴圈 driver，每輪呼叫 `/convergence/scan` API（帶 `phase` 參數），後端 AI 負責矛盾偵測、severity 分類、health 評估。前端不做任何矛盾分析邏輯 |
 | 展示層與計算層分離 | `HealthMonitor`、`ConvergenceGraph` 是純 props-driven 展示元件，不含業務邏輯。所有計算在 hook 內完成 |
-| SCAMPER → 收斂迴圈閉環 | SCAMPER 產生的 `newContradictions[]` 透過 `addContradiction()` 注入收斂迴圈，若 severity 為 fatal/major，自動排程 re-scan |
+| SCAMPER → 收斂迴圈閉環 | SCAMPER 產生的 `newContradictions[]` 透過 `addContradiction()` 注入收斂迴圈，若 severity 為 fatal/major，自動排程 re-scan（此時 alternatives 已存在，自動走 Phase B） |
+| Phase A → B 自動轉換 | `useEffect` 監聽：Phase A converged + alternatives 出現 → 自動呼叫 `startExploration()`，hook 偵測到 alternatives 存在後自動切換為 Phase B |
 
 ---
 
@@ -160,22 +167,28 @@ stateDiagram-v2
 
 ## 3. AI 收斂迴圈詳圖
 
-**設計意圖**：取代舊的前端 side-effect 串連模式。後端 AI 在單一 API 回應中完成矛盾掃描 + 健康評估 + 收斂判定，前端只負責驅動迭代和渲染結果。
+**設計意圖**：取代舊的前端 side-effect 串連模式。後端 AI 在單一 API 回應中完成矛盾掃描 + 健康評估 + 收斂判定，前端只負責驅動迭代和渲染結果。Phase A/B 由前端 hook 自動偵測，後端透過 `phase` 參數選擇對應 prompt。
 
 ```mermaid
 flowchart TB
     subgraph DRIVER["useConvergenceLoop (前端 driver)"]
         direction TB
         START["startExploration()"]
+        DETECT{"alternatives.length > 0?"}
+        PHASE_A["phaseRef = 'A'<br/>矛盾空間健康度"]
+        PHASE_B["phaseRef = 'B'<br/>方案交叉檢查"]
         BUILD["buildInitialGraph()<br/>從 Contradiction[] 建構初始 DAG"]
         SCHEDULE["setTimeout(runScanRound, 1500ms)"]
-        START --> BUILD --> SCHEDULE
+        START --> DETECT
+        DETECT -->|"否"| PHASE_A --> BUILD
+        DETECT -->|"是"| PHASE_B --> BUILD
+        BUILD --> SCHEDULE
     end
 
     subgraph API_CALL["runScanRound — 每輪迭代"]
         direction TB
-        REQ["POST /convergence/scan<br/>payload: contradictions[] + alternatives[]<br/>+ mission + constraints + kpis"]
-        RES["ConvergenceScanResponse"]
+        REQ["POST /convergence/scan<br/>payload: contradictions[]<br/>+ alternatives[] (Phase B only)<br/>+ mission + constraints + kpis<br/>+ phase: A|B"]
+        RES["ConvergenceScanResponse<br/>+ phase echo"]
         PROCESS["處理回傳"]
         REQ --> RES --> PROCESS
     end
@@ -247,12 +260,13 @@ flowchart TB
         ALT["Alternative[]<br/>source: triz_tc|triz_pc|triz_sf|<br/>scamper|manual|ai_integrated<br/>mustScores: Record M1-M6<br/>interfaceContract: 6維<br/>preCadScores: 5維"]
 
         EC -->|"1:N 求解"| TS
-        EC -->|"convergenceScan()"| SCAN_RES
+        EC -->|"Phase A: convergenceScan()"| SCAN_RES
         TS -->|"矛盾親和性"| SS
         SS -->|"FK: subsystemId"| SV
         SV -->|"整合"| ALT
+        ALT -.->|"Phase B: convergenceScan()<br/>auto-trigger"| SCAN_RES
         SCAN_RES -.->|"health/confidence<br/>回饋至迴圈狀態"| EC
-        SV -.->|"addContradiction()<br/>自動 re-scan"| SCAN_RES
+        SV -.->|"addContradiction()<br/>Phase B re-scan"| SCAN_RES
     end
 
     subgraph GATES["步驟完成 Gate"]
@@ -307,8 +321,10 @@ flowchart TB
 |------|------|------|------|----------|
 | TRIZ 載入 | `Contradiction[]` | 按矛盾 ID 分組，三路徑並行生成解法 | `TrizSolution[].status = 'pending'` | — |
 | TRIZ 狀態變更 | `pending → adopted/edited/skipped` | 狀態守衛驗證合法性後更新 | 狀態變更 persist 至 Supabase | — |
-| 收斂迴圈啟動 | `startExploration()` | 建構初始 graph + 排程第一輪 scan | `status = exploring` | — |
-| 收斂 scan | `Contradiction[] + Alternative[]` | POST `/convergence/scan` (1500ms/輪) | `ConvergenceScanResponse` | graph 更新、health 重算 |
+| 收斂迴圈啟動 | `startExploration()` | 自動偵測 phase（A or B）+ 建構初始 graph + 排程第一輪 scan | `status = exploring, phase = A\|B` | — |
+| Phase A scan | `Contradiction[]` (no alternatives) | POST `/convergence/scan` phase=A (1500ms/輪) | 矛盾交互分析 + 覆蓋評估 | graph 更新、health 重算 |
+| Phase B scan | `Contradiction[] + Alternative[]` | POST `/convergence/scan` phase=B (1500ms/輪) | 方案交叉檢查 + 二次矛盾偵測 | graph 更新、health 重算 |
+| Phase A→B 轉換 | Phase A converged + alternatives 出現 | `useEffect` 自動呼叫 `startExploration()` | 重新啟動為 Phase B | 完整收斂分析 |
 | Health 判定 | `architecture_health` 字串 | 映射為 HealthStatus | `healthy / warning / critical / circular` | critical/circular → halted |
 | 收斂判定 | `convergence_score`, `new_contradictions` | `score ≥ 80 ∥ no new fatal/major` | `converged / exploring / halted` | converged → Step 2 complete |
 | 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 + 確認 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
@@ -333,8 +349,8 @@ flowchart TB
 
 | 元件 | 職責 | 性質 |
 |------|------|------|
-| `useConvergenceLoop` | 收斂迴圈 driver：啟動、迭代、停止、注入矛盾 | 狀態 hook（含業務邏輯） |
-| `/convergence/scan` API | 矛盾偵測 + severity 分類 + health 評估 + 收斂評分 | 後端 AI（控制權核心） |
+| `useConvergenceLoop` | 收斂迴圈 driver：啟動、迭代、停止、注入矛盾。自動偵測 phase（A/B） | 狀態 hook（含業務邏輯） |
+| `/convergence/scan` API | Phase A: 矛盾空間分析；Phase B: 方案交叉檢查。由 `phase` 參數切換 prompt | 後端 AI（控制權核心） |
 | `ConvergenceDashboard` | 顯示 confidence %、fatal/major/minor 計數 | 純展示元件 |
 | `BranchExplorationPanel` | 顯示各矛盾分支的探索輪次 | 純展示元件 |
 | `HumanReviewPanel` | 收斂完成後的人類審查介面 | 純展示元件 |

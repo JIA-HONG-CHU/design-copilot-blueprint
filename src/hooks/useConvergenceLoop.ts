@@ -87,6 +87,7 @@ function nextNodeId(prefix: string): string {
 const initialState: ConvergenceState = {
   iteration: 0,
   status: 'idle',
+  phase: 'A',
   branches: [],
   graph: { nodes: [], edges: [] },
   health: 'healthy',
@@ -115,6 +116,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Abort flag so we can cancel an in-progress exploration
   const abortRef = useRef(false);
+  // Phase A = contradiction-only, Phase B = full cross-check with alternatives
+  const phaseRef = useRef<'A' | 'B'>('A');
 
   // ------------------------------------------------------------------
   // Graph builder: adds nodes/edges from a scan response to the graph
@@ -196,7 +199,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       try {
         scanResult = await convergenceScan({
           project_id: projectId,
-          alternatives,
+          alternatives: phaseRef.current === 'A' ? [] : alternatives,
           contradictions: contradictions.map((c) => ({
             id: c.id,
             natural_description: c.naturalDescription,
@@ -211,6 +214,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
           mission,
           constraints,
           kpis,
+          phase: phaseRef.current,
         });
       } catch (err) {
         // On API error, halt the loop
@@ -286,6 +290,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       setState({
         iteration,
         status: nextStatus,
+        phase: phaseRef.current,
         branches: updatedBranches,
         graph: updatedGraph,
         health,
@@ -321,11 +326,14 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     abortRef.current = false;
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    if (!projectId || contradictions.length === 0 || alternatives.length === 0) {
-      // Need both contradictions and alternatives to run convergence
+    if (!projectId || contradictions.length === 0) {
       setState({ ...initialState });
       return;
     }
+
+    // Auto-detect phase: A (contradiction-only) if no alternatives, B if alternatives exist
+    const effectivePhase = alternatives.length > 0 ? 'B' : 'A';
+    phaseRef.current = effectivePhase;
 
     // Reset node ID counter
     nodeIdCounter = 0;
@@ -354,6 +362,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     setState({
       ...initialState,
       status: 'exploring',
+      phase: effectivePhase,
       branches: initialBranches,
       graph: initialGraph,
       fatalCount: initialFatal,
@@ -364,7 +373,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     timerRef.current = setTimeout(() => {
       runScanRound(1, initialBranches, initialGraph, [], initialFatal, initialMajor, 0);
     }, STEP_DELAY_MS);
-  }, [projectId, contradictions, buildInitialGraph, runScanRound]);
+  }, [projectId, contradictions, alternatives, buildInitialGraph, runScanRound]);
 
   // ------------------------------------------------------------------
   // confirmSeverity — override a node's severity in the graph

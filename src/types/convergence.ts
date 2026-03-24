@@ -55,9 +55,12 @@ export interface MinorContradiction {
 
 // ── Main Convergence State ──
 
+export type ConvergencePhase = 'A' | 'B';
+
 export interface ConvergenceState {
   iteration: number;
   status: ConvergenceStatus;
+  phase: ConvergencePhase;
   branches: BranchExploration[];
   graph: {
     nodes: ConvergenceNode[];

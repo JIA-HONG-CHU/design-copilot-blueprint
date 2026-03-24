@@ -220,7 +220,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
           x: i * 150,
           y: 0,
           node_type: n.type || "variable",
-          is_leverage: result.breakpoints.includes(n.id),
+          is_leverage: result.breakpoints.some((bp) => bp.node_id === n.id),
         }));
 
         const { data: insertedNodes, error: nodesErr } = await supabase
@@ -264,7 +264,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
       } finally {
         if (isMountedRef.current) setIsGenerating(false);
       }
-    });
+    }, '因果迴路圖生成');
   };
 
   const handleToggleBreakpoint = async (nodeId: string) => {

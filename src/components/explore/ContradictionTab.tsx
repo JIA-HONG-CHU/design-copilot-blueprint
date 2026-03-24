@@ -229,7 +229,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     } finally {
       if (isMountedRef.current) setAiLoadingType(null);
     }
-    });
+    }, '矛盾 AI 識別');
   };
 
   // ── Render a single contradiction card ────────────────────────────────

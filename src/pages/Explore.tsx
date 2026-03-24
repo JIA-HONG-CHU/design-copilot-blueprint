@@ -46,7 +46,7 @@ export default function Explore() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const { isRunning: isAiRunning, startOp, endOp } = useAiOperationGuard();
+  const { startOp, endOp } = useAiOperationGuard();
 
   // --- API hooks ---
   const { data: questions = [], isLoading: isLoadingQuestions } = useSocraticQuestions(id);

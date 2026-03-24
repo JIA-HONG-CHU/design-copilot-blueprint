@@ -99,7 +99,7 @@ Generate exactly 7 questions — one per type, no more:
 3. **Consequence** — "If X fails, what is the impact?"
 4. **Counter-example** — "Is there a precedent that succeeded without X?"
 5. **Origin** — "What is the root cause behind this requirement?"
-6. **Reflection** — "Could experience bias be shaping this conclusion?"
+6. **Action** — "What concrete next step could validate or invalidate this?"
 7. **Reframing** — "If we ignored the current architecture entirely, how would we solve this?"
 
 If a question hints at a contradiction, add suggested_tag: "contradiction".
@@ -110,7 +110,7 @@ Do not repeat questions already listed above.
 {{
   "questions": [
     {{
-      "type_class": "clarification|assumption|consequence|counter|origin|reflection|reframing",
+      "type_class": "clarification|assumption|consequence|counter|origin|action|reframing",
       "text": "The question",
       "suggested_tag": null or "assumption" or "contradiction"
     }}
@@ -220,7 +220,9 @@ questions are still valid and which need to be replaced.
 
 CLD_GENERATION = """\
 <task>
-Build a Causal Loop Diagram (CLD) from the contradictions and assumptions below.
+Build a Causal Loop Diagram (CLD) from the contradictions and assumptions below. \
+Each input carries source metadata so you can trace every CLD relationship back to \
+the Socratic question or analysis step that produced it.
 </task>
 
 <context>
@@ -246,12 +248,15 @@ Build a Causal Loop Diagram (CLD) from the contradictions and assumptions below.
    - `−` opposite-direction (A↑ → B↓)
 3. Identify reinforcing loops (R) and balancing loops (B).
 4. Mark breakpoints — system leverage points where an intervention could break a vicious cycle.
+5. For each edge, cite which contradiction or assumption is the evidence source \
+(use the id or code provided in the input). This enables traceability from CLD \
+relationships back to their originating Socratic Q&A or analysis.
 </instructions>
 
 <output_schema>
 {{
   "nodes": [{{"id": "EFF", "label": "Efficiency"}}],
-  "edges": [{{"from": "EFF", "to": "COST", "polarity": "-"}}],
+  "edges": [{{"from": "EFF", "to": "COST", "polarity": "-", "source_id": "C-001"}}],
   "loops": [{{"id": "R1", "type": "reinforcing", "node_ids": ["EFF","PERF"]}}],
   "breakpoints": [{{"node_id": "EFF", "rationale": "..."}}]
 }}

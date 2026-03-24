@@ -291,7 +291,7 @@ def call_llm_structured(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int = 16384,
     temperature: float = 0.3,
 ) -> str:
     """Call LLM and return the text response."""
@@ -305,7 +305,7 @@ def call_llm_json(
     user_message: str,
     *,
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int = 16384,
     temperature: float = 0.2,
 ) -> str:
     """Call LLM requesting JSON output. Strips markdown fences if present."""
@@ -321,7 +321,7 @@ def call_llm_json_parsed(
     *,
     response_model: type[T],
     model: str | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int = 16384,
     temperature: float = 0.2,
 ) -> T:
     """Call LLM for JSON, then parse into a Pydantic model."""

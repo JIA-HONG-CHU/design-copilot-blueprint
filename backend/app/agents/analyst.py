@@ -268,7 +268,7 @@ def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
         constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
         kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
     )
-    raw = call_llm_json(ANALYST_SYSTEM, prompt, max_tokens=8192)
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
     return CldGenerationResponse.model_validate(data)
 

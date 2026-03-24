@@ -195,7 +195,7 @@ class SocraticFollowUpRequest(BaseModel):
 
 
 class FollowUpItem(BaseModel):
-    category: str
+    category: str = Field(validation_alias="type_class")
     text: str
     reason: str  # why this follow-up is needed
 

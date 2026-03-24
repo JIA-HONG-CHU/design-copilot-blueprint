@@ -14,7 +14,7 @@ import { FileUploadZone } from "@/components/task-definition/FileUploadZone";
 import { AIExtractionResults } from "@/components/task-definition/AIExtractionResults";
 import { FeasibilityValidation } from "@/components/task-definition/FeasibilityValidation";
 import { MultiItemInput } from "@/components/task-definition/MultiItemInput";
-import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Save, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -378,25 +378,16 @@ export default function TaskDefinition() {
         onOverride={form.handleFeasibilityOverride}
       />
 
-      {/* Section 10: Gate 1.1 Checklist */}
+      {/* Section 10: Gate 1.1 Checklist — sole exit point */}
       <GateChecklist
         items={form.gateItems}
-        onNavigateNext={() => form.navigate(`/projects/${id}/explore`)}
+        onNavigateNext={form.handleSubmit}
+        isSubmitting={form.isSubmitting}
       />
 
-      {/* Submit actions */}
       <div className="flex gap-3 pb-8">
-        <Button onClick={form.handleSubmit} disabled={form.isSubmitting} className="flex-1 sm:flex-none">
-          {form.isSubmitting ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />提交中...</>
-          ) : form.feasibilityStatus === "idle" ? (
-            <><ShieldCheck className="h-4 w-4 mr-2" />驗證並確認任務定義</>
-          ) : (
-            <><Save className="h-4 w-4 mr-2" />確認任務定義</>
-          )}
-        </Button>
-        <Button variant="outline" onClick={() => form.navigate(`/projects/${id}`)}>
-          取消
+        <Button variant="ghost" size="sm" onClick={() => form.navigate(`/projects/${id}`)} className="text-muted-foreground">
+          ← 返回 Dashboard
         </Button>
       </div>
     </div>

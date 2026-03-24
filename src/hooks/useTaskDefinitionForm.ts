@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   briefExtract, type BriefExtractResponse,
@@ -388,6 +388,20 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     { label: "約束可行性驗證通過", passed: feasibilityStatus === "pass" || feasibilityStatus === "warning" },
   ], [missionReady, hasConstraint, hasKpi, feasibilityStatus]);
 
+  // ── Invalidate feasibility when content changes ────────────────────
+  // Snapshot the content at feasibility check time; reset if it changes after.
+  const feasibilitySnapshotRef = useRef<string>("");
+
+  useEffect(() => {
+    if (feasibilityStatus === "idle" || feasibilityStatus === "checking") return;
+    // Content changed after feasibility was checked → invalidate
+    const currentSnapshot = `${mission}||${constraints.map((c) => c.description).join(",")}||${kpis.map((k) => `${k.kpi_name}:${k.target_value}`).join(",")}`;
+    if (feasibilitySnapshotRef.current && feasibilitySnapshotRef.current !== currentSnapshot) {
+      setFeasibilityStatus("idle");
+      setFeasibilityConflicts([]);
+    }
+  }, [mission, constraints, kpis, feasibilityStatus]);
+
   // ── Extraction handlers ───────────────────────────────────────────
 
   const handleExtract = async () => {
@@ -482,9 +496,12 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
   const handleFeasibilityCheck = async () => {
     if (!projectId) return;
     const descriptions = constraints.map((c) => c.description).filter((d) => d.trim().length >= 2);
+    // Take snapshot of current content for staleness detection
+    const snapshot = `${mission}||${constraints.map((c) => c.description).join(",")}||${kpis.map((k) => `${k.kpi_name}:${k.target_value}`).join(",")}`;
     if (descriptions.length < 2) {
       setFeasibilityStatus("pass");
       setFeasibilityConflicts([]);
+      feasibilitySnapshotRef.current = snapshot;
       await persistFeasibility("pass", []);
       return;
     }
@@ -497,6 +514,7 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
       });
       setFeasibilityConflicts(result.conflicts);
       setFeasibilityStatus(result.status as FeasibilityStatus);
+      feasibilitySnapshotRef.current = snapshot;
       await persistFeasibility(result.status as FeasibilityStatus, result.conflicts);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "約束可行性驗證"));
@@ -560,8 +578,8 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
       return;
     }
 
-    if (feasibilityStatus === "idle") {
-      handleFeasibilityCheck();
+    if (feasibilityStatus !== "pass" && feasibilityStatus !== "warning") {
+      toast.error("請先完成約束可行性驗證");
       return;
     }
 

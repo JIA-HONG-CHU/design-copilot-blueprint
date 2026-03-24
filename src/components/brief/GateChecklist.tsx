@@ -2,15 +2,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Loader2 } from "lucide-react";
 import type { GateCheckItem } from "@/types/taskDefinition";
 
 interface GateChecklistProps {
   items: GateCheckItem[];
   onNavigateNext: () => void;
+  isSubmitting?: boolean;
 }
 
-export function GateChecklist({ items, onNavigateNext }: GateChecklistProps) {
+export function GateChecklist({ items, onNavigateNext, isSubmitting = false }: GateChecklistProps) {
   const allPassed = items.every((i) => i.passed);
 
   return (
@@ -47,9 +48,12 @@ export function GateChecklist({ items, onNavigateNext }: GateChecklistProps) {
 
         {/* Navigate button */}
         {allPassed ? (
-          <Button onClick={onNavigateNext} className="w-full sm:w-auto">
-            通過 → 進入 Explore
-            <ArrowRight className="h-4 w-4 ml-1" />
+          <Button onClick={onNavigateNext} disabled={isSubmitting} className="w-full sm:w-auto">
+            {isSubmitting ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 儲存中...</>
+            ) : (
+              <>通過 → 進入 Explore <ArrowRight className="h-4 w-4 ml-1" /></>
+            )}
           </Button>
         ) : (
           <Tooltip>

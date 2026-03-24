@@ -12,6 +12,7 @@ export interface SocraticQuestion {
   aiTagConfirmed: boolean; // user confirmed
   aiTagDismissed: boolean; // user dismissed the suggestion
   createdAt?: string;
+  replacedAt?: string; // set when this question was replaced due to Brief change
 }
 
 export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh: string; color: string }> = {

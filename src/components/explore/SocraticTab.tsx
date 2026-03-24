@@ -12,7 +12,7 @@ import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { socraticGenerate, socraticFollowUp, socraticBriefImpact } from "@/lib/api";
 
-const QUESTION_CAP = 10;
+const QUESTION_CAP = 12;
 
 interface SocraticTabProps {
   questions: SocraticQuestion[];
@@ -178,10 +178,11 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
             ...q,
             text: replacement.replacement.text,
             category: (replacement.replacement.category || q.category) as QuestionCategory,
-            answer: null, // reset answer for replaced question
+            answer: null,
             aiSuggestedTag: (replacement.replacement.suggested_tag as 'assumption' | 'contradiction' | null) ?? null,
             aiTagConfirmed: false,
             aiTagDismissed: false,
+            replacedAt: new Date().toISOString(),
           };
         });
         onUpdateQuestions(updated);
@@ -270,13 +271,28 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
           const hasDismissedTag = q.aiSuggestedTag && q.aiTagDismissed && !q.aiTagConfirmed;
           const tagConfig = q.aiSuggestedTag ? AI_TAG_LABELS[q.aiSuggestedTag] : null;
           const isNewAfterBriefUpdate = briefUpdatedAt && q.createdAt && new Date(q.createdAt) > new Date(briefUpdatedAt);
+          const isReplaced = !!q.replacedAt;
 
           return (
             <Card
               key={q.id}
-              className={`transition-colors ${isAnswered ? 'border-l-[3px] border-l-green-600' : ''}`}
+              className={`transition-colors ${
+                isReplaced
+                  ? 'border-l-[3px] border-l-amber-400 bg-amber-50/30 dark:bg-amber-950/10'
+                  : isAnswered
+                    ? 'border-l-[3px] border-l-green-600'
+                    : ''
+              }`}
             >
               <CardContent className="p-4 space-y-3">
+                {/* Replaced banner */}
+                {isReplaced && (
+                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>此題因 Brief 更新已被替換，請重新回答</span>
+                  </div>
+                )}
+
                 {/* AI question area */}
                 <div className="bg-muted rounded-md p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -288,7 +304,10 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                       >
                         {config.labelZh}
                       </Badge>
-                      {isNewAfterBriefUpdate && (
+                      {isReplaced && (
+                        <Badge className="text-[10px] bg-amber-400 text-amber-950">已替換</Badge>
+                      )}
+                      {isNewAfterBriefUpdate && !isReplaced && (
                         <Badge className="text-[10px] bg-emerald-500 text-white">NEW</Badge>
                       )}
                     </div>

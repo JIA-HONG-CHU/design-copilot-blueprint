@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Check, X, Loader2, Pencil } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 interface AISuggestionCardProps {
   title: string;
@@ -83,13 +84,13 @@ export function AISuggestionCard({
               />
             ) : (
               <div
-                className="text-sm leading-relaxed whitespace-pre-wrap p-2 rounded-md bg-background/50 border border-transparent hover:border-primary/20 cursor-pointer transition-colors group relative"
+                className="text-sm leading-relaxed p-2 rounded-md bg-background/50 border border-transparent hover:border-primary/20 cursor-pointer transition-colors group relative prose prose-sm dark:prose-invert max-w-none"
                 onClick={() => {
                   if (disableActions || isAdopting) return;
                   setIsEditing(true);
                 }}
               >
-                {editedContent}
+                <ReactMarkdown>{editedContent}</ReactMarkdown>
                 <Pencil className="h-3 w-3 text-muted-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             )}

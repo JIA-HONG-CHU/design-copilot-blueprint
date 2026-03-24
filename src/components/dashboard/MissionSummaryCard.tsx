@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Target, Lock, Star } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import {
   CONSTRAINT_LABEL_CLASSIFIER_VERSION,
   classifyHardConstraints,
@@ -181,7 +182,9 @@ export function MissionSummaryCard({
             <Target className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-0.5">Mission</div>
-              <p className="text-sm leading-relaxed">{mission}</p>
+              <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{mission}</ReactMarkdown>
+              </div>
             </div>
           </div>
         )}

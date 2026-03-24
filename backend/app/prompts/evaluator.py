@@ -422,6 +422,76 @@ If any unresolved Fatal contradiction exists → force_pause = true.
 """
 
 # ---------------------------------------------------------------------------
+# Validation Passport Generation (on-demand for any solution hypothesis)
+# ---------------------------------------------------------------------------
+
+SOLUTION_VALIDATION_PASSPORT = """\
+<task>
+Generate a validation passport for the given solution hypothesis. \
+A validation passport declares the assumptions the solution depends on, \
+its known weak points, and the experiments needed to falsify those assumptions. \
+Every solution — whether from TRIZ, SCAMPER, Anti-Anchor, or manual input — \
+must carry this self-declared record.
+</task>
+
+<context>
+<solution>
+  <name>{solution_name}</name>
+  <mechanism>{mechanism}</mechanism>
+  <source>{source}</source>
+</solution>
+<project_constraints>
+{constraints}
+</project_constraints>
+<project_kpis>
+{kpis}
+</project_kpis>
+</context>
+
+<instructions>
+1. Identify 2–5 assumptions this solution depends on. For each:
+   - **content** — What the assumption states.
+   - **category** — physics / material / cost / manufacturing / regulatory / integration.
+   - **evidence_level** — E0 (none), E1 (reasoning), E2 (analogy), E3 (test data), E4 (production-proven).
+   - **worst_consequence** — What happens if this assumption is wrong.
+   - **worst_severity** — critical / high / medium / low.
+   - **suggested_experiment** — A specific, actionable experiment to test this assumption.
+
+2. List 1–3 **weak_points** — acknowledged limitations that are NOT the same as \
+assumptions. These are known trade-offs the solution accepts.
+
+3. List **required_verifications** in priority order — the experiments or tests \
+that must be completed before this solution can proceed to detailed design.
+
+4. Assign an overall **confidence_level** (0–1):
+   - ≥ 0.8: most assumptions backed by E2+ evidence
+   - 0.5–0.8: mix of reasoning and analogy
+   - < 0.5: mostly speculative (E0–E1)
+</instructions>
+
+<output_schema>
+{{
+  "validation_passport": {{
+    "assumptions": [
+      {{
+        "content": "Assumption text",
+        "category": "physics",
+        "evidence_level": "E1",
+        "worst_consequence": "What happens if wrong",
+        "worst_severity": "high",
+        "suggested_experiment": "How to test this"
+      }}
+    ],
+    "weak_points": ["Known limitation"],
+    "required_verifications": ["Priority experiment or test"],
+    "cross_domain_source": "",
+    "confidence_level": 0.5
+  }}
+}}
+</output_schema>
+"""
+
+# ---------------------------------------------------------------------------
 # Brief Quality Review (Gate 1.1 AI evaluator)
 # ---------------------------------------------------------------------------
 

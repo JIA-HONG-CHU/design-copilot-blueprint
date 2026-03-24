@@ -17,6 +17,7 @@ from app.prompts.evaluator import (
     BRIEF_QUALITY_REVIEW,
     DEPTH_QUALITY_REVIEW,
     EXPERIMENT_COVERAGE_REVIEW,
+    SOLUTION_VALIDATION_PASSPORT,
 )
 from app.models.schemas import (
     RiskAnalysisRequest,
@@ -29,6 +30,8 @@ from app.models.schemas import (
     PreCadAnalyzeResponse,
     WantSeedRequest,
     WantSeedResponse,
+    ValidationPassportRequest,
+    ValidationPassportResponse,
 )
 
 
@@ -117,6 +120,20 @@ def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
     data["phase"] = req.phase  # echo phase back
     # model_validator handles key normalisation + score scaling
     return ConvergenceScanResponse(**data)
+
+
+def generate_validation_passport(req: ValidationPassportRequest) -> ValidationPassportResponse:
+    """Generate a self-declared validation passport for a solution hypothesis."""
+    prompt = SOLUTION_VALIDATION_PASSPORT.format(
+        solution_name=req.solution_name,
+        mechanism=req.mechanism,
+        source=req.source or "（未指定）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（無）",
+        kpis="\n".join(f"- {k}" for k in req.kpis) or "（無）",
+    )
+    raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
+    data = json.loads(raw)
+    return ValidationPassportResponse(**data)
 
 
 # ---------------------------------------------------------------------------

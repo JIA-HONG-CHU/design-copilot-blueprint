@@ -12,11 +12,37 @@ export interface CreateStepProgress {
   preCad: AccordionStepStatus;
 }
 
+// Validation Passport — self-declared validation record for any solution hypothesis
+export type EvidenceLevel = 'E0' | 'E1' | 'E2' | 'E3' | 'E4';
+export type AssumptionSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+export interface ValidationPassportAssumption {
+  content: string;
+  category: string; // physics / material / cost / manufacturing / regulatory / integration
+  evidenceLevel: EvidenceLevel;
+  worstConsequence: string;
+  worstSeverity: AssumptionSeverity;
+  suggestedExperiment: string;
+}
+
+export interface ValidationPassport {
+  assumptions: ValidationPassportAssumption[];
+  weakPoints: string[];
+  requiredVerifications: string[];
+  crossDomainSource: string;
+  confidenceLevel: number; // 0-1
+}
+
 // Anti-Anchor
 export interface AntiAnchorRoute {
   id: string;
   name: string;
+  mechanism: string;
   description: string;
+  whyUnconventional: string;
+  potentialAdvantage: string;
+  crossDomainSource: string;
+  validationPassport: ValidationPassport | null;
   createdAt?: string;
 }
 
@@ -103,7 +129,7 @@ export const EMPTY_INTERFACE_CONTRACT: InterfaceContract = {
 };
 
 // Alternative (concept route)
-export type AlternativeSource = 'triz_tc' | 'triz_pc' | 'triz_sf' | 'scamper' | 'manual' | 'ai_integrated';
+export type AlternativeSource = 'triz_tc' | 'triz_pc' | 'triz_sf' | 'scamper' | 'manual' | 'ai_integrated' | 'anti_anchor';
 
 export interface Alternative {
   id: string;
@@ -121,6 +147,7 @@ export interface Alternative {
     mvpCadEffort: number | null;
   };
   overallPass: boolean | null;
+  validationPassport: ValidationPassport | null;
   createdAt?: string;
   updatedAt?: string;
 }

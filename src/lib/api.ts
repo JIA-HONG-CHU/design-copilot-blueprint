@@ -571,6 +571,42 @@ export function convergenceScan(body: ConvergenceScanRequest) {
   return request<ConvergenceScanResponse>("/convergence/scan", body);
 }
 
+// ─── Validation Passport ─────────────────────────────────────────────────────
+
+export interface ValidationPassportRequest {
+  project_id: string;
+  solution_name: string;
+  mechanism: string;
+  source?: string;
+  constraints?: string[];
+  kpis?: string[];
+}
+
+export interface ValidationPassportAssumptionResult {
+  content: string;
+  category: string;
+  evidence_level: string;
+  worst_consequence: string;
+  worst_severity: string;
+  suggested_experiment: string;
+}
+
+export interface ValidationPassportResult {
+  assumptions: ValidationPassportAssumptionResult[];
+  weak_points: string[];
+  required_verifications: string[];
+  cross_domain_source: string;
+  confidence_level: number;
+}
+
+export interface ValidationPassportResponse {
+  validation_passport: ValidationPassportResult;
+}
+
+export function validationPassportGenerate(body: ValidationPassportRequest) {
+  return request<ValidationPassportResponse>("/alternatives/validation-passport", body);
+}
+
 // ─── MUST Evaluation ────────────────────────────────────────────────────────
 
 export interface MustCriterionConfig {

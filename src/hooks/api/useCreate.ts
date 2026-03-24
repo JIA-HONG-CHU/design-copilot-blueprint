@@ -23,6 +23,7 @@ import type {
   Alternative,
   AlternativeSource,
   InterfaceContract,
+  ValidationPassport,
 } from '@/types/create';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -35,7 +36,12 @@ interface AntiAnchorRouteRow {
   project_id: string;
   name: string;
   description: string | null;
+  mechanism: string | null;
   is_non_typical: boolean;
+  why_unconventional: string | null;
+  potential_advantage: string | null;
+  cross_domain_source: string | null;
+  validation_passport: Json | null;
   source: string | null;
   created_at: string;
 }
@@ -87,6 +93,7 @@ interface AlternativeRow {
   interface_contract: Json | null;
   pre_cad_scores: Json | null;
   overall_pass: boolean | null;
+  validation_passport: Json | null;
   cad_status: string;
   created_at: string;
   updated_at: string;
@@ -100,7 +107,12 @@ function mapAntiAnchorRoute(row: AntiAnchorRouteRow): AntiAnchorRoute {
   return {
     id: row.id,
     name: row.name,
+    mechanism: row.mechanism ?? '',
     description: row.description ?? '',
+    whyUnconventional: row.why_unconventional ?? '',
+    potentialAdvantage: row.potential_advantage ?? '',
+    crossDomainSource: row.cross_domain_source ?? '',
+    validationPassport: (row.validation_passport as ValidationPassport | null) ?? null,
     createdAt: row.created_at,
   };
 }
@@ -169,6 +181,7 @@ function mapAlternative(row: AlternativeRow): Alternative {
     interfaceContract: row.interface_contract ? { ...defaultContract, ...(row.interface_contract as Partial<InterfaceContract>) } : defaultContract,
     preCadScores: row.pre_cad_scores ? { ...defaultPreCad, ...(row.pre_cad_scores as Partial<typeof defaultPreCad>) } : defaultPreCad,
     overallPass: row.overall_pass,
+    validationPassport: (row.validation_passport as ValidationPassport | null) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -197,8 +210,13 @@ export function useCreateAntiAnchorRoute() {
   return useSupabaseMutation<AntiAnchorRouteRow, {
     project_id: string;
     name: string;
+    mechanism?: string;
     description?: string;
     is_non_typical?: boolean;
+    why_unconventional?: string;
+    potential_advantage?: string;
+    cross_domain_source?: string;
+    validation_passport?: Json;
     source?: string;
   }>({
     table: 'anti_anchor_routes',

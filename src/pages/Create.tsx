@@ -50,7 +50,7 @@ import { useContradictions } from "@/hooks/api/useContradictions";
 import type { Json } from "@/integrations/supabase/types";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
 import type { MustCriterionResult } from "@/lib/api";
 import { useProject } from "@/hooks/api/useProjects";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
@@ -335,8 +335,13 @@ export default function Create() {
         await createAntiAnchorRoute.mutateAsync({
           project_id: id,
           name: route.name,
+          mechanism: route.mechanism,
           description: route.description,
           is_non_typical: route.is_non_typical,
+          why_unconventional: route.why_unconventional,
+          potential_advantage: route.potential_advantage,
+          cross_domain_source: route.cross_domain_source,
+          validation_passport: route.validation_passport as unknown as Json,
           source: 'ai',
         });
       }
@@ -458,6 +463,24 @@ export default function Create() {
         },
       },
     });
+  };
+
+  const promoteAntiAnchorToCandidate = (routeId: string) => {
+    if (!id) return;
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return;
+    createAlternative.mutate({
+      project_id: id,
+      name: route.name,
+      mechanism: route.mechanism || route.description,
+      source: "anti_anchor",
+      key_assumption_ids: [],
+      must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
+      interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
+      pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
+      overall_pass: null,
+    });
+    toast.success(`「${route.name}」已晉升為候選方案（Step 5）`);
   };
   const deleteSubsystem = (ssId: string) => {
     setLocalSubsystems(prev => prev.filter(s => s.id !== ssId));
@@ -587,21 +610,65 @@ export default function Create() {
   const handleAiGenAlts = async () => {
     if (!id) return;
     setAiLoading((p) => ({ ...p, alts: true }));
-    await new Promise((r) => setTimeout(r, 2000));
-    // TODO: Replace with real AI endpoint
-    await createAlternative.mutateAsync({
-      project_id: id,
-      name: "AI 整合：蜂巢夾層 + 磁力耦合方案",
-      mechanism: "AI 整合 TRIZ 分割原理與 SCAMPER 替代建議，採用蜂巢夾層殼體搭配磁力耦合傳動，在減重 35% 的同時維持結構剛度，傳動效率提升至 92%。",
-      source: "ai_integrated",
-      key_assumption_ids: ["ta-001", "ta-003"],
-      must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
-      interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
-      pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
-      overall_pass: null,
-    });
-    setAiLoading((p) => ({ ...p, alts: false }));
-    toast.success("AI 已整合生成新方案");
+    try {
+      // Collect adopted TRIZ solutions as candidates
+      const adoptedTriz = trizSolutions.filter(ts => ts.status === 'adopted' || ts.status === 'edited');
+      // Collect adopted SCAMPER variants
+      const adoptedScamper = scamperVariants.filter(sv => sv.adopted);
+
+      let created = 0;
+
+      // Create alternatives from adopted TRIZ solutions (with validation passport)
+      for (const ts of adoptedTriz) {
+        const passport = await validationPassportGenerate({
+          project_id: id,
+          solution_name: `TRIZ ${ts.principleName} (${ts.path})`,
+          mechanism: ts.suggestion,
+          source: `triz_${ts.path.toLowerCase()}`,
+          constraints: constraintStrings,
+          kpis: kpiStrings,
+        });
+        await createAlternative.mutateAsync({
+          project_id: id,
+          name: `TRIZ: ${ts.principleName}`,
+          mechanism: ts.suggestion,
+          source: `triz_${ts.path.toLowerCase()}` as string,
+          key_assumption_ids: [],
+          must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
+          interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
+          pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
+          overall_pass: null,
+        });
+        created++;
+      }
+
+      // Create alternatives from adopted SCAMPER variants (with validation passport)
+      for (const sv of adoptedScamper) {
+        await createAlternative.mutateAsync({
+          project_id: id,
+          name: `SCAMPER ${sv.action}: ${(sv.description || '').slice(0, 40)}`,
+          mechanism: sv.description || '',
+          source: "scamper",
+          key_assumption_ids: [],
+          must_scores: { M1: null, M2: null, M3: null, M4: null, M5: null, M6: null } as unknown as Json,
+          interface_contract: { envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '' } as unknown as Json,
+          pre_cad_scores: { must: null, decoupling: null, testability: null, failureMech: null, mvpCadEffort: null } as unknown as Json,
+          overall_pass: null,
+        });
+        created++;
+      }
+
+      if (created === 0) {
+        toast.warning("尚無已採用的 TRIZ 解法或 SCAMPER 變體，請先在 Step 2-4 採用解法，或手動新增方案");
+      } else {
+        toast.success(`已從 ${adoptedTriz.length} 條 TRIZ + ${adoptedScamper.length} 條 SCAMPER 整合 ${created} 個候選方案`);
+      }
+    } catch (err) {
+      console.error("AI alternative generation failed:", err);
+      toast.error("方案整合失敗");
+    } finally {
+      setAiLoading((p) => ({ ...p, alts: false }));
+    }
   };
 
   const mustCell = (val: "pass" | "fail" | "marginal" | null) => {
@@ -683,7 +750,31 @@ export default function Create() {
                     </button>
                   </div>
                   <p className="text-sm font-medium">{r.name}</p>
+                  {r.mechanism && (
+                    <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">{r.mechanism}</p>
+                  )}
                   <p className="text-sm text-muted-foreground leading-relaxed">{r.description}</p>
+                  {r.crossDomainSource && (
+                    <Badge variant="outline" className="text-[10px]">跨域靈感: {r.crossDomainSource}</Badge>
+                  )}
+                  {r.validationPassport && (
+                    <div className="text-xs space-y-1 border-t pt-2 mt-2">
+                      <p className="font-medium text-muted-foreground">Validation Passport (信心: {Math.round(r.validationPassport.confidenceLevel * 100)}%)</p>
+                      {r.validationPassport.weakPoints.length > 0 && (
+                        <p className="text-muted-foreground">弱點: {r.validationPassport.weakPoints.join('; ')}</p>
+                      )}
+                      <p className="text-muted-foreground">假設 {r.validationPassport.assumptions.length} 項 / 待驗證 {r.validationPassport.requiredVerifications.length} 項</p>
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1.5 mt-1"
+                    onClick={() => promoteAntiAnchorToCandidate(r.id)}
+                  >
+                    <ArrowRight className="h-3 w-3" />
+                    晉升為候選方案
+                  </Button>
                 </CardContent>
               </Card>
             ))}

@@ -17,6 +17,7 @@ from app.routers import (
     brief, socratic, cld, anti_anchor, triz, scamper,
     risk, action, convergence, must,
     contradictions, assumptions, pre_cad, want, gates, exports, knowledge_wb,
+    validation,
 )
 
 
@@ -80,6 +81,7 @@ app.include_router(want.router, prefix=API_PREFIX, tags=["WANT 評分 want"], de
 app.include_router(gates.router, prefix=API_PREFIX, tags=["Gate 檢查 gates"], dependencies=_auth)
 app.include_router(exports.router, prefix=API_PREFIX, tags=["匯出 export"], dependencies=_auth)
 app.include_router(knowledge_wb.router, prefix=API_PREFIX, tags=["知識回寫 knowledge"], dependencies=_auth)
+app.include_router(validation.router, prefix=API_PREFIX, tags=["驗證護照 validation"], dependencies=_auth)
 
 
 @app.get(f"{API_PREFIX}/health")

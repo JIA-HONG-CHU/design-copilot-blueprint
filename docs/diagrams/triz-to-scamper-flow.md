@@ -1,11 +1,10 @@
 # TRIZ → SCAMPER 收斂管線：設計概念與流程圖
 
-> **v4 (2026-03-24)**：收斂掃描拆為雙階段，解決 Step 2 依賴 Step 5 資料的設計矛盾。
-> - **Phase A**（Step 2）：矛盾空間健康度分析 — 只需 contradictions，不需 alternatives
-> - **Phase B**（Step 5 後自動觸發）：方案 × 矛盾完整交叉檢查 — 需要 alternatives
-> - 自動轉換：Phase A converged + alternatives 出現 → 自動啟動 Phase B
-> - 收斂公式：Phase A 側重 well-formed / circular / coverage；Phase B 側重 resolved / fatal / clean_alts
-> - SCAMPER 回饋閉環：維持不變（此時 alternatives 已存在，自動走 Phase B）
+> **v5 (2026-03-24)**：統一正向/反向路徑 + Validation Passport。
+> - **Anti-Anchor 不再是孤島**：產出保留 mechanism / cross_domain_source / validation_passport，可「晉升」為 Step 5 候選方案（source: `anti_anchor`）
+> - **Validation Passport**：每個方案（TRIZ / SCAMPER / Anti-Anchor / 手動）自帶假設宣告、弱點、驗證需求、信心等級
+> - **Step 5 方案整合**：從 TODO mock 改為真實實作 — 彙整 adopted TRIZ + adopted SCAMPER + promoted Anti-Anchor
+> - 收斂掃描雙階段（v4）維持不變；Phase B 可利用 passport 做 E0 假設 × 硬約束交叉檢查
 
 ---
 
@@ -18,7 +17,7 @@ flowchart TB
     subgraph Phase2["Phase 2: Diverge → Converge"]
         direction TB
 
-        S1["Step 1: Anti-Anchor Sprint<br/>AI 非典型架構探索<br/>Output: AntiAnchorRoute[] ≥3"]
+        S1["Step 1: Anti-Anchor Sprint<br/>AI 非典型架構探索 + Validation Passport<br/>Output: AntiAnchorRoute[] ≥3<br/>可「晉升」為候選方案 (source: anti_anchor)"]
 
         subgraph TRIZ["Step 2: TRIZ 矛盾解 + AI 收斂迴圈"]
             direction TB
@@ -90,11 +89,12 @@ flowchart TB
             SEVEN_ACTIONS --> SC_FEEDBACK
         end
 
-        S5["Step 5: 方案整合<br/>Alternative[]<br/>source: triz_tc|triz_pc|triz_sf|<br/>scamper|manual|ai_integrated"]
+        S5["Step 5: 統一候選管線<br/>Alternative[] + ValidationPassport<br/>source: triz_tc|triz_pc|triz_sf|<br/>scamper|manual|ai_integrated|anti_anchor"]
         S6["Step 6: MUST 快篩 (M1-M6)<br/>pass | fail | marginal"]
         S7["Step 7: Pre-CAD 審查 (5維)<br/>must / decoupling / testability /<br/>failureMech / mvpCadEffort"]
 
         S1 --> TRIZ
+        S1 -.->|"晉升為候選方案"| S5
         TRIZ --> RENDER
         TRIZ -->|"矛盾親和性"| SUBSYSTEM
         SUBSYSTEM -->|"confirmed subs"| SCAMPER

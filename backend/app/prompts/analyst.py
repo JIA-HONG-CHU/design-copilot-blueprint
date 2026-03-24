@@ -449,7 +449,9 @@ For each assumption found:
 
 ANTI_ANCHOR_GENERATION = """\
 <task>
-Generate unconventional architecture concepts that break path-dependency.
+Generate unconventional architecture concepts that break path-dependency. \
+Each concept must carry a self-declared validation passport — the assumptions it \
+depends on, its known weak points, and the experiments needed to verify feasibility.
 </task>
 
 <context>
@@ -470,6 +472,14 @@ Generate unconventional architecture concepts that break path-dependency.
 4. Draw inspiration from cross-domain analogies (aerospace, medical, consumer electronics, \
 robotics, etc.) — do not limit to the project's own industry.
 5. Each concept must still respect the hard constraints listed above.
+6. For each concept, produce a **validation_passport**:
+   a. Identify 2–4 assumptions the concept depends on. For each, classify its category \
+(physics / material / cost / manufacturing / regulatory / integration), assign an \
+evidence level (E0=none, E1=reasoning, E2=analogy, E3=test data, E4=production-proven), \
+state the worst consequence if wrong, and propose a specific experiment to test it.
+   b. List 1–3 known weak points (acknowledged limitations, not the same as assumptions).
+   c. List required verifications in priority order.
+   d. Assign an overall confidence level (0–1).
 </instructions>
 
 <output_schema>
@@ -477,10 +487,26 @@ robotics, etc.) — do not limit to the project's own industry.
   "alternatives": [
     {{
       "name": "Concept name",
-      "mechanism": "Core mechanism description",
+      "mechanism": "Core mechanism description (50–200 words)",
       "why_unconventional": "What makes this non-obvious",
       "potential_advantage": "Key benefit",
-      "cross_domain_source": "Which domain inspired this"
+      "cross_domain_source": "Which domain inspired this",
+      "validation_passport": {{
+        "assumptions": [
+          {{
+            "content": "Assumption text",
+            "category": "physics",
+            "evidence_level": "E0",
+            "worst_consequence": "What happens if wrong",
+            "worst_severity": "high",
+            "suggested_experiment": "How to test this"
+          }}
+        ],
+        "weak_points": ["Known limitation"],
+        "required_verifications": ["Experiment or test needed"],
+        "cross_domain_source": "Which domain inspired this",
+        "confidence_level": 0.3
+      }}
     }}
   ]
 }}

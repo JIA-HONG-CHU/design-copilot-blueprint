@@ -209,6 +209,29 @@ class CldGenerationResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Validation Passport (shared — attached to any solution hypothesis)
+# ---------------------------------------------------------------------------
+
+class ValidationPassportAssumption(BaseModel):
+    """A single assumption declared by the solution itself."""
+    content: str
+    category: str = "physics"  # physics / material / cost / manufacturing / regulatory / integration
+    evidence_level: str = "E0"  # E0 (none) → E1 (reasoning) → E2 (analogy) → E3 (test) → E4 (production)
+    worst_consequence: str = ""
+    worst_severity: str = "medium"  # critical / high / medium / low
+    suggested_experiment: str = ""
+
+
+class ValidationPassport(BaseModel):
+    """Self-declared validation record for a solution hypothesis."""
+    assumptions: list[ValidationPassportAssumption] = Field(default_factory=list)
+    weak_points: list[str] = Field(default_factory=list)
+    required_verifications: list[str] = Field(default_factory=list)
+    cross_domain_source: str = ""
+    confidence_level: float = Field(ge=0, le=1, default=0.5)
+
+
+# ---------------------------------------------------------------------------
 # Step 5-0: Anti-Anchor Routes
 # ---------------------------------------------------------------------------
 
@@ -221,13 +244,35 @@ class AntiAnchorRequest(BaseModel):
 
 class AntiAnchorRoute(BaseModel):
     name: str
+    mechanism: str = ""  # core mechanism description
     description: str
     is_non_typical: bool = True
     rationale: str = ""
+    why_unconventional: str = ""
+    potential_advantage: str = ""
+    cross_domain_source: str = ""
+    validation_passport: ValidationPassport | None = None
 
 
 class AntiAnchorResponse(BaseModel):
     routes: list[AntiAnchorRoute]
+
+
+# ---------------------------------------------------------------------------
+# Validation Passport Generation (on-demand for solutions without one)
+# ---------------------------------------------------------------------------
+
+class ValidationPassportRequest(BaseModel):
+    project_id: str
+    solution_name: str
+    mechanism: str
+    source: str = ""  # triz_tc / triz_pc / scamper / anti_anchor / manual
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
+
+
+class ValidationPassportResponse(BaseModel):
+    validation_passport: ValidationPassport
 
 
 # ---------------------------------------------------------------------------

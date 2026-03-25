@@ -81,19 +81,18 @@ const RADAR_COLORS = [
 ];
 
 const STEPS = [
-  { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "AI 產出非典型架構概念，打破路徑依賴", track: "reverse" as const },
-  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", track: "forward" as const },
-  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", track: "forward" as const },
-  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", track: "forward" as const },
-  { label: "方案整合", shortLabel: "方案", description: "整合所有來源方案（TRIZ + SCAMPER + Anti-Anchor），統一評估", track: "converge" as const },
-  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", track: "converge" as const },
-  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", track: "converge" as const },
+  { label: "反向探索 Anti-Anchor", shortLabel: "Anti-Anchor", description: "跳脫既有假設，AI 產出非典型架構，注入新矛盾至主幹", zone: "entry" as const },
+  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", zone: "pipeline" as const },
+  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", zone: "pipeline" as const },
+  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", zone: "pipeline" as const },
+  { label: "候選方案整合", shortLabel: "方案", description: "彙整 TRIZ + SCAMPER + Anti-Anchor 晉升方案，統一評估", zone: "pipeline" as const },
+  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", zone: "pipeline" as const },
+  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", zone: "pipeline" as const },
 ];
 
-const TRACK_LABELS = {
-  reverse: { badge: "反向路徑", color: "bg-amber-100 text-amber-700" },
-  forward: { badge: "正向路徑", color: "bg-blue-100 text-blue-700" },
-  converge: { badge: "匯流評估", color: "bg-violet-100 text-violet-700" },
+const ZONE_LABELS = {
+  entry: { badge: "起始模式", color: "bg-amber-100 text-amber-700" },
+  pipeline: { badge: "主幹流程", color: "bg-blue-100 text-blue-700" },
 };
 
 const MOCK_MISSION = {
@@ -1779,9 +1778,9 @@ export default function Create() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           方案創造
-          <HelpTooltip text="兩條平行路徑探索解法：反向路徑（Anti-Anchor，從約束打破框架）與正向路徑（TRIZ + SCAMPER，從矛盾系統化求解），最終匯流評估。" className="ml-2 align-middle" />
+          <HelpTooltip text="多入口 → 單主幹 → 統一收斂。Anti-Anchor（反向探索）與 Direct-to-TRIZ（直接解矛盾）是兩種起始模式，後續皆進入同一主幹流程。" className="ml-2 align-middle" />
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Step 2.2–2.3 · 雙軌道發散 → 匯流收斂</p>
+        <p className="text-sm text-muted-foreground mt-1">多入口 · 單主幹 · 統一收斂</p>
       </div>
 
       <CreateStepper
@@ -1794,13 +1793,13 @@ export default function Create() {
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-            {currentStep + 1}
+            {currentStep === 0 ? "A" : currentStep}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">{STEPS[currentStep].label}</h2>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${TRACK_LABELS[STEPS[currentStep].track].color}`}>
-                {TRACK_LABELS[STEPS[currentStep].track].badge}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ZONE_LABELS[STEPS[currentStep].zone].color}`}>
+                {ZONE_LABELS[STEPS[currentStep].zone].badge}
               </span>
             </div>
             <p className="text-sm text-muted-foreground">{STEPS[currentStep].description}</p>
@@ -1818,7 +1817,9 @@ export default function Create() {
         <Button variant="outline" onClick={goPrev} disabled={currentStep === 0}>
           <ChevronLeft className="h-4 w-4 mr-1" /> 上一步
         </Button>
-        <span className="text-xs text-muted-foreground">{currentStep + 1} / {STEPS.length}</span>
+        <span className="text-xs text-muted-foreground">
+          {currentStep === 0 ? "入口 A" : `Step ${currentStep}`} / {STEPS.length - 1} 步
+        </span>
         {currentStep < 6 ? (
           <Button onClick={goNext}>
             下一步 <ArrowRight className="h-4 w-4 ml-1" />

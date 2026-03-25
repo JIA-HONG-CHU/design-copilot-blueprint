@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,6 +121,7 @@ export default function Create() {
   const navigate = useNavigate();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [currentStep, setCurrentStep] = useState(0);
+  const [activeTrack, setActiveTrack] = useState<"reverse" | "forward" | null>("reverse");
 
   // ── Project data (for must_criteria_config) ──
   const projectQuery = useProject(id);
@@ -549,8 +551,8 @@ export default function Create() {
     ) ?? [];
     updateScamperVariant.mutate({ id: variantId, new_contradictions: updatedNcs as unknown as Json });
     toast.success(`已將矛盾回饋至收斂圖（${nc.severity.toUpperCase()}），AI 將重新探索`);
-    // Jump back to Step 2 (TRIZ) to show updated graph
-    setCurrentStep(1);
+    // Jump back to TRIZ to show updated graph (keep current track)
+    navigateTo(1);
   };
   const cycleMust = (altId: string, mustId: string) => {
     const alt = alternatives.find(a => a.id === altId);
@@ -725,8 +727,24 @@ export default function Create() {
     return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-muted text-sm text-muted-foreground">—</span>;
   };
 
-  const goNext = () => setCurrentStep((s) => Math.min(s + 1, 6));
-  const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
+  // Unified step navigation — infers track from step index when not explicit
+  const inferTrack = (step: number): "reverse" | "forward" | null => {
+    if (step === 0) return "reverse";
+    if (step >= 1 && step <= 3) return activeTrack === "reverse" ? "reverse" : "forward";
+    return null; // hub, must, pre-cad
+  };
+  const navigateTo = (step: number, track?: "reverse" | "forward" | null) => {
+    setCurrentStep(step);
+    setActiveTrack(track !== undefined ? track : inferTrack(step));
+  };
+  const goNext = () => {
+    const next = Math.min(currentStep + 1, 6);
+    navigateTo(next);
+  };
+  const goPrev = () => {
+    const prev = Math.max(currentStep - 1, 0);
+    navigateTo(prev);
+  };
 
   if (isLoading) {
     return (
@@ -1159,7 +1177,7 @@ export default function Create() {
       return (
         <div className="text-center py-16 space-y-3">
           <p className="text-muted-foreground">請先在「子系統定義」中確認至少一個子系統</p>
-          <Button variant="secondary" onClick={() => setCurrentStep(2)}>
+          <Button variant="secondary" onClick={() => navigateTo(2)}>
             <ChevronLeft className="h-4 w-4 mr-1" /> 回到子系統定義
           </Button>
         </div>
@@ -1411,7 +1429,7 @@ export default function Create() {
       return (
         <div className="text-center py-16 space-y-3">
           <p className="text-muted-foreground">請先在「方案整合」中建立方案</p>
-          <Button variant="secondary" onClick={() => setCurrentStep(4)}>
+          <Button variant="secondary" onClick={() => navigateTo(4, null)}>
             <ChevronLeft className="h-4 w-4 mr-1" /> 回到方案整合
           </Button>
         </div>
@@ -1542,7 +1560,7 @@ export default function Create() {
       return (
         <div className="text-center py-16 space-y-3">
           <p className="text-muted-foreground">請先在 MUST 快篩中完成評估</p>
-          <Button variant="secondary" onClick={() => setCurrentStep(5)}>
+          <Button variant="secondary" onClick={() => navigateTo(5, null)}>
             <ChevronLeft className="h-4 w-4 mr-1" /> 回到 MUST 快篩
           </Button>
         </div>
@@ -1789,19 +1807,33 @@ export default function Create() {
         steps={STEPS}
         statuses={stepStatuses}
         currentStep={currentStep}
-        onStepClick={setCurrentStep}
+        activeTrack={activeTrack}
+        onStepClick={(step, track) => navigateTo(step, track)}
       />
 
       <div className="space-y-2">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-            {currentStep === 0 ? "R" : currentStep === 4 ? "⬡" : currentStep <= 3 ? `F${currentStep}` : currentStep - 3}
+          <div className={cn(
+            "h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold",
+            activeTrack === "reverse" ? "bg-amber-500 text-white" :
+            activeTrack === "forward" ? "bg-blue-500 text-white" :
+            "bg-primary text-primary-foreground"
+          )}>
+            {activeTrack === "reverse" ? "R" :
+             activeTrack === "forward" ? "F" :
+             currentStep === 4 ? "⬡" : currentStep - 3}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">{STEPS[currentStep].label}</h2>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ZONE_LABELS[STEPS[currentStep].zone].color}`}>
-                {ZONE_LABELS[STEPS[currentStep].zone].badge}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                activeTrack === "reverse" ? ZONE_LABELS.reverse.color :
+                activeTrack === "forward" ? ZONE_LABELS.forward.color :
+                ZONE_LABELS[STEPS[currentStep].zone].color
+              }`}>
+                {activeTrack === "reverse" ? ZONE_LABELS.reverse.badge :
+                 activeTrack === "forward" ? ZONE_LABELS.forward.badge :
+                 ZONE_LABELS[STEPS[currentStep].zone].badge}
               </span>
             </div>
             <p className="text-sm text-muted-foreground">{STEPS[currentStep].description}</p>

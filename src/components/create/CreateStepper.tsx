@@ -2,11 +2,14 @@ import { cn } from "@/lib/utils";
 import { Check, Zap, Target, LayoutGrid } from "lucide-react";
 import type { AccordionStepStatus } from "@/types/create";
 
+export type AnalysisTrack = "reverse" | "forward" | null;
+
 interface CreateStepperProps {
   steps: { label: string; shortLabel: string }[];
   statuses: AccordionStepStatus[];
   currentStep: number;
-  onStepClick: (step: number) => void;
+  activeTrack: AnalysisTrack;
+  onStepClick: (step: number, track: AnalysisTrack) => void;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -61,22 +64,30 @@ function EvalChip({
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-export function CreateStepper({ steps, statuses, currentStep, onStepClick }: CreateStepperProps) {
-  // Internal index mapping (unchanged for backward compat)
-  // 0: Anti-Anchor  1: TRIZ  2: Subsystem  3: SCAMPER  4: Decision Hub  5: MUST  6: Pre-CAD
-  const REVERSE = [0, 1, 2, 3]; // 反向路徑: AA → TRIZ → 子系統 → SCAMPER
-  const FORWARD = [1, 2, 3];    // 正向路徑: TRIZ → 子系統 → SCAMPER (reuses indices 1-3)
+export function CreateStepper({ steps, statuses, currentStep, activeTrack, onStepClick }: CreateStepperProps) {
   const HUB = 4;
   const EVAL = [5, 6];
 
-  const reverseLabels = ["Anti-Anchor", "TRIZ", "子系統", "SCAMPER"];
-  const forwardLabels = ["TRIZ", "子系統", "SCAMPER"];
+  const reverseSteps = [
+    { idx: 0, label: "Anti-Anchor" },
+    { idx: 1, label: "TRIZ" },
+    { idx: 2, label: "子系統" },
+    { idx: 3, label: "SCAMPER" },
+  ];
+  const forwardSteps = [
+    { idx: 1, label: "TRIZ" },
+    { idx: 2, label: "子系統" },
+    { idx: 3, label: "SCAMPER" },
+  ];
 
-  const isReverseActive = currentStep === 0;
-  const isForwardActive = [1, 2, 3].includes(currentStep);
-  const isHubActive = currentStep === HUB;
+  // A step is "current in this track" only if BOTH the index matches AND the track matches
+  const isCurrentInTrack = (stepIdx: number, track: AnalysisTrack) =>
+    currentStep === stepIdx && activeTrack === track;
 
-  // Track completion: simplified (route count for reverse, any triz for forward)
+  const isReverseActive = activeTrack === "reverse";
+  const isForwardActive = activeTrack === "forward";
+  const isHubActive = currentStep === HUB && activeTrack === null;
+
   const reverseHasProgress = statuses[0] !== "not_started";
   const forwardHasProgress = statuses[1] !== "not_started";
 
@@ -98,13 +109,13 @@ export function CreateStepper({ steps, statuses, currentStep, onStepClick }: Cre
             <span className="text-[10px] text-muted-foreground ml-auto">打破框架</span>
           </div>
           <div className="space-y-0.5">
-            {REVERSE.map((stepIdx, i) => (
+            {reverseSteps.map((s) => (
               <TrackStep
-                key={`r-${stepIdx}-${i}`}
-                label={reverseLabels[i]}
-                status={i === 0 ? statuses[stepIdx] : "not_started"}
-                isCurrent={currentStep === stepIdx && isReverseActive}
-                onClick={() => onStepClick(stepIdx)}
+                key={`r-${s.idx}-${s.label}`}
+                label={s.label}
+                status={s.idx === 0 ? statuses[s.idx] : "not_started"}
+                isCurrent={isCurrentInTrack(s.idx, "reverse")}
+                onClick={() => onStepClick(s.idx, "reverse")}
               />
             ))}
           </div>
@@ -126,13 +137,13 @@ export function CreateStepper({ steps, statuses, currentStep, onStepClick }: Cre
             <span className="text-[10px] text-muted-foreground ml-auto">系統化解矛盾</span>
           </div>
           <div className="space-y-0.5">
-            {FORWARD.map((stepIdx, i) => (
+            {forwardSteps.map((s) => (
               <TrackStep
-                key={`f-${stepIdx}-${i}`}
-                label={forwardLabels[i]}
-                status={statuses[stepIdx]}
-                isCurrent={currentStep === stepIdx && isForwardActive}
-                onClick={() => onStepClick(stepIdx)}
+                key={`f-${s.idx}-${s.label}`}
+                label={s.label}
+                status={statuses[s.idx]}
+                isCurrent={isCurrentInTrack(s.idx, "forward")}
+                onClick={() => onStepClick(s.idx, "forward")}
               />
             ))}
           </div>
@@ -152,7 +163,7 @@ export function CreateStepper({ steps, statuses, currentStep, onStepClick }: Cre
       </div>
 
       <button
-        onClick={() => onStepClick(HUB)}
+        onClick={() => onStepClick(HUB, null)}
         className={cn(
           "w-full text-left rounded-lg border-2 p-3 transition-all cursor-pointer",
           "hover:border-violet-300 hover:bg-violet-50/30",
@@ -177,8 +188,8 @@ export function CreateStepper({ steps, statuses, currentStep, onStepClick }: Cre
             key={stepIdx}
             label={steps[stepIdx].shortLabel}
             status={statuses[stepIdx]}
-            isCurrent={currentStep === stepIdx}
-            onClick={() => onStepClick(stepIdx)}
+            isCurrent={currentStep === stepIdx && activeTrack === null}
+            onClick={() => onStepClick(stepIdx, null)}
           />
         ))}
       </div>

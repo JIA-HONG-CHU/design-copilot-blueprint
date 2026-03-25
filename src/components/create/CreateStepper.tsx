@@ -84,18 +84,16 @@ export function CreateStepper({ steps, statuses, currentStep, onStepClick }: Cre
             </p>
           </button>
 
-          {/* Entry B: Direct-to-TRIZ */}
+          {/* Entry B: Direct-to-TRIZ (shortcut, not a step — never "active") */}
           <button
             onClick={() => onStepClick(1)}
             className={cn(
-              "text-left rounded-lg border p-3 transition-all cursor-pointer",
+              "text-left rounded-lg border border-muted p-3 transition-all cursor-pointer",
               "hover:border-blue-300 hover:bg-blue-50/50",
-              PIPELINE.includes(currentStep) && "border-blue-400 bg-blue-50/80 shadow-sm",
-              !PIPELINE.includes(currentStep) && "border-muted",
             )}
           >
             <div className="flex items-center gap-2">
-              <Target className={cn("h-4 w-4", PIPELINE.includes(currentStep) ? "text-blue-500" : "text-muted-foreground")} />
+              <Target className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs font-semibold">入口 B｜直接解矛盾</span>
               <ArrowRight className="h-3 w-3 text-muted-foreground ml-auto" />
             </div>

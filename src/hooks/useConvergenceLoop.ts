@@ -118,7 +118,7 @@ async function restoreState(projectId: string): Promise<ConvergenceState | null>
     .from('convergence_snapshots')
     .select('state')
     .eq('project_id', projectId)
-    .single();
+    .maybeSingle();
   if (!data?.state) return null;
   return data.state as unknown as ConvergenceState;
 }

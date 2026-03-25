@@ -28,6 +28,7 @@ import {
   convergenceScan,
   getApiErrorMessage,
 } from '@/lib/api';
+import { evaluateConvergence, recalcConfidenceOnAdd, resolveContradiction } from './convergenceLogic';
 import type {
   ConvergenceAlternativeInput,
   ConvergenceScanResponse,
@@ -171,12 +172,13 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     (
       prevNodes: ConvergenceNode[],
       prevEdges: ConvergenceEdge[],
-      sourceNodeId: string,
+      _fallbackSourceId: string, // kept for backward compat, prefer per-item source
       newContradictions: SecondaryContradictionResult[],
     ): { nodes: ConvergenceNode[]; edges: ConvergenceEdge[] } => {
       const nodes = [...prevNodes];
       const edges = [...prevEdges];
       const maxX = nodes.length > 0 ? Math.max(...nodes.map((n) => n.x)) : 0;
+      const nodeIdSet = new Set(nodes.map((n) => n.id));
 
       for (const nc of newContradictions) {
         const nid = nextNodeId('sc');
@@ -190,7 +192,12 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
           x: maxX + 160,
           y: 20 + nodes.filter((n) => n.type === 'contradiction').length * 60,
         });
-        edges.push({ from: sourceNodeId, to: nid });
+        // Use per-item source_alternative for correct parent edge.
+        // Fall back to _fallbackSourceId only if source not found in graph.
+        const parentId = nc.source_alternative && nodeIdSet.has(nc.source_alternative)
+          ? nc.source_alternative
+          : _fallbackSourceId;
+        edges.push({ from: parentId, to: nid });
       }
 
       return { nodes, edges };
@@ -279,16 +286,6 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         (c) => c.severity !== 'fatal' && c.severity !== 'major',
       );
 
-      const updatedFatal = {
-        total: fatalCount.total + newFatal.length,
-        resolved: fatalCount.resolved + (scanResult.new_contradictions.length === 0 ? fatalCount.total - fatalCount.resolved : 0),
-      };
-      const updatedMajor = {
-        total: majorCount.total + newMajor.length,
-        resolved: majorCount.resolved + (scanResult.new_contradictions.length === 0 ? majorCount.total - majorCount.resolved : 0),
-      };
-      const updatedMinorCount = minorCount + newMinor.length;
-
       // Add minor contradictions to risk register
       const updatedRisk = [...riskRegister];
       for (const nc of newMinor) {
@@ -309,25 +306,45 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         scanResult.new_contradictions,
       );
 
-      // Update branches status
-      const hasNewFatalMajor = newFatal.length > 0 || newMajor.length > 0;
+      // Use pure logic module for convergence evaluation
+      const convergenceResult = evaluateConvergence({
+        iteration,
+        confidence: scanResult.convergence_score,
+        fatalCount,
+        majorCount,
+        scan: {
+          newFatal: newFatal.length,
+          newMajor: newMajor.length,
+          newMinor: newMinor.length,
+          noNewContradictions: scanResult.new_contradictions.length === 0,
+        },
+        forcePause: scanResult.force_pause,
+        architectureHealth: scanResult.architecture_health,
+      });
+
+      const { fatalCount: updatedFatal, majorCount: updatedMajor } = convergenceResult;
+      const updatedMinorCount = minorCount + newMinor.length;
+      const health = mapArchitectureHealth(scanResult.architecture_health);
+
+      // Update branches status — per-branch tracking using source_alternative
+      const branchesWithNewBlocking = new Set<string>();
+      for (const nc of [...newFatal, ...newMajor]) {
+        // source_alternative may reference a contradiction ID that belongs to a branch
+        const srcId = nc.source_alternative;
+        const branch = branches.find((b) => b.contradictionId === srcId);
+        if (branch) branchesWithNewBlocking.add(branch.contradictionId);
+      }
       const updatedBranches = branches.map((b) => ({
         ...b,
-        status: (!hasNewFatalMajor ? 'converged' : 'exploring') as BranchExploration['status'],
+        status: (
+          branchesWithNewBlocking.has(b.contradictionId)
+            ? 'exploring'
+            : convergenceResult.status === 'converged' ? 'converged' : b.status
+        ) as BranchExploration['status'],
         depth: iteration,
       }));
 
-      // Determine health and convergence
-      const health = mapArchitectureHealth(scanResult.architecture_health);
-      const confidence = scanResult.convergence_score;
-      const isConverged = confidence >= 80 || (!hasNewFatalMajor && iteration > 0);
-      const isHalted = scanResult.force_pause || health === 'critical' || health === 'circular';
-
-      const nextStatus = isHalted
-        ? 'halted' as const
-        : isConverged
-          ? 'converged' as const
-          : 'exploring' as const;
+      const nextStatus = convergenceResult.status;
 
       setState({
         iteration,
@@ -336,7 +353,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         branches: updatedBranches,
         graph: updatedGraph,
         health,
-        confidence,
+        confidence: scanResult.convergence_score, // single source of truth: API score
         fatalCount: updatedFatal,
         majorCount: updatedMajor,
         minorCount: updatedMinorCount,
@@ -514,9 +531,13 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         ? { ...prev.majorCount, total: prev.majorCount.total + 1 }
         : prev.majorCount;
       const updatedMinor = severity === 'minor' ? prev.minorCount + 1 : prev.minorCount;
+      // Connect to source branch if it exists in the graph
+      const sourceExists = prev.graph.nodes.some((n) => n.id === sourceBranchId);
       const updatedGraph = {
         nodes: [...prev.graph.nodes, newNode],
-        edges: prev.graph.edges,
+        edges: sourceExists
+          ? [...prev.graph.edges, { from: sourceBranchId, to: newId }]
+          : prev.graph.edges,
       };
 
       // Auto re-scan: schedule next round when fatal/major injected
@@ -542,16 +563,39 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         fatalCount: updatedFatal,
         majorCount: updatedMajor,
         minorCount: updatedMinor,
+        // Provisional local estimate until next API scan replaces it
         confidence: isFatalMajor
-          ? Math.round(
-              ((prev.fatalCount.resolved + prev.majorCount.resolved) /
-                (prev.fatalCount.total + prev.majorCount.total + 1)) *
-                100,
-            )
+          ? recalcConfidenceOnAdd(prev.fatalCount, prev.majorCount, severity)
           : prev.confidence,
       };
     });
   }, [runScanRound]);
+
+  // ------------------------------------------------------------------
+  // markResolved — called when a TRIZ solution is adopted for a contradiction
+  // ------------------------------------------------------------------
+  const markResolved = useCallback((contradictionId: string, severity: ContradictionSeverity) => {
+    setState((prev) => {
+      const { fatalCount, majorCount, confidence } = resolveContradiction(
+        prev.fatalCount,
+        prev.majorCount,
+        severity,
+      );
+
+      // Also mark the graph node as resolved
+      const updatedNodes = prev.graph.nodes.map((n) =>
+        n.id === contradictionId ? { ...n, resolved: true } : n,
+      );
+
+      return {
+        ...prev,
+        fatalCount,
+        majorCount,
+        confidence,
+        graph: { ...prev.graph, nodes: updatedNodes },
+      };
+    });
+  }, []);
 
   return {
     state,
@@ -561,5 +605,6 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     forceContinue,
     retryBranch,
     addContradiction,
+    markResolved,
   };
 }

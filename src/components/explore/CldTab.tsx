@@ -21,6 +21,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 const cldStyles = `
+  .react-flow {
+    background: hsl(var(--muted) / 0.3) !important;
+  }
   .react-flow__controls {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));

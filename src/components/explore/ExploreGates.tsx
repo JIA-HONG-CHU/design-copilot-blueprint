@@ -58,7 +58,7 @@ export function ExploreGates({ gate12Items, phaseGate1Items, onNavigateNext }: E
       </div>
 
       {/* Phase Gate 1 - milestone style */}
-      <div className="rounded-lg border-2 border-blue-500 bg-blue-50 p-4 space-y-3">
+      <div className="rounded-lg border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/40 p-4 space-y-3">
         <div className="flex items-center gap-3">
           <Flag className="h-5 w-5 text-blue-500 shrink-0" />
           <h3 className="text-sm font-semibold">Phase Gate 1 — Define 階段完成度檢查</h3>

@@ -81,18 +81,20 @@ const RADAR_COLORS = [
 ];
 
 const STEPS = [
-  { label: "反向探索 Anti-Anchor", shortLabel: "Anti-Anchor", description: "跳脫既有假設，AI 產出非典型架構，注入新矛盾至主幹", zone: "entry" as const },
-  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", zone: "pipeline" as const },
-  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", zone: "pipeline" as const },
-  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", zone: "pipeline" as const },
-  { label: "候選方案整合", shortLabel: "方案", description: "彙整 TRIZ + SCAMPER + Anti-Anchor 晉升方案，統一評估", zone: "pipeline" as const },
-  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", zone: "pipeline" as const },
-  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", zone: "pipeline" as const },
+  { label: "反向探索 Anti-Anchor", shortLabel: "Anti-Anchor", description: "跳脫既有假設，AI 產出非典型架構，注入新矛盾至反向路徑 TRIZ", zone: "reverse" as const },
+  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", zone: "forward" as const },
+  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", zone: "forward" as const },
+  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", zone: "forward" as const },
+  { label: "候選方案決策中心", shortLabel: "決策中心", description: "攤平兩條路徑的所有方案，橫向比較來源、機制、假設、驗證需求與信心等級", zone: "hub" as const },
+  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", zone: "eval" as const },
+  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", zone: "eval" as const },
 ];
 
-const ZONE_LABELS = {
-  entry: { badge: "起始模式", color: "bg-amber-100 text-amber-700" },
-  pipeline: { badge: "主幹流程", color: "bg-blue-100 text-blue-700" },
+const ZONE_LABELS: Record<string, { badge: string; color: string }> = {
+  reverse: { badge: "反向路徑", color: "bg-amber-100 text-amber-700" },
+  forward: { badge: "正向路徑", color: "bg-blue-100 text-blue-700" },
+  hub: { badge: "決策中心", color: "bg-violet-100 text-violet-700" },
+  eval: { badge: "統一評估", color: "bg-green-100 text-green-700" },
 };
 
 const MOCK_MISSION = {
@@ -1778,9 +1780,9 @@ export default function Create() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           方案創造
-          <HelpTooltip text="多入口 → 單主幹 → 統一收斂。Anti-Anchor（反向探索）與 Direct-to-TRIZ（直接解矛盾）是兩種起始模式，後續皆進入同一主幹流程。" className="ml-2 align-middle" />
+          <HelpTooltip text="雙軌獨立分析 → 候選方案決策中心 → 統一評估。反向路徑（Anti-Anchor → TRIZ → SCAMPER）與正向路徑（CLD 矛盾 → TRIZ → SCAMPER）各自獨立分析，最終在決策中心攤平比較所有方案。" className="ml-2 align-middle" />
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">多入口 · 單主幹 · 統一收斂</p>
+        <p className="text-sm text-muted-foreground mt-1">雙軌分析 · 方案匯流 · 統一評估</p>
       </div>
 
       <CreateStepper
@@ -1793,7 +1795,7 @@ export default function Create() {
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-            {currentStep === 0 ? "A" : currentStep}
+            {currentStep === 0 ? "R" : currentStep === 4 ? "⬡" : currentStep <= 3 ? `F${currentStep}` : currentStep - 3}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -1818,7 +1820,7 @@ export default function Create() {
           <ChevronLeft className="h-4 w-4 mr-1" /> 上一步
         </Button>
         <span className="text-xs text-muted-foreground">
-          {currentStep === 0 ? "入口 A" : `Step ${currentStep}`} / {STEPS.length - 1} 步
+          {ZONE_LABELS[STEPS[currentStep].zone].badge}
         </span>
         {currentStep < 6 ? (
           <Button onClick={goNext}>

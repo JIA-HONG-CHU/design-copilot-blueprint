@@ -17,13 +17,13 @@ const severityColor: Record<ContradictionSeverity, string> = {
 };
 
 const severityLabel: Record<ContradictionSeverity, string> = {
-  fatal: "Fatal",
-  major: "Major",
-  minor: "Minor",
+  fatal: "致命",
+  major: "重大",
+  minor: "輕微",
 };
 
-const NODE_W = 120;
-const NODE_H = 40;
+const NODE_W = 180;
+const NODE_H = 52;
 
 const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
   // Local positions: override node.x/y when dragged
@@ -188,7 +188,7 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                             fontWeight={500}
                             pointerEvents="none"
                           >
-                            {node.label.length > 12 ? node.label.slice(0, 12) + "…" : node.label}
+                            {node.label.length > 24 ? node.label.slice(0, 24) + "…" : node.label}
                           </text>
                           {isContradiction && node.severity && (
                             <text

@@ -13,9 +13,10 @@
  * Accepts real Contradiction[] from Supabase (via useContradictions) and
  * calls the backend API for each convergence scan round.
  */
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ContradictionSeverity } from '@/types/contradiction';
 import type { Contradiction } from '@/types/contradiction';
+import { supabase } from '@/integrations/supabase/client';
 import type { HealthStatus, ConvergenceNode, ConvergenceEdge } from '@/types/solution';
 import type {
   ConvergenceState,
@@ -99,6 +100,29 @@ const initialState: ConvergenceState = {
 };
 
 // ---------------------------------------------------------------------------
+// DB persistence helpers (convergence_snapshots table)
+// ---------------------------------------------------------------------------
+
+async function persistState(projectId: string, state: ConvergenceState) {
+  await supabase
+    .from('convergence_snapshots')
+    .upsert(
+      { project_id: projectId, state: state as unknown as Record<string, unknown> },
+      { onConflict: 'project_id' },
+    );
+}
+
+async function restoreState(projectId: string): Promise<ConvergenceState | null> {
+  const { data } = await supabase
+    .from('convergence_snapshots')
+    .select('state')
+    .eq('project_id', projectId)
+    .single();
+  if (!data?.state) return null;
+  return data.state as unknown as ConvergenceState;
+}
+
+// ---------------------------------------------------------------------------
 // Hook implementation
 // ---------------------------------------------------------------------------
 
@@ -112,10 +136,31 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     kpis,
   } = options;
 
-  const [state, setState] = useState<ConvergenceState>(initialState);
+  const [state, _setStateRaw] = useState<ConvergenceState>(initialState);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Abort flag so we can cancel an in-progress exploration
   const abortRef = useRef(false);
+
+  // Wrapper: update state + persist to DB (supports direct value or updater fn)
+  const setState = useCallback((action: ConvergenceState | ((prev: ConvergenceState) => ConvergenceState)) => {
+    _setStateRaw((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      if (projectId && next.status !== 'idle') {
+        persistState(projectId, next);
+      }
+      return next;
+    });
+  }, [projectId]);
+
+  // Restore from DB on mount
+  useEffect(() => {
+    if (!projectId) return;
+    restoreState(projectId).then((saved) => {
+      if (saved && saved.status !== 'idle') {
+        _setStateRaw(saved);
+      }
+    });
+  }, [projectId]);
+
   // Phase A = contradiction-only, Phase B = full cross-check with alternatives
   const phaseRef = useRef<'A' | 'B'>('A');
 
@@ -138,7 +183,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         const severity = mapSeverity(nc.severity);
         nodes.push({
           id: nid,
-          label: nc.description.length > 16 ? nc.description.slice(0, 16) + '...' : nc.description,
+          label: nc.description,
           type: 'contradiction',
           severity,
           resolved: severity === 'minor',
@@ -163,10 +208,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       contrs.forEach((c, i) => {
         nodes.push({
           id: c.id,
-          label:
-            c.naturalDescription.length > 16
-              ? c.naturalDescription.slice(0, 16) + '...'
-              : c.naturalDescription,
+          label: c.naturalDescription,
           type: 'contradiction',
           severity: c.severity,
           resolved: c.resolved ?? false,
@@ -458,7 +500,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     setState((prev) => {
       const newNode: ConvergenceNode = {
         id: newId,
-        label: description.length > 12 ? description.slice(0, 12) + '...' : description,
+        label: description,
         type: 'contradiction',
         severity,
         resolved: false,

@@ -830,6 +830,22 @@ DROP POLICY IF EXISTS "Users can delete own attachments" ON review_attachments;
 CREATE POLICY "Users can delete own attachments" ON review_attachments
   FOR DELETE USING (auth.uid() = user_id);
 
+-- convergence_snapshots (persist convergence loop state per project)
+CREATE TABLE IF NOT EXISTS convergence_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE UNIQUE,
+  state JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TRIGGER trg_convergence_snapshots_updated_at
+  BEFORE UPDATE ON convergence_snapshots FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE convergence_snapshots ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated users can manage convergence snapshots" ON convergence_snapshots;
+CREATE POLICY "Authenticated users can manage convergence snapshots" ON convergence_snapshots
+  FOR ALL USING (auth.uid() IS NOT NULL);
+
 -- ============================================================
--- Done! 29 tables + RLS + indexes + triggers + storage
+-- Done! 30 tables + RLS + indexes + triggers + storage
 -- ============================================================

@@ -239,6 +239,9 @@ dependencies, and coverage gaps — WITHOUT any solution alternatives.
 This is Phase A (problem-space health check) of the convergence pipeline.
 </task>
 
+<language>回覆語言：繁體中文。description 和 reasoning 欄位必須使用繁體中文，\
+讓工程師直接看懂。技術術語保留英文（如 TRIZ 參數編號）。</language>
+
 <context>
 <mission>{mission}</mission>
 <project_constraints>
@@ -329,6 +332,9 @@ CONVERGENCE_SCAN = """\
 Perform a parameter-level cross-check of alternatives against contradictions \
 to detect secondary contradictions and compute convergence health.
 </task>
+
+<language>回覆語言：繁體中文。description 和 reasoning 欄位必須使用繁體中文，\
+讓工程師直接看懂。技術術語保留英文（如 TRIZ 參數編號）。</language>
 
 <context>
 <mission>{mission}</mission>

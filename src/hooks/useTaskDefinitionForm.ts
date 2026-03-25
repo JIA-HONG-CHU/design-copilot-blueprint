@@ -422,16 +422,16 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     (k) => k.kpi_name.trim() && k.target_value.trim() && k.unit.trim() && k.measurement_method.trim()
   );
 
+  // ── Detect content change → mark feasibility as stale ─────────────
+  const feasibilitySnapshotRef = useRef<string>("");
+  const [isFeasibilityStale, setIsFeasibilityStale] = useState(false);
+
   const gateItems: GateCheckItem[] = useMemo(() => [
     { label: "Mission 已填寫 (≥ 10 字元)", passed: missionReady },
     { label: "至少 1 項硬約束", passed: hasConstraint },
     { label: "至少 1 項 KPI", passed: hasKpi },
     { label: "約束可行性驗證通過", passed: (feasibilityStatus === "pass" || feasibilityStatus === "warning") && !isFeasibilityStale },
   ], [missionReady, hasConstraint, hasKpi, feasibilityStatus, isFeasibilityStale]);
-
-  // ── Detect content change → mark feasibility as stale ─────────────
-  const feasibilitySnapshotRef = useRef<string>("");
-  const [isFeasibilityStale, setIsFeasibilityStale] = useState(false);
 
   useEffect(() => {
     if (feasibilityStatus === "idle" || feasibilityStatus === "checking") return;

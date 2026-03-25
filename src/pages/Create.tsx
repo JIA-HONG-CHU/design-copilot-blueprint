@@ -486,8 +486,35 @@ export default function Create() {
     toast.success(`「${route.name}」已晉升為候選方案（Step 5）`);
   };
   const deleteSubsystem = (ssId: string) => {
+    const idx = localSubsystems.findIndex(s => s.id === ssId);
+    if (idx === -1) return;
+    const removed = localSubsystems[idx];
+
     setLocalSubsystems(prev => prev.filter(s => s.id !== ssId));
     deleteSubsystemMut.mutate({ id: ssId });
+
+    toast(`已刪除「${removed.name}」`, {
+      duration: 5000,
+      action: {
+        label: "復原",
+        onClick: () => {
+          createSubsystem.mutate({
+            project_id: id!,
+            name: removed.name,
+            reason: removed.reason || undefined,
+            related_contradictions: removed.relatedContradictions,
+            confirmed: removed.confirmed,
+            source: removed.source || "rd",
+            interfaces: removed.interfaces?.join(", ") || undefined,
+          });
+          setLocalSubsystems(prev => {
+            const next = [...prev];
+            next.splice(Math.min(idx, next.length), 0, removed);
+            return next;
+          });
+        },
+      },
+    });
   };
   const resetSsForm = () => {
     setSsFormName(""); setSsFormReason(""); setSsFormContradictions([]); setSsFormInterfaces("");

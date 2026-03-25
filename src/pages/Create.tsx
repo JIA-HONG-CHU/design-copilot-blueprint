@@ -80,14 +80,20 @@ const RADAR_COLORS = [
 ];
 
 const STEPS = [
-  { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "AI 產出非典型架構概念，打破路徑依賴" },
-  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法" },
-  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍" },
-  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案" },
-  { label: "方案整合", shortLabel: "方案", description: "整合前四步成果，建立完整的概念方案" },
-  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案" },
-  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD" },
+  { label: "Anti-Anchor Sprint", shortLabel: "Anti-Anchor", description: "AI 產出非典型架構概念，打破路徑依賴", track: "reverse" as const },
+  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", track: "forward" as const },
+  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", track: "forward" as const },
+  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", track: "forward" as const },
+  { label: "方案整合", shortLabel: "方案", description: "整合所有來源方案（TRIZ + SCAMPER + Anti-Anchor），統一評估", track: "converge" as const },
+  { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", track: "converge" as const },
+  { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", track: "converge" as const },
 ];
+
+const TRACK_LABELS = {
+  reverse: { badge: "反向路徑", color: "bg-amber-100 text-amber-700" },
+  forward: { badge: "正向路徑", color: "bg-blue-100 text-blue-700" },
+  converge: { badge: "匯流評估", color: "bg-violet-100 text-violet-700" },
+};
 
 const MOCK_MISSION = {
   problemStatement: "設計一款中驅電動自行車傳動系統，在 ≤65dB 噪音下達成 25km/h 極速與 15% 坡度爬坡能力",
@@ -1733,9 +1739,9 @@ export default function Create() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           方案創造
-          <HelpTooltip text="透過 7 個子步驟系統性地產生並篩選設計方案。每步聚焦一件事，逐步收斂至最優方案。" className="ml-2 align-middle" />
+          <HelpTooltip text="兩條平行路徑探索解法：反向路徑（Anti-Anchor，從約束打破框架）與正向路徑（TRIZ + SCAMPER，從矛盾系統化求解），最終匯流評估。" className="ml-2 align-middle" />
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Step 2.2–2.3 · 逐步展開</p>
+        <p className="text-sm text-muted-foreground mt-1">Step 2.2–2.3 · 雙軌道發散 → 匯流收斂</p>
       </div>
 
       <CreateStepper
@@ -1751,7 +1757,12 @@ export default function Create() {
             {currentStep + 1}
           </div>
           <div>
-            <h2 className="text-lg font-semibold">{STEPS[currentStep].label}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">{STEPS[currentStep].label}</h2>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${TRACK_LABELS[STEPS[currentStep].track].color}`}>
+                {TRACK_LABELS[STEPS[currentStep].track].badge}
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">{STEPS[currentStep].description}</p>
           </div>
         </div>

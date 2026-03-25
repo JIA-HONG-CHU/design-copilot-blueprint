@@ -348,8 +348,24 @@ export default function Create() {
           : MOCK_MISSION.contradictions.map((c) => c.description),
         existing_alternatives: [],
       });
+      // Optimistic: build display data from API result immediately
+      const optimistic: AntiAnchorRoute[] = result.routes.map((route, i) => ({
+        id: `aa-opt-${Date.now()}-${i}`,
+        name: route.name,
+        mechanism: route.mechanism,
+        description: route.description || route.mechanism,
+        whyUnconventional: route.why_unconventional,
+        potentialAdvantage: route.potential_advantage,
+        crossDomainSource: route.cross_domain_source,
+        validationPassport: route.validation_passport as unknown as import("@/types/create").ValidationPassport | null,
+        createdAt: new Date().toISOString(),
+      }));
+      setLocalRoutes(optimistic);
+      setAntiAnchorGenerated(true);
+
+      // Persist to DB in background (query invalidation will replace optimistic IDs)
       for (const route of result.routes) {
-        await createAntiAnchorRoute.mutateAsync({
+        createAntiAnchorRoute.mutate({
           project_id: id,
           name: route.name,
           mechanism: route.mechanism,
@@ -362,7 +378,6 @@ export default function Create() {
           source: 'ai',
         });
       }
-      setAntiAnchorGenerated(true);
       toast.success(`AI 已產出 ${result.routes.length} 條非典型架構概念`);
     } catch (err) {
       console.error("Anti-anchor generation failed:", err);

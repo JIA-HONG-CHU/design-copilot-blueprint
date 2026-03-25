@@ -129,10 +129,18 @@ export default function Explore() {
         });
 
         // When a question is newly tagged as contradiction → create entry + auto-formalize
+        // Guard: check DB for existing contradiction with same source to prevent duplicates
         if (q.taggedAsContradiction && !original.taggedAsContradiction && id) {
           const desc = `[${q.category}] ${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
           const now = new Date().toISOString();
           startOp();
+          supabase
+            .from('contradictions')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', id)
+            .eq('source_question_id', q.id)
+            .then(({ count: existingCount }) => {
+              if ((existingCount ?? 0) > 0) { endOp(); return; } // already exists
           supabase
             .from('contradictions')
             .insert({
@@ -182,38 +190,48 @@ export default function Explore() {
                 endOp();
               }
             });
+            }); // close guard .then()
         }
 
         // When a question is newly tagged as assumption → create entry in assumptions table
+        // Guard: check DB for existing assumption with same source to prevent duplicates
         if (q.taggedAsAssumption && !original.taggedAsAssumption && id) {
           startOp();
           supabase
             .from('assumptions')
             .select('id', { count: 'exact', head: true })
             .eq('project_id', id)
-            .then(({ count }) => {
-              const code = `A-${String((count ?? 0) + 1).padStart(3, '0')}`;
-              const content = `${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
-              const now = new Date().toISOString();
+            .eq('source', q.id)
+            .then(({ count: existingCount }) => {
+              if ((existingCount ?? 0) > 0) { endOp(); return; } // already exists
               supabase
                 .from('assumptions')
-                .insert({
-                  project_id: id,
-                  code,
-                  content,
-                  source_type: 'socratic',
-                  source: q.id,
-                  worst_severity: 'medium',
-                  status: 'unverified',
-                  verification_stage: 'unplanned',
-                  created_at: now,
-                  updated_at: now,
-                })
-                .then(() => {
-                  queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
-                  queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
-                })
-                .finally(() => endOp());
+                .select('id', { count: 'exact', head: true })
+                .eq('project_id', id)
+                .then(({ count }) => {
+                  const code = `A-${String((count ?? 0) + 1).padStart(3, '0')}`;
+                  const content = `${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
+                  const now = new Date().toISOString();
+                  supabase
+                    .from('assumptions')
+                    .insert({
+                      project_id: id,
+                      code,
+                      content,
+                      source_type: 'socratic',
+                      source: q.id,
+                      worst_severity: 'medium',
+                      status: 'unverified',
+                      verification_stage: 'unplanned',
+                      created_at: now,
+                      updated_at: now,
+                    })
+                    .then(() => {
+                      queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
+                      queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
+                    })
+                    .finally(() => endOp());
+                });
             });
         }
       }

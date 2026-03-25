@@ -140,6 +140,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   const [state, _setStateRaw] = useState<ConvergenceState>(initialState);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef(false);
+  const generationRef = useRef(0);
 
   // Wrapper: update state + persist to DB (supports direct value or updater fn)
   const setState = useCallback((action: ConvergenceState | ((prev: ConvergenceState) => ConvergenceState)) => {
@@ -241,6 +242,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       majorCount: { resolved: number; total: number },
       minorCount: number,
     ) => {
+      const myGeneration = generationRef.current;
       if (abortRef.current || !projectId) return;
 
       // Call the real API
@@ -277,7 +279,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         return;
       }
 
-      if (abortRef.current) return;
+      // Discard stale results if a new exploration was started while we were awaiting
+      if (abortRef.current || myGeneration !== generationRef.current) return;
 
       // Process new contradictions from the scan
       const newFatal = scanResult.new_contradictions.filter((c) => c.severity === 'fatal');
@@ -382,8 +385,11 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   // startExploration — kicks off the convergence loop
   // ------------------------------------------------------------------
   const startExploration = useCallback(() => {
-    abortRef.current = false;
+    // Abort any in-flight scan from previous run: bump generation so old callbacks discard
+    abortRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
+    generationRef.current += 1;
+    abortRef.current = false;
 
     if (!projectId || contradictions.length === 0) {
       setState({ ...initialState });

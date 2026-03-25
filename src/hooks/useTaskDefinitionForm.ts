@@ -430,24 +430,30 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
   ], [missionReady, hasConstraint, hasKpi, feasibilityStatus]);
 
   // ── Auto re-validate feasibility when content changes ─────────────
-  // Snapshot the content at feasibility check time; if it diverges,
-  // auto re-run the check after a 5-second debounce (not on every keystroke).
   const feasibilitySnapshotRef = useRef<string>("");
+  const needsRecheck = useRef(false);
 
+  // Effect 1: Detect content change → invalidate (reset to idle)
   useEffect(() => {
     if (feasibilityStatus === "idle" || feasibilityStatus === "checking") return;
-    if (!missionReady || !hasConstraint) return;
     const currentSnapshot = `${mission}||${constraints.map((c) => c.description).join(",")}||${kpis.map((k) => `${k.kpi_name}:${k.target_value}`).join(",")}`;
     if (feasibilitySnapshotRef.current && feasibilitySnapshotRef.current !== currentSnapshot) {
-      // Content changed → reset and schedule auto re-check
       setFeasibilityStatus("idle");
       setFeasibilityConflicts([]);
-      const timer = setTimeout(() => {
-        handleFeasibilityCheck();
-      }, 5000);
-      return () => clearTimeout(timer);
+      needsRecheck.current = true;
     }
-  }, [mission, constraints, kpis, feasibilityStatus, missionReady, hasConstraint]);
+  }, [mission, constraints, kpis, feasibilityStatus]);
+
+  // Effect 2: When idle + needs recheck + prerequisites met → debounced auto re-check
+  useEffect(() => {
+    if (feasibilityStatus !== "idle" || !needsRecheck.current) return;
+    if (!missionReady || !hasConstraint || !projectId) return;
+    const timer = setTimeout(() => {
+      needsRecheck.current = false;
+      handleFeasibilityCheck();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [feasibilityStatus, mission, constraints, kpis, missionReady, hasConstraint, projectId]);
 
   // ── Extraction handlers ───────────────────────────────────────────
 

@@ -89,6 +89,7 @@ export {
   useAlternatives,
   useCreateAlternative,
   useUpdateAlternative,
+  useDeleteAlternative,
 } from './useCreate';
 export {
   useConceptRoutes,

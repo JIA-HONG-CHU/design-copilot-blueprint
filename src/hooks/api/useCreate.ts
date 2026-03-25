@@ -470,3 +470,11 @@ export function useUpdateAlternative() {
     successMessage: '方案已更新',
   });
 }
+
+export function useDeleteAlternative() {
+  return useSupabaseMutation<unknown, { id: string }>({
+    table: 'alternatives',
+    type: 'delete',
+    invalidateKeys: [queryKeys.alternatives.all],
+  });
+}

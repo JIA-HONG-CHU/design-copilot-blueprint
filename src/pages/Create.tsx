@@ -45,6 +45,7 @@ import {
   useAlternatives,
   useCreateAlternative,
   useUpdateAlternative,
+  useDeleteAlternative,
 } from "@/hooks/api";
 import { useContradictions } from "@/hooks/api/useContradictions";
 import type { Json } from "@/integrations/supabase/types";
@@ -172,6 +173,7 @@ export default function Create() {
   const updateScamperVariant = useUpdateScamperVariant();
   const createAlternative = useCreateAlternative();
   const updateAlternativeMut = useUpdateAlternative();
+  const deleteAlternativeMut = useDeleteAlternative();
 
   // ── Derived data from queries (with local overrides for optimistic UI) ──
   const [localRoutes, setLocalRoutes] = useState<AntiAnchorRoute[]>([]);
@@ -609,9 +611,25 @@ export default function Create() {
     });
   };
   const deleteAlternative = (altId: string) => {
+    const removed = localAlternatives.find(a => a.id === altId);
+    if (!removed) return;
     setLocalAlternatives(prev => prev.filter(a => a.id !== altId));
-    // Note: no useDeleteAlternative hook yet — using local removal; data will refresh on next query
-    toast.success("方案已刪除");
+    deleteAlternativeMut.mutate({ id: altId });
+    toast(`已刪除「${removed.name || '未命名方案'}」`, {
+      duration: 5000,
+      action: {
+        label: "復原",
+        onClick: () => {
+          createAlternative.mutate({
+            project_id: id!,
+            name: removed.name,
+            mechanism: removed.mechanism || undefined,
+            source: removed.source || undefined,
+          });
+          setLocalAlternatives(prev => [...prev, removed]);
+        },
+      },
+    });
   };
   const handleAiGenAlts = async () => {
     if (!id) return;

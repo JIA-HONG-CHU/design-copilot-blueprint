@@ -337,17 +337,23 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         const branch = branches.find((b) => b.contradictionId === srcId);
         if (branch) branchesWithNewBlocking.add(branch.contradictionId);
       }
+      const nextStatus = convergenceResult.status;
+
+      // Update branches: match final loop status (converged/halted/exploring)
       const updatedBranches = branches.map((b) => ({
         ...b,
         status: (
           branchesWithNewBlocking.has(b.contradictionId)
             ? 'exploring'
-            : convergenceResult.status === 'converged' ? 'converged' : b.status
+            : nextStatus === 'exploring' ? b.status : nextStatus
         ) as BranchExploration['status'],
         depth: iteration,
       }));
 
-      const nextStatus = convergenceResult.status;
+      // Confidence: use API score, but floor to 100 if truly converged (all resolved + no new)
+      const displayConfidence = nextStatus === 'converged'
+        ? Math.max(scanResult.convergence_score, 100)
+        : scanResult.convergence_score;
 
       setState({
         iteration,
@@ -356,7 +362,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
         branches: updatedBranches,
         graph: updatedGraph,
         health,
-        confidence: scanResult.convergence_score, // single source of truth: API score
+        confidence: displayConfidence,
         fatalCount: updatedFatal,
         majorCount: updatedMajor,
         minorCount: updatedMinorCount,

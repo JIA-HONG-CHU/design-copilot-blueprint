@@ -11,7 +11,8 @@ import {
   useTrackAssumptions,
   useUpdateTrackAssumptionStatus,
   useUnknownFactors,
-  useSaveUnknownFactors,
+  useCreateUnknownFactor,
+  useUpdateUnknownFactor,
   useConvertUnknownToAssumption,
 } from "@/hooks/api/useTrack";
 import { useConstraints } from "@/hooks/api/useBrief";
@@ -53,7 +54,8 @@ export default function Track() {
     isLoading: isFactorsLoading,
     refetch: refetchFactors,
   } = useUnknownFactors(id);
-  const saveFactors = useSaveUnknownFactors(id);
+  const createFactor = useCreateUnknownFactor(id);
+  const updateFactor = useUpdateUnknownFactor(id);
   const convertMutation = useConvertUnknownToAssumption(id);
 
   const isLoading = isAssumptionsLoading || isFactorsLoading;
@@ -99,11 +101,31 @@ export default function Track() {
     }
   }, [displayAssumptions, updateStatus]);
 
-  // Unknown factors: save to localStorage + update local state
+  // Unknown factors: detect new/changed items and persist to DB
   const handleUpdateFactors = useCallback((updated: UnknownFactor[]) => {
     setLocalFactors(updated);
-    saveFactors.mutate(updated);
-  }, [saveFactors]);
+    const currentIds = new Set(factors.map((f) => f.id));
+    for (const f of updated) {
+      if (!currentIds.has(f.id)) {
+        // New factor → insert to DB
+        createFactor.mutate({
+          project_id: id!,
+          unknown_code: f.unknownCode,
+          description: f.description,
+          impact: f.impact,
+          status: f.status,
+          note: f.note ?? null,
+          linked_assumption_id: f.linkedAssumptionId ?? null,
+        });
+      } else {
+        // Existing factor → check if changed
+        const orig = factors.find((o) => o.id === f.id);
+        if (orig && (orig.status !== f.status || orig.note !== f.note)) {
+          updateFactor.mutate({ id: f.id, status: f.status, note: f.note ?? undefined });
+        }
+      }
+    }
+  }, [factors, id, createFactor, updateFactor]);
 
   const handleConvertToAssumption = useCallback(async (factor: UnknownFactor) => {
     await convertMutation.convert(factor, displayAssumptions.length);

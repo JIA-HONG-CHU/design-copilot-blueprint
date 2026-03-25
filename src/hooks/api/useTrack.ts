@@ -7,8 +7,7 @@
  * The Track page reads from the same `assumptions` table as the Assumption Ledger,
  * but maps to a different frontend type (TrackAssumption) with Kanban-specific fields.
  *
- * Unknown Factors: No dedicated DB table exists yet. Uses localStorage as interim
- * storage with TODO markers for future migration.
+ * Unknown Factors: Persisted to Supabase `unknown_factors` table.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -25,6 +24,7 @@ import type {
   ExperimentStatus,
 } from '@/types/track';
 import type { Database } from '@/integrations/supabase/types';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
@@ -187,126 +187,75 @@ export function useUpdateTrackAssumptionStatus(projectId: string | undefined) {
 // Unknown Factors — localStorage-based (no DB table yet)
 // ---------------------------------------------------------------------------
 
-const UNKNOWN_FACTORS_STORAGE_KEY = 'track_unknown_factors';
+// ---------------------------------------------------------------------------
+// Unknown Factors — Supabase-backed
+// ---------------------------------------------------------------------------
 
-function loadUnknownFactors(projectId: string): UnknownFactor[] {
-  try {
-    const raw = localStorage.getItem(`${UNKNOWN_FACTORS_STORAGE_KEY}_${projectId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+interface UnknownFactorRow {
+  id: string;
+  project_id: string;
+  unknown_code: string;
+  description: string;
+  impact: string;
+  status: string;
+  note: string | null;
+  linked_assumption_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-function saveUnknownFactors(projectId: string, factors: UnknownFactor[]): void {
-  localStorage.setItem(
-    `${UNKNOWN_FACTORS_STORAGE_KEY}_${projectId}`,
-    JSON.stringify(factors),
-  );
+type UnknownFactorInsert = Omit<UnknownFactorRow, 'id' | 'created_at' | 'updated_at'>;
+
+function mapUnknownFactorRow(r: UnknownFactorRow): UnknownFactor {
+  return {
+    id: r.id,
+    unknownCode: r.unknown_code,
+    description: r.description,
+    impact: r.impact as UnknownFactor['impact'],
+    status: r.status as UnknownFactor['status'],
+    note: r.note,
+    linkedAssumptionId: r.linked_assumption_id,
+    createdAt: r.created_at,
+  };
 }
 
-/**
- * useUnknownFactors — Read unknown factors for a project.
- *
- * TODO: Migrate to Supabase when `unknown_factors` table is created.
- * Currently uses localStorage as interim storage.
- */
 export function useUnknownFactors(projectId: string | undefined) {
-  const [data, setData] = useState<UnknownFactor[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!projectId) {
-      setData([]);
-      setIsLoading(false);
-      return;
-    }
-    // Simulate async load from localStorage
-    const factors = loadUnknownFactors(projectId);
-    setData(factors);
-    setIsLoading(false);
-  }, [projectId]);
-
-  const refetch = useCallback(() => {
-    if (projectId) {
-      setData(loadUnknownFactors(projectId));
-    }
-  }, [projectId]);
-
-  return { data, isLoading, isError: false, refetch };
+  const result = useSupabaseQuery<UnknownFactorRow[]>({
+    table: 'unknown_factors',
+    queryKey: queryKeys.track.unknownFactors(projectId),
+    filters: projectId ? [{ column: 'project_id', operator: 'eq', value: projectId }] : [],
+    orderBy: { column: 'created_at', ascending: true },
+    enabled: !!projectId,
+  });
+  return {
+    data: result.data?.map(mapUnknownFactorRow) ?? [],
+    isLoading: result.isLoading,
+    isError: result.isError,
+    refetch: result.refetch,
+  };
 }
 
-/**
- * useCreateUnknownFactor — Add a new unknown factor.
- *
- * TODO: Migrate to Supabase INSERT when `unknown_factors` table is created.
- */
 export function useCreateUnknownFactor(projectId: string | undefined) {
-  const [isPending, setIsPending] = useState(false);
-
-  const mutate = useCallback(
-    (factor: Omit<UnknownFactor, 'id' | 'unknownCode' | 'createdAt'>) => {
-      if (!projectId) return;
-      setIsPending(true);
-
-      const existing = loadUnknownFactors(projectId);
-      const nextCode = `U-${String(existing.length + 1).padStart(2, '0')}`;
-      const newFactor: UnknownFactor = {
-        ...factor,
-        id: `uf-${Date.now()}`,
-        unknownCode: nextCode,
-        createdAt: new Date().toISOString(),
-      };
-      const updated = [...existing, newFactor];
-      saveUnknownFactors(projectId, updated);
-
-      setIsPending(false);
-      toast.success('未知因素已新增');
-      return newFactor;
-    },
-    [projectId],
-  );
-
-  return { mutate, isPending };
+  return useSupabaseMutation<UnknownFactorRow, UnknownFactorInsert>({
+    table: 'unknown_factors',
+    type: 'insert',
+    invalidateKeys: [queryKeys.track.unknownFactors(projectId)],
+    successMessage: '未知因素已新增',
+  });
 }
 
-/**
- * useUpdateUnknownFactor — Update an unknown factor (status, note, etc.).
- *
- * TODO: Migrate to Supabase UPDATE when `unknown_factors` table is created.
- */
 export function useUpdateUnknownFactor(projectId: string | undefined) {
-  const mutate = useCallback(
-    (id: string, updates: Partial<UnknownFactor>) => {
-      if (!projectId) return;
-
-      const existing = loadUnknownFactors(projectId);
-      const updated = existing.map((f) =>
-        f.id === id ? { ...f, ...updates } : f,
-      );
-      saveUnknownFactors(projectId, updated);
-    },
-    [projectId],
-  );
-
-  return { mutate, isPending: false };
+  return useSupabaseMutation<UnknownFactorRow, { id: string; status?: string; note?: string; linked_assumption_id?: string | null }>({
+    table: 'unknown_factors',
+    type: 'update',
+    invalidateKeys: [queryKeys.track.unknownFactors(projectId)],
+  });
 }
 
-/**
- * useSaveUnknownFactors — Bulk save unknown factors (used by onUpdateFactors).
- *
- * TODO: Migrate to Supabase when `unknown_factors` table is created.
- */
-export function useSaveUnknownFactors(projectId: string | undefined) {
-  const mutate = useCallback(
-    (factors: UnknownFactor[]) => {
-      if (!projectId) return;
-      saveUnknownFactors(projectId, factors);
-    },
-    [projectId],
-  );
-
-  return { mutate, isPending: false };
+export function useSaveUnknownFactors(_projectId: string | undefined) {
+  // Bulk save no longer needed with Supabase — individual mutations handle it.
+  // Keep interface for backward compat with Track.tsx onUpdateFactors.
+  return { mutate: (_factors: UnknownFactor[]) => {}, isPending: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -349,14 +298,12 @@ export function useConvertUnknownToAssumption(projectId: string | undefined) {
 
       const result = await insertMutation.mutateAsync(insertData);
 
-      // Update the unknown factor in localStorage to mark as converted
-      const existing = loadUnknownFactors(projectId);
-      const updated = existing.map((f) =>
-        f.id === factor.id
-          ? { ...f, status: 'converted' as const, linkedAssumptionId: result.id }
-          : f,
-      );
-      saveUnknownFactors(projectId, updated);
+      // Update the unknown factor in DB to mark as converted
+      await supabase
+        .from('unknown_factors')
+        .update({ status: 'converted', linked_assumption_id: result.id })
+        .eq('id', factor.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.track.unknownFactors(projectId) });
 
       return result;
     },

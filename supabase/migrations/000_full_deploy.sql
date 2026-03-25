@@ -846,6 +846,25 @@ DROP POLICY IF EXISTS "Authenticated users can manage convergence snapshots" ON 
 CREATE POLICY "Authenticated users can manage convergence snapshots" ON convergence_snapshots
   FOR ALL USING (auth.uid() IS NOT NULL);
 
+-- unknown_factors (未知集合 — persisted, was localStorage)
+CREATE TABLE IF NOT EXISTS unknown_factors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  unknown_code TEXT NOT NULL,
+  description TEXT NOT NULL,
+  impact TEXT DEFAULT 'medium',
+  status TEXT DEFAULT 'open',
+  note TEXT,
+  linked_assumption_id UUID REFERENCES assumptions(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE unknown_factors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated users can manage unknown factors" ON unknown_factors;
+CREATE POLICY "Authenticated users can manage unknown factors" ON unknown_factors
+  FOR ALL USING (auth.uid() IS NOT NULL);
+
 -- ============================================================
--- Done! 30 tables + RLS + indexes + triggers + storage
+-- Done! 31 tables + RLS + indexes + triggers + storage
 -- ============================================================

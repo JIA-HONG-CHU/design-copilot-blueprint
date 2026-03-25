@@ -73,21 +73,29 @@ export function evaluateConvergence(input: ConvergenceInput): ConvergenceResult 
   const minorDelta = scan.newMinor;
 
   // --- Halt check ---
+  // Halt when: force_pause, critical/circular health,
+  // OR no new info but unresolved fatal/major exist (needs human decision)
+  const hasUnresolvedBlocking =
+    (updatedFatal.total > updatedFatal.resolved) ||
+    (updatedMajor.total > updatedMajor.resolved);
+  const noNewInfo = scan.noNewContradictions;
   const isHalted = forcePause
     || architectureHealth === 'critical'
-    || architectureHealth === 'circular';
+    || architectureHealth === 'circular'
+    || (iteration > 0 && noNewInfo && hasUnresolvedBlocking);
 
   // --- Convergence check ---
-  // Converged when EITHER:
-  //   (a) confidence >= 80 AND all fatal+major resolved, OR
-  //   (b) no new fatal/major this round (scan found nothing blocking)
+  // Hard rule: NEVER converge while unresolved fatal/major exist.
+  // Converged only when:
+  //   (a) all fatal+major resolved, AND
+  //   (b) EITHER confidence >= 80 OR no new fatal/major this round
   const allFatalResolved = updatedFatal.total === 0 || updatedFatal.resolved >= updatedFatal.total;
   const allMajorResolved = updatedMajor.total === 0 || updatedMajor.resolved >= updatedMajor.total;
+  const allResolved = allFatalResolved && allMajorResolved;
   const noNewBlocking = scan.newFatal === 0 && scan.newMajor === 0;
-  const isConverged = iteration > 0 && (
-    (confidence >= 80 && allFatalResolved && allMajorResolved)
-    || noNewBlocking
-  );
+  const isConverged = iteration > 0
+    && allResolved
+    && (confidence >= 80 || noNewBlocking);
 
   const status: LoopStatus = isHalted ? 'halted' : isConverged ? 'converged' : 'exploring';
 

@@ -200,6 +200,10 @@ export default function Create() {
   const alternatives = localAlternatives;
 
   const [antiAnchorGenerated, setAntiAnchorGenerated] = useState(false);
+  // Sync: if DB already has routes (e.g., page reload), show them
+  useEffect(() => {
+    if (routes.length > 0) setAntiAnchorGenerated(true);
+  }, [routes.length]);
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
@@ -395,10 +399,21 @@ export default function Create() {
     edited:   ['adopted', 'skipped'],  // edited → pending blocked (traceability)
   };
   const setTrizStatus = (tsId: string, next: TrizActionStatus) => {
-    const current = localTrizSolutions.find((t) => t.id === tsId)?.status;
-    if (current && !TRIZ_VALID_TRANSITIONS[current].includes(next)) return;
+    const ts = localTrizSolutions.find((t) => t.id === tsId);
+    if (!ts) return;
+    const current = ts.status;
+    if (!TRIZ_VALID_TRANSITIONS[current].includes(next)) return;
     setLocalTrizSolutions((prev) => prev.map((t) => (t.id === tsId ? { ...t, status: next } : t)));
     updateTrizSolution.mutate({ id: tsId, status: next });
+
+    // When adopting a TRIZ solution, mark the linked contradiction as resolved
+    // in the convergence loop so the loop knows to continue toward convergence.
+    if (next === 'adopted' && ts.contradictionId) {
+      const contradiction = (contradictionsQuery.data ?? []).find((c) => c.id === ts.contradictionId);
+      if (contradiction?.severity) {
+        convergenceLoop.markResolved(ts.contradictionId, contradiction.severity);
+      }
+    }
   };
   const toggleSubsystem = (ssId: string) => {
     const ss = subsystems.find(s => s.id === ssId);
@@ -1013,8 +1028,8 @@ export default function Create() {
           </>
         )}
 
-        {/* Converged: human review → multi-solution adoption */}
-        {state.status === 'converged' && (
+        {/* Converged or halted with unresolved issues: human review */}
+        {(state.status === 'converged' || state.status === 'halted') && (
           <>
             <HumanReviewPanel
               branches={state.branches}

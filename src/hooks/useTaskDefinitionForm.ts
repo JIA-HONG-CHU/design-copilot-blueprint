@@ -429,19 +429,25 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     { label: "約束可行性驗證通過", passed: feasibilityStatus === "pass" || feasibilityStatus === "warning" },
   ], [missionReady, hasConstraint, hasKpi, feasibilityStatus]);
 
-  // ── Invalidate feasibility when content changes ────────────────────
-  // Snapshot the content at feasibility check time; reset if it changes after.
+  // ── Auto re-validate feasibility when content changes ─────────────
+  // Snapshot the content at feasibility check time; if it diverges,
+  // auto re-run the check after a 5-second debounce (not on every keystroke).
   const feasibilitySnapshotRef = useRef<string>("");
 
   useEffect(() => {
     if (feasibilityStatus === "idle" || feasibilityStatus === "checking") return;
-    // Content changed after feasibility was checked → invalidate
+    if (!missionReady || !hasConstraint) return;
     const currentSnapshot = `${mission}||${constraints.map((c) => c.description).join(",")}||${kpis.map((k) => `${k.kpi_name}:${k.target_value}`).join(",")}`;
     if (feasibilitySnapshotRef.current && feasibilitySnapshotRef.current !== currentSnapshot) {
+      // Content changed → reset and schedule auto re-check
       setFeasibilityStatus("idle");
       setFeasibilityConflicts([]);
+      const timer = setTimeout(() => {
+        handleFeasibilityCheck();
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [mission, constraints, kpis, feasibilityStatus]);
+  }, [mission, constraints, kpis, feasibilityStatus, missionReady, hasConstraint]);
 
   // ── Extraction handlers ───────────────────────────────────────────
 

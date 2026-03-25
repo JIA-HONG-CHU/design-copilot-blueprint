@@ -374,6 +374,47 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     return () => clearTimeout(timer);
   }, [mission, taskDef5W1H]);
 
+  // ── Auto-save: debounce constraints to Supabase ─────────────────
+  useEffect(() => {
+    if (isLoading || !seeded || !projectId) return;
+    const timer = setTimeout(() => {
+      for (const c of constraints) {
+        if (c.id.startsWith("c-") || c.description.trim().length < 2) continue;
+        const db = constraintsQuery.data?.find((d) => d.id === c.id);
+        if (db && (db.description !== c.description || db.source !== c.source)) {
+          updateConstraint.mutate({
+            id: c.id,
+            constraint_code: c.constraint_code,
+            description: c.description,
+            source: c.source || undefined,
+          });
+        }
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [constraints, seeded, isLoading, projectId]);
+
+  // ── Auto-save: debounce KPIs to Supabase ───────────────────────
+  useEffect(() => {
+    if (isLoading || !seeded || !projectId) return;
+    const timer = setTimeout(() => {
+      for (const k of kpis) {
+        if (k.id.startsWith("k-") || !k.kpi_name.trim()) continue;
+        const db = kpisQuery.data?.find((d) => d.id === k.id);
+        if (db && (db.kpiName !== k.kpi_name || db.targetValue !== k.target_value || db.unit !== k.unit || db.measurementMethod !== k.measurement_method)) {
+          updateKpi.mutate({
+            id: k.id,
+            kpi_name: k.kpi_name,
+            target_value: k.target_value,
+            unit: k.unit,
+            measurement_method: k.measurement_method,
+          });
+        }
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [kpis, seeded, isLoading, projectId]);
+
   // ── Gate 1.1 check ────────────────────────────────────────────────
   const missionReady = mission.trim().length >= 10;
   const hasConstraint = constraints.some((c) => c.description.trim().length >= 2);

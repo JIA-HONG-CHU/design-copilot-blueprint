@@ -38,8 +38,6 @@ export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverride, setShowOverride] = useState(false);
 
-  if (status === "idle") return null;
-
   return (
     <Card className={cn(
       status === "conflict" && "border-destructive/50",
@@ -52,7 +50,7 @@ export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }
             <ShieldCheck className="h-4 w-4" />
             約束可行性驗證 (Gate 1)
           </CardTitle>
-          {status !== "checking" && (
+          {status !== "idle" && status !== "checking" && (
             <Badge variant={statusConfig[status].variant}>
               {statusConfig[status].label}
             </Badge>
@@ -60,6 +58,18 @@ export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {status === "idle" && (
+          <div className="flex items-center gap-3 py-2">
+            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">尚未驗證。AI 將檢查約束之間是否存在物理衝突。</p>
+            </div>
+            <Button size="sm" onClick={onCheck}>
+              <Sparkles className="h-3.5 w-3.5 mr-1" /> 執行驗證
+            </Button>
+          </div>
+        )}
+
         {status === "checking" && (
           <div className="flex items-center gap-3 py-4 justify-center text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />

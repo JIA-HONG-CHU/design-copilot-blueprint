@@ -6,10 +6,11 @@ import type { BriefConstraint } from "@/types/taskDefinition";
 interface ConstraintsTableProps {
   constraints: BriefConstraint[];
   onChange: (constraints: BriefConstraint[]) => void;
+  onRemove?: (id: string) => void;
   disabled?: boolean;
 }
 
-export function ConstraintsTable({ constraints, onChange, disabled }: ConstraintsTableProps) {
+export function ConstraintsTable({ constraints, onChange, onRemove, disabled }: ConstraintsTableProps) {
   const addRow = () => {
     const code = `M${constraints.length + 1}`;
     onChange([
@@ -20,11 +21,13 @@ export function ConstraintsTable({ constraints, onChange, disabled }: Constraint
 
   const removeRow = (index: number) => {
     if (constraints.length <= 1) return;
+    const removed = constraints[index];
     const updated = constraints.filter((_, i) => i !== index).map((c, i) => ({
       ...c,
       constraint_code: `M${i + 1}`,
     }));
     onChange(updated);
+    if (onRemove) onRemove(removed.id);
   };
 
   const updateRow = (index: number, field: "description" | "source", value: string) => {

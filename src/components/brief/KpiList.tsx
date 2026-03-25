@@ -6,12 +6,13 @@ import type { BriefKPI } from "@/types/taskDefinition";
 interface KpiListProps {
   kpis: BriefKPI[];
   onChange: (kpis: BriefKPI[]) => void;
+  onRemove?: (id: string) => void;
   disabled?: boolean;
 }
 
 const MAX_KPIS = 5;
 
-export function KpiList({ kpis, onChange, disabled }: KpiListProps) {
+export function KpiList({ kpis, onChange, onRemove, disabled }: KpiListProps) {
   const addKpi = () => {
     if (kpis.length >= MAX_KPIS) return;
     onChange([
@@ -22,7 +23,9 @@ export function KpiList({ kpis, onChange, disabled }: KpiListProps) {
 
   const removeKpi = (index: number) => {
     if (kpis.length <= 1) return;
+    const removed = kpis[index];
     onChange(kpis.filter((_, i) => i !== index));
+    if (onRemove) onRemove(removed.id);
   };
 
   const updateKpi = (index: number, field: keyof BriefKPI, value: string) => {

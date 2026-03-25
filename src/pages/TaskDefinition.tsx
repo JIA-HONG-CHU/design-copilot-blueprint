@@ -219,7 +219,7 @@ export default function TaskDefinition() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <ConstraintsTable constraints={form.constraints} onChange={form.setConstraints} />
+          <ConstraintsTable constraints={form.constraints} onChange={form.setConstraints} onRemove={form.removeConstraint} />
           {form.showConstraintSuggestions && (
             <div className="space-y-2 mt-3">
               {form.isConstraintSuggesting && (
@@ -316,7 +316,7 @@ export default function TaskDefinition() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <KpiList kpis={form.kpis} onChange={form.setKpis} />
+          <KpiList kpis={form.kpis} onChange={form.setKpis} onRemove={form.removeKpi} />
           {form.showKpiSuggestions && (
             <div className="space-y-2 mt-3">
               {form.isKpiSuggesting && (

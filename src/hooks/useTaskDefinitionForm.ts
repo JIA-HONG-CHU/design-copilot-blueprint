@@ -576,6 +576,21 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     toast.info("已記錄覆寫原因，可繼續進行");
   };
 
+  // ── Remove constraint / KPI (instant DB delete + local state) ────
+  const removeConstraint = (id: string) => {
+    setConstraints((prev) => prev.filter((c) => c.id !== id));
+    if (!id.startsWith("c-") && projectId) {
+      deleteConstraint.mutate({ id });
+    }
+  };
+
+  const removeKpi = (id: string) => {
+    setKpis((prev) => prev.filter((k) => k.id !== id));
+    if (!id.startsWith("k-") && projectId) {
+      deleteKpi.mutate({ id });
+    }
+  };
+
   // ── Adopt AI suggestions ──────────────────────────────────────────
 
   const handleAdoptMissionSuggestion = (editedContent: string) => {
@@ -817,8 +832,10 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     setMission,
     constraints,
     setConstraints,
+    removeConstraint,
     kpis,
     setKpis,
+    removeKpi,
     softObjectives,
     setSoftObjectives,
     nonGoals,

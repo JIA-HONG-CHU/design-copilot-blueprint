@@ -1025,6 +1025,31 @@ export default function Create() {
             />
 
             <BranchExplorationPanel branches={state.branches} />
+
+            {/* Re-run button: available when not actively exploring */}
+            {state.status !== 'exploring' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStartExploration}
+                  className="text-xs gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  重新執行 AI 矛盾收斂
+                </Button>
+                {state.status === 'halted' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={forceContinue}
+                    className="text-xs gap-1.5"
+                  >
+                    強制繼續探索
+                  </Button>
+                )}
+              </div>
+            )}
           </>
         )}
 

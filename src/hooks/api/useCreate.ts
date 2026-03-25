@@ -8,6 +8,7 @@
  * helpers and perform snake_case → camelCase mapping at the hook layer.
  */
 
+import { useMemo } from 'react';
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { queryKeys } from './useQueryConfig';
 import type {
@@ -200,10 +201,13 @@ export function useAntiAnchorRoutes(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
-  return {
-    ...result,
-    data: result.data?.map(mapAntiAnchorRoute) ?? [],
-  };
+  // Memoize mapped data to avoid new array reference on every render
+  const data = useMemo(
+    () => result.data?.map(mapAntiAnchorRoute) ?? [],
+    [result.data],
+  );
+
+  return { ...result, data };
 }
 
 export function useCreateAntiAnchorRoute() {
@@ -262,10 +266,8 @@ export function useTrizSolutions(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
-  return {
-    ...result,
-    data: result.data?.map(mapTrizSolution) ?? [],
-  };
+  const data = useMemo(() => result.data?.map(mapTrizSolution) ?? [], [result.data]);
+  return { ...result, data };
 }
 
 export function useCreateTrizSolution() {
@@ -312,10 +314,8 @@ export function useSubsystems(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
-  return {
-    ...result,
-    data: result.data?.map(mapSubsystem) ?? [],
-  };
+  const data = useMemo(() => result.data?.map(mapSubsystem) ?? [], [result.data]);
+  return { ...result, data };
 }
 
 export function useCreateSubsystem() {
@@ -376,10 +376,8 @@ export function useScamperVariants(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
-  return {
-    ...result,
-    data: result.data?.map(mapScamperVariant) ?? [],
-  };
+  const data = useMemo(() => result.data?.map(mapScamperVariant) ?? [], [result.data]);
+  return { ...result, data };
 }
 
 export function useCreateScamperVariant() {
@@ -425,10 +423,8 @@ export function useAlternatives(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
-  return {
-    ...result,
-    data: result.data?.map(mapAlternative) ?? [],
-  };
+  const data = useMemo(() => result.data?.map(mapAlternative) ?? [], [result.data]);
+  return { ...result, data };
 }
 
 export function useCreateAlternative() {

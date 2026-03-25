@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Sparkles, Loader2, GripVertical, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit } from "lucide-react";
+import { Plus, GripVertical, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
 import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
@@ -334,9 +335,9 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
           <Button onClick={() => setAddModalOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> 新增假設
           </Button>
-          <Button variant="secondary" onClick={handleAiChallenge}>
-            <Sparkles className="h-4 w-4 mr-1" /> AI 識別假設
-          </Button>
+          <AiButton onClick={handleAiChallenge}>
+            識別假設
+          </AiButton>
         </div>
       </div>
     );
@@ -374,11 +375,9 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
         <Button size="sm" variant="secondary" onClick={() => setAddModalOpen(true)} className="text-xs h-7">
           <Plus className="h-3 w-3 mr-1" /> 新增假設
         </Button>
-        <Button size="sm" variant="secondary" onClick={handleAiChallenge} disabled={isAiLoading} className="text-xs h-7">
-          {isAiLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-          AI 質疑假設
-          <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
-        </Button>
+        <AiButton size="sm" loading={isAiLoading} onClick={handleAiChallenge} className="text-xs h-7">
+          質疑假設
+        </AiButton>
       </div>
 
       {/* Desktop: 4-column Kanban */}

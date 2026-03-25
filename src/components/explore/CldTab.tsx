@@ -7,7 +7,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sparkles, Star, Loader2, Check, Maximize2, Minimize2 } from "lucide-react";
+import { Star, Check, Maximize2, Minimize2 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import {
   ReactFlow,
   Background,
@@ -319,10 +320,9 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
           <div className="text-center py-16 space-y-3 bg-muted/50 rounded-lg border border-dashed">
             <p className="text-muted-foreground font-medium">尚無因果迴路圖</p>
             <p className="text-sm text-muted-foreground">點擊下方按鈕，AI 將根據問答和矛盾生成因果迴路圖</p>
-            <Button onClick={handleGenerate}>
-              <Sparkles className="h-4 w-4 mr-1" /> AI 生成因果迴路
-              <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-            </Button>
+            <AiButton loading={isGenerating} onClick={handleGenerate}>
+              生成因果迴路
+            </AiButton>
           </div>
         )}
       </div>
@@ -419,11 +419,9 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
 
       {/* Bottom actions */}
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={handleGenerate} disabled={isGenerating}>
-          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-          AI 重新生成
-          <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-        </Button>
+        <AiButton loading={isGenerating} onClick={handleGenerate}>
+          重新生成
+        </AiButton>
       </div>
 
       {/* Breakpoints list */}

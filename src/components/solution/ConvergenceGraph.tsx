@@ -168,6 +168,7 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                           className={isDragging ? "cursor-grabbing" : "cursor-grab"}
                           onPointerDown={(e) => handlePointerDown(node.id, e)}
                         >
+                          <title>{node.label}</title>
                           <rect
                             x={node.x}
                             y={node.y}
@@ -180,7 +181,7 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                           />
                           <text
                             x={node.x + NODE_W / 2}
-                            y={node.y + NODE_H / 2 + 2}
+                            y={node.y + (node.label.length > 24 ? NODE_H / 2 - 5 : NODE_H / 2 + 2)}
                             textAnchor="middle"
                             dominantBaseline="middle"
                             fill={textColor}
@@ -188,8 +189,22 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                             fontWeight={500}
                             pointerEvents="none"
                           >
-                            {node.label.length > 24 ? node.label.slice(0, 24) + "…" : node.label}
+                            {node.label.length > 24 ? node.label.slice(0, 24) : node.label}
                           </text>
+                          {node.label.length > 24 && (
+                            <text
+                              x={node.x + NODE_W / 2}
+                              y={node.y + NODE_H / 2 + 7}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill={textColor}
+                              fontSize={10}
+                              fontWeight={500}
+                              pointerEvents="none"
+                            >
+                              {node.label.slice(24, 48) + (node.label.length > 48 ? "…" : "")}
+                            </text>
+                          )}
                           {isContradiction && node.severity && (
                             <text
                               x={node.x + NODE_W - 4}

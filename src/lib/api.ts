@@ -60,14 +60,14 @@ async function getAuthToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new ApiNetworkError("timeout", `Request timeout after ${REQUEST_TIMEOUT_MS}ms`);
+      throw new ApiNetworkError("timeout", `Request timeout after ${timeoutMs}ms`);
     }
     if (err instanceof TypeError) {
       throw new ApiNetworkError("network", err.message);
@@ -83,6 +83,8 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Pr
 interface RequestOptions<T> {
   /** Optional Zod schema — when provided, response is parsed & validated. */
   schema?: ZodType<T>;
+  /** Override default timeout (ms). Use for long-running AI calls. */
+  timeoutMs?: number;
 }
 
 const IS_DEV = import.meta.env.DEV;
@@ -150,7 +152,7 @@ async function request<T>(path: string, body: unknown, opts?: RequestOptions<T>)
     method: "POST",
     headers,
     body: JSON.stringify(body),
-  });
+  }, opts?.timeoutMs);
   if (!res.ok) {
     // Try JSON first (FastAPI error detail), fall back to raw text.
     const errorBody = await safeParseJsonError(res);
@@ -504,7 +506,7 @@ export interface AntiAnchorGenerateResponse {
 }
 
 export function antiAnchorGenerate(body: AntiAnchorGenerateRequest) {
-  return request<AntiAnchorGenerateResponse>("/alternatives/anti-anchor", body);
+  return request<AntiAnchorGenerateResponse>("/alternatives/anti-anchor", body, { timeoutMs: 300_000 });
 }
 
 // ─── TRIZ ───────────────────────────────────────────────────────────────────
@@ -536,7 +538,7 @@ export interface TrizSolveResponse {
 }
 
 export function trizSolve(body: TrizSolveRequest) {
-  return request<TrizSolveResponse>("/triz/solve", body);
+  return request<TrizSolveResponse>("/triz/solve", body, { timeoutMs: 300_000 });
 }
 
 // ─── SCAMPER ────────────────────────────────────────────────────────────────
@@ -664,7 +666,7 @@ export interface ConvergenceScanResponse {
 }
 
 export function convergenceScan(body: ConvergenceScanRequest) {
-  return request<ConvergenceScanResponse>("/convergence/scan", body);
+  return request<ConvergenceScanResponse>("/convergence/scan", body, { timeoutMs: 300_000 });
 }
 
 // ─── Validation Passport ─────────────────────────────────────────────────────

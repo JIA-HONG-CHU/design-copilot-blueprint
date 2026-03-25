@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Pencil, Trash2, Plus, Sparkles, Loader2, AlertTriangle, Undo2 } from "lucide-react";
+import { Check, Pencil, Trash2, Plus, AlertTriangle, Undo2 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { trizParameters } from "@/data/trizParameters";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
@@ -440,10 +441,9 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
             <Button variant="ghost" size="sm" onClick={() => setAddingType(type)}>
               <Plus className="h-3.5 w-3.5 mr-1" /> 新增
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => handleAiReidentify(type)} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-              AI 識別 {type}
-            </Button>
+            <AiButton size="sm" loading={isLoading} onClick={() => handleAiReidentify(type)}>
+              識別 {type}
+            </AiButton>
           </div>
         </div>
 

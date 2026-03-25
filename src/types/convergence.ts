@@ -84,4 +84,5 @@ export interface ConvergenceLoopActions {
   forceContinue: () => void;
   retryBranch: (contradictionId: string) => void;
   addContradiction: (description: string, severity: ContradictionSeverity, sourceBranchId: string) => void;
+  markResolved: (contradictionId: string, severity: ContradictionSeverity) => void;
 }

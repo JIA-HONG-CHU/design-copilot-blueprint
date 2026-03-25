@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Sparkles, Loader2, Check, X, Lightbulb, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, Check, X, Lightbulb, Trash2, AlertTriangle } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -205,10 +206,9 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
       <div className="text-center py-16 space-y-3">
         <p className="text-muted-foreground font-medium">尚無問題</p>
         <p className="text-sm text-muted-foreground">請確認 Brief 已完成，AI 將自動生成問題</p>
-        <Button onClick={handleGenerateInitial} disabled={isGenerating}>
-          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+        <AiButton loading={isGenerating} onClick={handleGenerateInitial}>
           生成問題
-        </Button>
+        </AiButton>
       </div>
     );
   }
@@ -226,10 +226,9 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
             <p className="text-sm font-medium">Brief 已更新</p>
             <p className="text-xs text-muted-foreground">AI 將評估哪些問題受影響並建議替換，已回答的有效內容會保留。</p>
           </div>
-          <Button size="sm" onClick={handleBriefImpact} disabled={isGenerating}>
-            {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-            AI 評估影響
-          </Button>
+          <AiButton size="sm" loading={isGenerating} onClick={handleBriefImpact}>
+            評估影響
+          </AiButton>
         </div>
       )}
 

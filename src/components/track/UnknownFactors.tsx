@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Sparkles, Loader2, ArrowRight, X, Check } from "lucide-react";
+import { Plus, ArrowRight, X, Check } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import type { UnknownFactor, ImpactLevel, TrackAssumption } from "@/types/track";
 import { IMPACT_CONFIG, UNKNOWN_STATUS_CONFIG } from "@/types/track";
 
@@ -122,11 +123,9 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
         <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)} className="text-xs">
           <Plus className="h-3 w-3 mr-1" /> 新增未知因素
         </Button>
-        <Button size="sm" variant="secondary" onClick={handleAiDiscover} disabled={isAiLoading} className="text-xs">
-          {isAiLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-          AI 識別未知
-          <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
-        </Button>
+        <AiButton size="sm" loading={isAiLoading} onClick={handleAiDiscover} className="text-xs">
+          識別未知
+        </AiButton>
       </div>
 
       {/* AI suggestions */}

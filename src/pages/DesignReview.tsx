@@ -13,9 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, AlertTriangle,
+  ArrowLeft, ArrowRight, Plus, Loader2, AlertTriangle,
   CheckCircle, XCircle, Flag, Beaker, ShieldAlert, BarChart3, Link2, Paperclip, Trash2, ClipboardCheck
 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
@@ -464,10 +465,9 @@ export default function DesignReview() {
           ) : (
             <p className="text-xs text-muted-foreground">尚未生成質疑，請點擊下方按鈕。</p>
           )}
-          <Button size="sm" variant="outline" onClick={handleAiBlackhat} disabled={aiLoading.blackhat}>
-            {aiLoading.blackhat ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-            AI 黑帽質疑
-          </Button>
+          <AiButton size="sm" aiVariant="outline" loading={aiLoading.blackhat} onClick={handleAiBlackhat}>
+            黑帽質疑
+          </AiButton>
         </CardContent>
       </Card>
 
@@ -743,10 +743,9 @@ export default function DesignReview() {
 
           <div className="flex gap-3">
             <Button size="sm" variant="secondary" onClick={addRisk}><Plus className="h-3 w-3 mr-1" /> 新增風險</Button>
-            <Button size="sm" variant="secondary" onClick={handleAiRisk} disabled={aiLoading.risk}>
-              {aiLoading.risk ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-              AI 識別風險 <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
-            </Button>
+            <AiButton size="sm" loading={aiLoading.risk} onClick={handleAiRisk}>
+              識別風險
+            </AiButton>
           </div>
         </TabsContent>
 
@@ -800,10 +799,9 @@ export default function DesignReview() {
 
           <div className="flex gap-3">
             <Button size="sm" variant="secondary" onClick={openNewExp}><Plus className="h-3 w-3 mr-1" /> 新增實驗</Button>
-            <Button size="sm" variant="secondary" onClick={handleAiExp} disabled={aiLoading.exp}>
-              {aiLoading.exp ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-              AI 建議實驗 <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
-            </Button>
+            <AiButton size="sm" loading={aiLoading.exp} onClick={handleAiExp}>
+              建議實驗
+            </AiButton>
           </div>
         </TabsContent>
 

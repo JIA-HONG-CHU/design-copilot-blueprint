@@ -7,8 +7,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Sparkles, Loader2, CheckCircle, BookOpen, RefreshCw
+  ArrowLeft, CheckCircle, BookOpen, RefreshCw
 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
@@ -266,11 +267,9 @@ export default function Feynman() {
 
       {/* Generate more */}
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={handleGenerate} disabled={isGenerating}>
-          {isGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-          AI 生成更多知識條目
-          <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-        </Button>
+        <AiButton loading={isGenerating} onClick={handleGenerate}>
+          生成更多知識條目
+        </AiButton>
       </div>
 
       {/* Knowledge Enhancement Panel (WBS 3.4.2) */}

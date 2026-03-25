@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sparkles, ChevronDown, ChevronUp, Loader2, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageCircleQuestion } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { socraticGenerate } from "@/lib/api";
 
 interface SocraticQuestion {
@@ -95,14 +96,14 @@ const SocraticPanel = ({ description, projectId, mission, constraints, existingQ
           ))}
         </div>
 
-        <Button
+        <AiButton
           size="sm"
+          loading={isLoading}
           onClick={handleGenerate}
           disabled={isLoading || !description || description.length < 10}
         >
-          {isLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
           生成引導問題
-        </Button>
+        </AiButton>
 
         {questions.length > 0 && (
           <div className="space-y-2 max-h-64 overflow-y-auto">

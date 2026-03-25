@@ -17,6 +17,7 @@ import {
   ArrowLeft, Check, Plus, Sparkles, Loader2, AlertTriangle,
   ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, Pencil, Trash2
 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
@@ -199,11 +200,8 @@ export default function Create() {
   const scamperVariants = localScamperVariants;
   const alternatives = localAlternatives;
 
-  const [antiAnchorGenerated, setAntiAnchorGenerated] = useState(false);
-  // Sync: if DB already has routes (e.g., page reload), show them
-  useEffect(() => {
-    if (routes.length > 0) setAntiAnchorGenerated(true);
-  }, [routes.length]);
+  // Derived: true when DB or optimistic routes exist (no separate state needed)
+  const antiAnchorGenerated = routes.length > 0;
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
@@ -243,12 +241,7 @@ export default function Create() {
   // Loading state — true while any query is loading
   const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
 
-  // Track anti-anchor generated status from data
-  useEffect(() => {
-    if (!antiAnchorQuery.isLoading) {
-      setAntiAnchorGenerated(routes.length > 0);
-    }
-  }, [routes, antiAnchorQuery.isLoading]);
+  // antiAnchorGenerated is now derived from routes.length — no effect needed
 
   // ── Computed: Multi-Solution Adoption State from DB (fallback to mock) ──
   const adoptionState: MultiSolutionAdoptionState = useMemo(() => {
@@ -365,7 +358,6 @@ export default function Create() {
         createdAt: new Date().toISOString(),
       }));
       setLocalRoutes(optimistic);
-      setAntiAnchorGenerated(true);
 
       // Persist to DB in background (query invalidation will replace optimistic IDs)
       for (const route of result.routes) {
@@ -823,10 +815,9 @@ export default function Create() {
               <p className="font-medium">AI 將根據問題描述與矛盾句產出 3 條非典型架構</p>
               <p className="text-sm text-muted-foreground mt-1">至少 1 條必須與競品在物理介面或核心機制上不相容</p>
             </div>
-            <Button onClick={handleAiGenAntiAnchor} disabled={aiLoading.antiAnchor} size="lg">
-              {aiLoading.antiAnchor ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              AI 生成非典型架構
-            </Button>
+            <AiButton loading={aiLoading.antiAnchor} onClick={handleAiGenAntiAnchor} size="lg">
+              生成非典型架構
+            </AiButton>
           </div>
         ) : (
           <div className="space-y-4">
@@ -873,10 +864,9 @@ export default function Create() {
                 </CardContent>
               </Card>
             ))}
-            <Button variant="outline" size="sm" onClick={handleAiGenAntiAnchor} disabled={aiLoading.antiAnchor} className="text-xs">
-              {aiLoading.antiAnchor ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+            <AiButton aiVariant="outline" size="sm" loading={aiLoading.antiAnchor} onClick={handleAiGenAntiAnchor} className="text-xs">
               重新生成
-            </Button>
+            </AiButton>
           </div>
         )}
 
@@ -942,18 +932,15 @@ export default function Create() {
                 </CardContent>
               </Card>
             ))}
-            <Button
-              variant="outline"
+            <AiButton
+              aiVariant="outline"
               size="sm"
+              loading={state.status === 'exploring'}
               onClick={handleStartExploration}
-              disabled={state.status === 'exploring'}
-              className="text-xs gap-1.5"
+              className="text-xs"
             >
-              {state.status === 'exploring'
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <Sparkles className="h-3.5 w-3.5" />}
-              {state.status === 'exploring' ? '收斂分析中...' : '重新執行 AI 矛盾收斂'}
-            </Button>
+              {state.status === 'exploring' ? '收斂分析中...' : '重新執行矛盾收斂'}
+            </AiButton>
           </div>
         )}
 
@@ -970,20 +957,13 @@ export default function Create() {
                   確認問題空間定義完善。方案建立後（Step 5）會自動執行完整收斂掃描。
                 </p>
               </div>
-              <Button
+              <AiButton
+                loading={state.status === 'exploring'}
                 onClick={handleStartExploration}
-                disabled={state.status === 'exploring'}
                 size="lg"
-                className="gap-2"
               >
-                {state.status === 'exploring'
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Sparkles className="h-4 w-4" />}
-                {state.status === 'exploring' ? 'AI 收斂分析中...' : '啟動 AI 矛盾收斂探索'}
-                {state.status !== 'exploring' && (
-                  <Badge variant="secondary" className="text-[10px] ml-1">Fully Auto</Badge>
-                )}
-              </Button>
+                {state.status === 'exploring' ? '收斂分析中...' : '啟動矛盾收斂探索'}
+              </AiButton>
               {!canStartConvergence && (
                 <p className="text-xs text-muted-foreground mt-2">
                   前置條件：需先在「深度探索」階段完成矛盾識別
@@ -1029,15 +1009,14 @@ export default function Create() {
             {/* Re-run button: available when not actively exploring */}
             {state.status !== 'exploring' && (
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
+                <AiButton
+                  aiVariant="outline"
                   size="sm"
                   onClick={handleStartExploration}
-                  className="text-xs gap-1.5"
+                  className="text-xs"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  重新執行 AI 矛盾收斂
-                </Button>
+                  重新執行矛盾收斂
+                </AiButton>
                 {state.status === 'halted' && (
                   <Button
                     variant="outline"
@@ -1450,11 +1429,9 @@ export default function Create() {
           <Button size="sm" variant="secondary" onClick={addManualAlternative}>
             <Plus className="h-4 w-4 mr-1.5" /> 手動新增
           </Button>
-          <Button size="sm" variant="secondary" onClick={handleAiGenAlts} disabled={aiLoading.alts}>
-            {aiLoading.alts ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
-            AI 整合生成
-            <Badge variant="secondary" className="text-[9px] ml-1.5">AI</Badge>
-          </Button>
+          <AiButton size="sm" loading={aiLoading.alts} onClick={handleAiGenAlts}>
+            整合生成
+          </AiButton>
         </div>
 
         {/* P3: Spec confirmation */}
@@ -1505,10 +1482,9 @@ export default function Create() {
           <Badge className="bg-destructive/10 text-destructive border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("fail")).length} 淘汰</Badge>
           <Badge className="bg-muted text-muted-foreground border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("marginal")).length} 待定</Badge>
           <div className="flex-1" />
-          <Button size="sm" variant="outline" onClick={handleAiMustEvaluateAll} disabled={anyAiLoading}>
-            {anyAiLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            AI 全部預判
-          </Button>
+          <AiButton size="sm" aiVariant="outline" loading={anyAiLoading} onClick={handleAiMustEvaluateAll}>
+            全部預判
+          </AiButton>
         </div>
 
         {mustCriteria !== DEFAULT_MUST_CRITERIA && (
@@ -1561,9 +1537,8 @@ export default function Create() {
                       );
                     })}
                     <td className="text-center py-3 px-2">
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAiMustEvaluate(alt.id)} disabled={aiLoading[`must-${alt.id}`]}>
-                        {aiLoading[`must-${alt.id}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                      </Button>
+                      <AiButton size="sm" aiVariant="ghost" className="h-7 px-2" loading={aiLoading[`must-${alt.id}`]} onClick={() => handleAiMustEvaluate(alt.id)}>
+                      </AiButton>
                     </td>
                     <td className="text-center py-3 px-3">
                       {hasFail ? <Badge variant="destructive" className="text-[10px]">淘汰</Badge>
@@ -1586,9 +1561,8 @@ export default function Create() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className={`text-sm font-medium ${hasFail ? "line-through" : ""}`}>{alt.name || "(未命名)"}</p>
-                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAiMustEvaluate(alt.id)} disabled={aiLoading[`must-${alt.id}`]}>
-                      {aiLoading[`must-${alt.id}`] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                    </Button>
+                    <AiButton size="sm" aiVariant="ghost" className="h-7 px-2" loading={aiLoading[`must-${alt.id}`]} onClick={() => handleAiMustEvaluate(alt.id)}>
+                    </AiButton>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {mustCriteria.map((c) => (

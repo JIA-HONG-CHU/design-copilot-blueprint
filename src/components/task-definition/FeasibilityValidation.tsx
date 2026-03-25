@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, AlertTriangle, XCircle, CheckCircle, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { cn } from "@/lib/utils";
 
 export interface FeasibilityConflict {
@@ -65,9 +66,9 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">尚未驗證。AI 將檢查約束之間是否存在物理衝突。</p>
             </div>
-            <Button size="sm" onClick={onCheck}>
-              <Sparkles className="h-3.5 w-3.5 mr-1" /> 執行驗證
-            </Button>
+            <AiButton size="sm" onClick={onCheck}>
+              執行驗證
+            </AiButton>
           </div>
         )}
 
@@ -91,9 +92,9 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
               <div className="flex items-center gap-2 rounded-md border border-warning/50 bg-warning/5 dark:bg-warning/10 px-3 py-2">
                 <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
                 <p className="text-sm text-warning flex-1">約束或 Mission 已變更，驗證結果可能過期。</p>
-                <Button size="sm" variant="outline" onClick={onCheck} className="shrink-0 text-xs border-warning/50 text-warning">
-                  <Sparkles className="h-3 w-3 mr-1" /> 重新驗證
-                </Button>
+                <AiButton size="sm" aiVariant="outline" onClick={onCheck} className="shrink-0 text-xs border-warning/50 text-warning">
+                  重新驗證
+                </AiButton>
               </div>
             )}
           </div>

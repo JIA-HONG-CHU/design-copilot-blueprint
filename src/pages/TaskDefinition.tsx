@@ -14,7 +14,8 @@ import { FileUploadZone } from "@/components/task-definition/FileUploadZone";
 import { AIExtractionResults } from "@/components/task-definition/AIExtractionResults";
 import { FeasibilityValidation } from "@/components/task-definition/FeasibilityValidation";
 import { MultiItemInput } from "@/components/task-definition/MultiItemInput";
-import { ArrowLeft, AlertCircle, RefreshCw, Sparkles, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertCircle, RefreshCw, Check } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { cn } from "@/lib/utils";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
@@ -161,21 +162,14 @@ export default function TaskDefinition() {
                 <span className="text-destructive">Mission 需至少 10 個字元</span>
               )}
               {form.missionReady && !form.showMissionSuggestion && (
-                <Button
+                <AiButton
                   size="sm"
-                  variant="secondary"
+                  loading={form.isMissionRewriting}
                   onClick={form.handleMissionRewrite}
-                  disabled={form.isMissionRewriting}
                   className="text-xs h-7"
                 >
-                  {form.isMissionRewriting ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3 w-3 mr-1" />
-                  )}
-                  AI 改寫
-                  <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-                </Button>
+                  改寫
+                </AiButton>
               )}
             </div>
             <span>{form.mission.length}字</span>
@@ -206,16 +200,14 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               硬約束 (Hard Constraints) <span className="text-destructive">*</span>
             </CardTitle>
-            <Button
+            <AiButton
               size="sm"
-              variant="secondary"
+              loading={form.isConstraintSuggesting}
               onClick={form.handleConstraintSuggest}
               disabled={form.isConstraintSuggesting || form.activeConstraintActionIndex !== null}
             >
-              {form.isConstraintSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-              AI 建議
-              <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-            </Button>
+              建議
+            </AiButton>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -303,16 +295,14 @@ export default function TaskDefinition() {
             <CardTitle className="text-base">
               關鍵績效指標 (Critical KPIs) <span className="text-destructive">*</span>
             </CardTitle>
-            <Button
+            <AiButton
               size="sm"
-              variant="secondary"
+              loading={form.isKpiSuggesting}
               onClick={form.handleKpiSuggest}
               disabled={form.isKpiSuggesting || form.activeKpiActionIndex !== null}
             >
-              {form.isKpiSuggesting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-              AI 建議 KPI
-              <Badge variant="secondary" className="text-[10px] ml-1">AI</Badge>
-            </Button>
+              建議 KPI
+            </AiButton>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

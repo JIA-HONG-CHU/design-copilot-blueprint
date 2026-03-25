@@ -15,10 +15,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ArrowRight, Plus, Sparkles, Loader2, Check,
+  ArrowLeft, ArrowRight, Plus, Loader2, Check,
   CheckCircle, XCircle, Flag, FileDown, FileJson,
   Trophy, Trash2, AlertTriangle, User, CalendarDays, ShieldAlert, TrendingUp
 } from "lucide-react";
+import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
@@ -844,10 +845,9 @@ export default function DecisionRecord() {
             {!isLocked && (
               <div className="flex gap-3">
                 <Button size="sm" variant="ghost" onClick={addAction}><Plus className="h-3 w-3 mr-1" /> 新增行動</Button>
-                <Button size="sm" variant="secondary" onClick={handleAiAction} disabled={aiLoading.action}>
-                  {aiLoading.action ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                  AI 建議行動 <Badge variant="secondary" className="text-[9px] ml-1">AI</Badge>
-                </Button>
+                <AiButton size="sm" loading={aiLoading.action} onClick={handleAiAction}>
+                  建議行動
+                </AiButton>
               </div>
             )}
           </CardContent>

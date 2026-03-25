@@ -44,7 +44,7 @@ export function ConstraintsTable({ constraints, onChange, onRemove, disabled }: 
       {/* Table header - hidden on mobile */}
       <div className="hidden sm:grid sm:grid-cols-[60px_1fr_1fr_40px] gap-2 text-xs font-medium text-muted-foreground px-1">
         <span>代碼</span>
-        <span>約束描述 ★</span>
+        <span>約束描述 *</span>
         <span>來源依據</span>
         <span></span>
       </div>
@@ -65,7 +65,7 @@ export function ConstraintsTable({ constraints, onChange, onRemove, disabled }: 
 
           {/* Description */}
           <div>
-            <span className="text-xs text-muted-foreground sm:hidden">約束描述 ★</span>
+            <span className="text-xs text-muted-foreground sm:hidden">約束描述 *</span>
             <Input
               value={c.description}
               onChange={(e) => updateRow(index, "description", e.target.value)}

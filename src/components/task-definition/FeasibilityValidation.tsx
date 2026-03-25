@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, AlertTriangle, XCircle, CheckCircle, Loader2, Sparkles } from "lucide-react";
+import { ShieldCheck, AlertTriangle, XCircle, CheckCircle, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface FeasibilityConflict {
@@ -19,6 +19,7 @@ export type FeasibilityStatus = "idle" | "checking" | "pass" | "warning" | "conf
 interface FeasibilityValidationProps {
   status: FeasibilityStatus;
   conflicts: FeasibilityConflict[];
+  stale?: boolean;
   onCheck: () => void;
   onOverride: (reason: string) => void;
 }
@@ -34,7 +35,7 @@ const statusConfig: Record<Exclude<FeasibilityStatus, "idle" | "checking">, {
   conflict: { icon: XCircle, label: "衝突", variant: "destructive", color: "text-destructive" },
 };
 
-export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }: FeasibilityValidationProps) {
+export function FeasibilityValidation({ status, conflicts, stale = false, onCheck, onOverride }: FeasibilityValidationProps) {
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverride, setShowOverride] = useState(false);
 
@@ -78,9 +79,23 @@ export function FeasibilityValidation({ status, conflicts, onCheck, onOverride }
         )}
 
         {status === "pass" && (
-          <div className="flex items-center gap-3 py-2">
-            <CheckCircle className="h-5 w-5 text-success" />
-            <p className="text-sm">所有約束組合通過物理可行性驗證，可進入下一步。</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 py-2">
+              <CheckCircle className="h-5 w-5 text-success" />
+              <p className="text-sm flex-1">所有約束組合通過物理可行性驗證，可進入下一步。</p>
+              <Button size="sm" variant="ghost" onClick={onCheck} className="shrink-0 text-xs">
+                <RefreshCw className="h-3 w-3 mr-1" /> 重新驗證
+              </Button>
+            </div>
+            {stale && (
+              <div className="flex items-center gap-2 rounded-md border border-warning/50 bg-warning/5 dark:bg-warning/10 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                <p className="text-sm text-warning flex-1">約束或 Mission 已變更，驗證結果可能過期。</p>
+                <Button size="sm" variant="outline" onClick={onCheck} className="shrink-0 text-xs border-warning/50 text-warning">
+                  <Sparkles className="h-3 w-3 mr-1" /> 重新驗證
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

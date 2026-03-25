@@ -63,7 +63,7 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="project-name">
-              專案名稱 <span className="text-destructive">★</span>
+              專案名稱 <span className="text-destructive">*</span>
             </Label>
             <Input
               id="project-name"
@@ -76,7 +76,7 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
           </div>
           <div className="space-y-2">
             <Label htmlFor="project-desc">
-              需求描述 <span className="text-destructive">★</span>
+              需求描述 <span className="text-destructive">*</span>
             </Label>
             <Textarea
               id="project-desc"

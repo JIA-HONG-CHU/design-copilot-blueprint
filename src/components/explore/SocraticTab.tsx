@@ -327,7 +327,7 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                 {/* User answer */}
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-destructive">★</span>
+                    <span className="text-xs text-destructive">*</span>
                     <span className="text-xs text-muted-foreground">您的回答</span>
                   </div>
                   <Textarea
@@ -388,7 +388,7 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                 {hasConfirmedTag && tagConfig && (
                   <div className="flex items-center gap-2">
                     <Badge className="text-[10px] text-white" style={{ backgroundColor: tagConfig.color }}>
-                      ✓ 已標記為{tagConfig.label}
+                      已標記為{tagConfig.label}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">已自動同步至{q.aiSuggestedTag === 'assumption' ? '假設追蹤' : '矛盾識別'}</span>
                     <div className="flex gap-1 ml-auto shrink-0">

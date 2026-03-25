@@ -138,7 +138,7 @@ export default function TaskDefinition() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            核心使命 (Mission Statement) <span className="text-destructive">★</span>
+            核心使命 (Mission Statement) <span className="text-destructive">*</span>
           </CardTitle>
           <p className="text-xs text-muted-foreground italic">
             模板：在 [情境] 下，系統必須 [行為]，且 [指標] 不得超標
@@ -204,7 +204,7 @@ export default function TaskDefinition() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              硬約束 (Hard Constraints) <span className="text-destructive">★</span>
+              硬約束 (Hard Constraints) <span className="text-destructive">*</span>
             </CardTitle>
             <Button
               size="sm"
@@ -301,7 +301,7 @@ export default function TaskDefinition() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              關鍵績效指標 (Critical KPIs) <span className="text-destructive">★</span>
+              關鍵績效指標 (Critical KPIs) <span className="text-destructive">*</span>
             </CardTitle>
             <Button
               size="sm"
@@ -374,6 +374,7 @@ export default function TaskDefinition() {
       <FeasibilityValidation
         status={form.feasibilityStatus}
         conflicts={form.feasibilityConflicts.map((c, i) => ({ id: `fc-${i}`, ...c }))}
+        stale={form.isFeasibilityStale}
         onCheck={form.handleFeasibilityCheck}
         onOverride={form.handleFeasibilityOverride}
       />

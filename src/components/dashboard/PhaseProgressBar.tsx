@@ -99,7 +99,7 @@ export function PhaseProgressBar({ progress }: PhaseProgressBarProps) {
                       status === "in_progress" && cn("border-current animate-pulse bg-background", phaseTextColor[step.phase]),
                       status === "not_started" && "border-muted-foreground/30 bg-background text-muted-foreground/50",
                     )}>
-                      {status === "passed" ? "✓" : ""}
+                      {status === "passed" ? "·" : ""}
                     </div>
                     <span className={cn(
                       "text-[10px] leading-none",

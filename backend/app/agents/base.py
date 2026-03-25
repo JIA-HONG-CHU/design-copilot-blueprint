@@ -231,14 +231,15 @@ def _call_anthropic(
 ) -> str:
     client = _get_anthropic()
     resolved = _resolve_anthropic_max_tokens(max_tokens)
-    response = client.messages.create(
+    # Use streaming to avoid SDK 10-minute non-streaming timeout limit
+    with client.messages.stream(
         model=model or settings.default_model,
         max_tokens=resolved,
         temperature=temperature,
         system=system,
         messages=[{"role": "user", "content": user_message}],
-    )
-    return response.content[0].text
+    ) as stream:
+        return stream.get_final_text()
 
 
 def _call_openai_compat(

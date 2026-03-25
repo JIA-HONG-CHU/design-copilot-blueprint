@@ -56,7 +56,7 @@ export function KpiList({ kpis, onChange, onRemove, disabled }: KpiListProps) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">指標名稱 ★</span>
+              <span className="text-xs text-muted-foreground">指標名稱 *</span>
               <Input
                 value={kpi.kpi_name}
                 onChange={(e) => updateKpi(index, "kpi_name", e.target.value)}
@@ -66,7 +66,7 @@ export function KpiList({ kpis, onChange, onRemove, disabled }: KpiListProps) {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">目標值 ★</span>
+              <span className="text-xs text-muted-foreground">目標值 *</span>
               <Input
                 value={kpi.target_value}
                 onChange={(e) => updateKpi(index, "target_value", e.target.value)}
@@ -76,7 +76,7 @@ export function KpiList({ kpis, onChange, onRemove, disabled }: KpiListProps) {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">單位 ★</span>
+              <span className="text-xs text-muted-foreground">單位 *</span>
               <Input
                 value={kpi.unit}
                 onChange={(e) => updateKpi(index, "unit", e.target.value)}
@@ -86,7 +86,7 @@ export function KpiList({ kpis, onChange, onRemove, disabled }: KpiListProps) {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">衡量方式 ★</span>
+              <span className="text-xs text-muted-foreground">衡量方式 *</span>
               <Input
                 value={kpi.measurement_method}
                 onChange={(e) => updateKpi(index, "measurement_method", e.target.value)}

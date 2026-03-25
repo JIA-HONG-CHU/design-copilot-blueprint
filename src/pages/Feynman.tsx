@@ -284,7 +284,7 @@ export default function Feynman() {
             <BookOpen className="h-5 w-5 text-emerald-500" />
             <h3 className="text-sm font-semibold">Step 3.3 / Gate 8 完成檢查</h3>
             <Badge className={`text-xs text-white ${reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? 'bg-green-600' : 'bg-red-600'}`}>
-              {reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? '✅ 完成' : '待完成'}
+              {reviewedCount >= entries.length && entries.length > 0 && coveredAssetTypes >= totalAssetTypes ? '完成' : '待完成'}
             </Badge>
           </div>
           <div className="space-y-2 text-sm">

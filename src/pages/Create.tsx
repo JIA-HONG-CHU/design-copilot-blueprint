@@ -721,9 +721,9 @@ export default function Create() {
   };
 
   const mustCell = (val: "pass" | "fail" | "marginal" | null) => {
-    if (val === "pass") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-sm">✅</span>;
-    if (val === "fail") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-destructive/10 text-sm">❌</span>;
-    if (val === "marginal") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-warning/10 text-sm">⚠️</span>;
+    if (val === "pass") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10"><CheckCircle className="h-4 w-4 text-primary" /></span>;
+    if (val === "fail") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-destructive/10"><XCircle className="h-4 w-4 text-destructive" /></span>;
+    if (val === "marginal") return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-warning/10"><AlertTriangle className="h-4 w-4 text-warning" /></span>;
     return <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-muted text-sm text-muted-foreground">—</span>;
   };
 
@@ -1211,7 +1211,7 @@ export default function Create() {
                         className="text-xs"
                         onClick={() => toggleScamperAdopt(v.id)}
                       >
-                        {v.adopted ? "✓ 已採用" : "採用"}
+                        {v.adopted ? <><Check className="h-3 w-3 mr-1" />已採用</> : "採用"}
                       </Button>
                       {/* SCAMPER new contradiction feedback with severity */}
                       {v.newContradictions && v.newContradictions.length > 0 && (
@@ -1347,7 +1347,7 @@ export default function Create() {
                 </div>
                 <Input
                   className="text-sm font-medium"
-                  placeholder="方案名稱 ★"
+                  placeholder="方案名稱 *"
                   value={alt.name}
                   onChange={(e) => {
                     setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, name: e.target.value } : a)));
@@ -1357,7 +1357,7 @@ export default function Create() {
                   }}
                 />
                 <Textarea
-                  placeholder="機制說明 ★ (至少 20 字元)"
+                  placeholder="機制說明 * (至少 20 字元)"
                   value={alt.mechanism}
                   rows={3}
                   className="text-sm leading-relaxed"
@@ -1642,9 +1642,9 @@ export default function Create() {
             })}
             <div className="pt-3">
               {editingAlt.overallPass === true
-                ? <Badge className="bg-primary text-primary-foreground px-3 py-1">✅ 通過 — 可進入 CAD</Badge>
+                ? <Badge className="bg-primary text-primary-foreground px-3 py-1">通過 — 可進入 CAD</Badge>
                 : editingAlt.overallPass === false
-                ? <Badge variant="destructive" className="px-3 py-1">❌ 不通過 — 有維度 &lt; 3</Badge>
+                ? <Badge variant="destructive" className="px-3 py-1">不通過 — 有維度 &lt; 3</Badge>
                 : <Badge variant="secondary" className="px-3 py-1">待完成評分</Badge>}
             </div>
           </div>
@@ -1740,7 +1740,7 @@ export default function Create() {
                 <Flag className="h-5 w-5 text-accent shrink-0" />
                 <h3 className="text-sm font-semibold">Phase Gate 2 — Diverge 完成</h3>
                 <Badge className={phaseGate2Items.every((i) => i.passed) ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground"}>
-                  {phaseGate2Items.every((i) => i.passed) ? "Phase 2 Passed ★" : "未通過"}
+                  {phaseGate2Items.every((i) => i.passed) ? "Phase 2 Passed *" : "未通過"}
                 </Badge>
               </div>
               <div className="space-y-2">

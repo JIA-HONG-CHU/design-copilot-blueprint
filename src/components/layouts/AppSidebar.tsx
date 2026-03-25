@@ -26,8 +26,8 @@ import {
 } from "lucide-react";
 
 function StatusDot({ status }: { status: StepStatusValue }) {
-  if (status === "completed") return <span className="text-[10px] text-primary">✓</span>;
-  if (status === "active") return <span className="text-[10px] animate-pulse text-primary">◉</span>;
+  if (status === "completed") return <span className="text-[10px] text-primary">·</span>;
+  if (status === "active") return <span className="text-[10px] animate-pulse text-primary">●</span>;
   return <span className="text-[10px] text-muted-foreground">○</span>;
 }
 

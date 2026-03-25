@@ -106,7 +106,7 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
               variant={allConverged ? "default" : "destructive"}
               className={`text-xs ${allConverged ? "bg-emerald-600" : ""}`}
             >
-              {allConverged ? "✅ 已收斂" : hasUnresolved ? "⚠️ 進行中" : "— 無數據"}
+              {allConverged ? "已收斂" : hasUnresolved ? "進行中" : "— 無數據"}
             </Badge>
           </div>
         </div>
@@ -204,7 +204,7 @@ const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
                             </text>
                           )}
                           {node.resolved && (
-                            <text x={node.x + 6} y={node.y + 12} fontSize={10} pointerEvents="none">✓</text>
+                            <text x={node.x + 6} y={node.y + 12} fontSize={10} pointerEvents="none">·</text>
                           )}
                         </g>
                       </TooltipTrigger>

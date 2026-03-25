@@ -267,7 +267,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
               {editForm.type === 'TC' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">改善參數 ★</span>
+                    <span className="text-xs text-muted-foreground">改善參數 *</span>
                     <Select
                       value={editForm.improvingParam?.toString() ?? ''}
                       onValueChange={(v) => setEditForm((f) => ({ ...f, improvingParam: Number(v) }))}
@@ -283,7 +283,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">惡化參數 ★</span>
+                    <span className="text-xs text-muted-foreground">惡化參數 *</span>
                     <Select
                       value={editForm.worseningParam?.toString() ?? ''}
                       onValueChange={(v) => setEditForm((f) => ({ ...f, worseningParam: Number(v) }))}
@@ -302,7 +302,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">需要的屬性 A ★</span>
+                    <span className="text-xs text-muted-foreground">需要的屬性 A *</span>
                     <Input
                       value={editForm.pcAttributeA ?? ''}
                       onChange={(e) => setEditForm((f) => ({ ...f, pcAttributeA: e.target.value }))}
@@ -311,7 +311,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                     />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">同時需要非 A ★</span>
+                    <span className="text-xs text-muted-foreground">同時需要非 A *</span>
                     <Input
                       value={editForm.pcAttributeNotA ?? ''}
                       onChange={(e) => setEditForm((f) => ({ ...f, pcAttributeNotA: e.target.value }))}
@@ -322,7 +322,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                 </div>
               )}
               <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">矛盾描述 ★</span>
+                <span className="text-xs text-muted-foreground">矛盾描述 *</span>
                 <Textarea
                   value={editForm.description ?? ''}
                   onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
@@ -384,7 +384,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                 {!isConfirmed ? (
                   <>
                     <Button size="sm" onClick={() => handleConfirm(c.id)}>
-                      <Check className="h-3 w-3 mr-1" /> 確認 ★
+                      <Check className="h-3 w-3 mr-1" /> 確認 *
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => handleStartEdit(c)}>
                       <Pencil className="h-3 w-3 mr-1" /> 編輯

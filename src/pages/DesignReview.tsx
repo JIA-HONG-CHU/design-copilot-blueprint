@@ -425,9 +425,9 @@ export default function DesignReview() {
                         <SelectValue placeholder="選擇去向" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="approve">✅ 批准</SelectItem>
-                        <SelectItem value="revise">🔄 修訂</SelectItem>
-                        <SelectItem value="eliminate">❌ 淘汰</SelectItem>
+                        <SelectItem value="approve">批准</SelectItem>
+                        <SelectItem value="revise">修訂</SelectItem>
+                        <SelectItem value="eliminate">淘汰</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -623,7 +623,7 @@ export default function DesignReview() {
                 {hasGap ? (
                   <><AlertTriangle className="h-4 w-4 text-accent shrink-0" /><span>{gapCount} 項假設仍處於 E0/E1，存在證據缺口</span></>
                 ) : (
-                  <><CheckCircle className="h-4 w-4 text-primary shrink-0" /><span>所有假設已有充足證據 ✅</span></>
+                  <><CheckCircle className="h-4 w-4 text-primary shrink-0" /><span>所有假設已有充足證據</span></>
                 )}
               </div>
             </>
@@ -650,10 +650,10 @@ export default function DesignReview() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 px-2 text-xs text-muted-foreground">ID</th>
-                    <th className="text-left py-2 px-2 text-xs text-muted-foreground">描述 ★</th>
-                    <th className="text-left py-2 px-2 text-xs text-muted-foreground">失效模式 ★</th>
-                    <th className="text-center py-2 px-2 text-xs text-muted-foreground">P ★</th>
-                    <th className="text-center py-2 px-2 text-xs text-muted-foreground">S ★</th>
+                    <th className="text-left py-2 px-2 text-xs text-muted-foreground">描述 *</th>
+                    <th className="text-left py-2 px-2 text-xs text-muted-foreground">失效模式 *</th>
+                    <th className="text-center py-2 px-2 text-xs text-muted-foreground">P *</th>
+                    <th className="text-center py-2 px-2 text-xs text-muted-foreground">S *</th>
                     <th className="text-center py-2 px-2 text-xs text-muted-foreground">RPN</th>
                     <th className="text-left py-2 px-2 text-xs text-muted-foreground">緩解措施</th>
                     <th className="text-center py-2 px-2 text-xs text-muted-foreground w-10"></th>
@@ -713,8 +713,8 @@ export default function DesignReview() {
                       <span className="text-xs font-medium">{r.id}</span>
                       <Badge style={{ backgroundColor: color, color: '#fff' }} className="text-[10px]">{score} ({level})</Badge>
                     </div>
-                    <Input value={r.description} onChange={e => updateRisk(r.id, 'description', e.target.value)} className="text-xs h-7" placeholder="風險描述 ★" />
-                    <Input value={r.failureMode} onChange={e => updateRisk(r.id, 'failureMode', e.target.value)} className="text-xs h-7" placeholder="失效模式 ★" />
+                    <Input value={r.description} onChange={e => updateRisk(r.id, 'description', e.target.value)} className="text-xs h-7" placeholder="風險描述 *" />
+                    <Input value={r.failureMode} onChange={e => updateRisk(r.id, 'failureMode', e.target.value)} className="text-xs h-7" placeholder="失效模式 *" />
                     <div className="flex gap-2">
                       <Select value={String(r.probability)} onValueChange={v => updateRisk(r.id, 'probability', parseInt(v))}>
                         <SelectTrigger className="text-xs h-7 flex-1"><SelectValue placeholder="P" /></SelectTrigger>
@@ -931,8 +931,8 @@ export default function DesignReview() {
           <DialogHeader><DialogTitle>{editingExp?.id ? `${editingExp.id} — 編輯實驗` : '新增實驗'}</DialogTitle></DialogHeader>
           {editingExp && (
             <div className="space-y-3">
-              <div className="space-y-1"><Label>實驗名稱 ★</Label><Input value={editingExp.name} onChange={e => setEditingExp({...editingExp, name: e.target.value})} maxLength={100} /></div>
-              <div className="space-y-1"><Label>關聯假設 ★</Label><Input value={editingExp.linkedAssumptions.join(', ')} onChange={e => setEditingExp({...editingExp, linkedAssumptions: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} placeholder="A-001, A-002" /></div>
+              <div className="space-y-1"><Label>實驗名稱 *</Label><Input value={editingExp.name} onChange={e => setEditingExp({...editingExp, name: e.target.value})} maxLength={100} /></div>
+              <div className="space-y-1"><Label>關聯假設 *</Label><Input value={editingExp.linkedAssumptions.join(', ')} onChange={e => setEditingExp({...editingExp, linkedAssumptions: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} placeholder="A-001, A-002" /></div>
               <div className="space-y-1"><Label>目標證據等級</Label>
                 <Select value={editingExp.evidenceLevel} onValueChange={v => setEditingExp({...editingExp, evidenceLevel: v as EvidenceLevel})}>
                   <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
@@ -952,7 +952,7 @@ export default function DesignReview() {
                 </Select>
               </div>
               {editingExp.status === 'Done' && (
-                <div className="space-y-1"><Label>實驗結果 ★</Label><Textarea value={editingExp.result} onChange={e => setEditingExp({...editingExp, result: e.target.value})} rows={3} maxLength={500} /></div>
+                <div className="space-y-1"><Label>實驗結果 *</Label><Textarea value={editingExp.result} onChange={e => setEditingExp({...editingExp, result: e.target.value})} rows={3} maxLength={500} /></div>
               )}
               <div className="flex gap-2 pt-2">
                 <Button onClick={saveExp}>儲存</Button>

@@ -426,34 +426,20 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     { label: "Mission 已填寫 (≥ 10 字元)", passed: missionReady },
     { label: "至少 1 項硬約束", passed: hasConstraint },
     { label: "至少 1 項 KPI", passed: hasKpi },
-    { label: "約束可行性驗證通過", passed: feasibilityStatus === "pass" || feasibilityStatus === "warning" },
-  ], [missionReady, hasConstraint, hasKpi, feasibilityStatus]);
+    { label: "約束可行性驗證通過", passed: (feasibilityStatus === "pass" || feasibilityStatus === "warning") && !isFeasibilityStale },
+  ], [missionReady, hasConstraint, hasKpi, feasibilityStatus, isFeasibilityStale]);
 
-  // ── Auto re-validate feasibility when content changes ─────────────
+  // ── Detect content change → mark feasibility as stale ─────────────
   const feasibilitySnapshotRef = useRef<string>("");
-  const needsRecheck = useRef(false);
+  const [isFeasibilityStale, setIsFeasibilityStale] = useState(false);
 
-  // Effect 1: Detect content change → invalidate (reset to idle)
   useEffect(() => {
     if (feasibilityStatus === "idle" || feasibilityStatus === "checking") return;
     const currentSnapshot = `${mission}||${constraints.map((c) => c.description).join(",")}||${kpis.map((k) => `${k.kpi_name}:${k.target_value}`).join(",")}`;
     if (feasibilitySnapshotRef.current && feasibilitySnapshotRef.current !== currentSnapshot) {
-      setFeasibilityStatus("idle");
-      setFeasibilityConflicts([]);
-      needsRecheck.current = true;
+      setIsFeasibilityStale(true);
     }
   }, [mission, constraints, kpis, feasibilityStatus]);
-
-  // Effect 2: When idle + needs recheck + prerequisites met → debounced auto re-check
-  useEffect(() => {
-    if (feasibilityStatus !== "idle" || !needsRecheck.current) return;
-    if (!missionReady || !hasConstraint || !projectId) return;
-    const timer = setTimeout(() => {
-      needsRecheck.current = false;
-      handleFeasibilityCheck();
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [feasibilityStatus, mission, constraints, kpis, missionReady, hasConstraint, projectId]);
 
   // ── Extraction handlers ───────────────────────────────────────────
 
@@ -554,6 +540,7 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     if (descriptions.length < 2) {
       setFeasibilityStatus("pass");
       setFeasibilityConflicts([]);
+      setIsFeasibilityStale(false);
       feasibilitySnapshotRef.current = snapshot;
       await persistFeasibility("pass", []);
       return;
@@ -567,6 +554,7 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
       });
       setFeasibilityConflicts(result.conflicts);
       setFeasibilityStatus(result.status as FeasibilityStatus);
+      setIsFeasibilityStale(false);
       feasibilitySnapshotRef.current = snapshot;
       await persistFeasibility(result.status as FeasibilityStatus, result.conflicts);
     } catch (err) {
@@ -861,6 +849,7 @@ export function useTaskDefinitionForm(projectId: string | undefined) {
     // Feasibility
     feasibilityStatus,
     feasibilityConflicts,
+    isFeasibilityStale,
     handleFeasibilityCheck,
     handleFeasibilityOverride,
 

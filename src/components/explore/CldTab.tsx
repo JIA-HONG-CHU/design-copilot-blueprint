@@ -391,7 +391,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-5 h-[2px] border border-dashed border-red-600" />
-          <span>斷路點 ★</span>
+          <span>斷路點 *</span>
         </div>
       </div>
 
@@ -482,7 +482,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
                 <span className="text-xs text-muted-foreground">斷路點狀態</span>
                 {selectedNode.isBreakpoint ? (
                   <div className="space-y-2">
-                    <Badge className="bg-red-600 text-white text-xs">★ 已標記為斷路點</Badge>
+                    <Badge className="bg-red-600 text-white text-xs">* 已標記為斷路點</Badge>
                     <p className="text-sm">{selectedNode.breakpointReason}</p>
                     <Button
                       size="sm"
@@ -510,7 +510,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
                       className="bg-amber-500 hover:bg-amber-600 text-white"
                       onClick={() => handleToggleBreakpoint(selectedNode.id)}
                     >
-                      <Star className="h-3 w-3 mr-1" /> 設為斷路點 ★
+                      <Star className="h-3 w-3 mr-1" /> 設為斷路點 *
                     </Button>
                   </div>
                 )}

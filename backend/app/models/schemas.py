@@ -342,13 +342,17 @@ class AntiAnchorRequest(BaseModel):
 class AntiAnchorRoute(BaseModel):
     name: str
     mechanism: str = ""  # core mechanism description
-    description: str
+    description: str = ""  # LLM may omit; fallback to mechanism
     is_non_typical: bool = True
     rationale: str = ""
     why_unconventional: str = ""
     potential_advantage: str = ""
     cross_domain_source: str = ""
     validation_passport: ValidationPassport | None = None
+
+    def model_post_init(self, __context) -> None:
+        if not self.description and self.mechanism:
+            self.description = self.mechanism
 
 
 class AntiAnchorResponse(BaseModel):

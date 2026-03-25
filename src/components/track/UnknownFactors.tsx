@@ -244,7 +244,7 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
-                因素描述 <span className="text-destructive">★</span>
+                因素描述 <span className="text-destructive">*</span>
               </label>
               <Textarea
                 value={newDesc}
@@ -262,7 +262,7 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
-                影響評估 <span className="text-destructive">★</span>
+                影響評估 <span className="text-destructive">*</span>
               </label>
               <Select value={newImpact} onValueChange={(v) => setNewImpact(v as ImpactLevel)}>
                 <SelectTrigger><SelectValue placeholder="選擇影響程度" /></SelectTrigger>

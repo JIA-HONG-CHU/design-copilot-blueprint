@@ -10,9 +10,9 @@ interface Props {
 }
 
 const resultStyle: Record<CompatibilityResult, { icon: string; bg: string; text: string }> = {
-  compatible:        { icon: '✅', bg: 'bg-emerald-50 dark:bg-emerald-950/40',  text: 'text-emerald-700 dark:text-emerald-300' },
-  exclusive:         { icon: '❌', bg: 'bg-red-50 dark:bg-red-950/40',          text: 'text-red-700 dark:text-red-300' },
-  needs_verification:{ icon: '⚠️', bg: 'bg-amber-50 dark:bg-amber-950/40',     text: 'text-amber-700 dark:text-amber-300' },
+  compatible:        { icon: 'O', bg: 'bg-emerald-50 dark:bg-emerald-950/40',  text: 'text-emerald-700 dark:text-emerald-300' },
+  exclusive:         { icon: 'X', bg: 'bg-red-50 dark:bg-red-950/40',          text: 'text-red-700 dark:text-red-300' },
+  needs_verification:{ icon: '?', bg: 'bg-amber-50 dark:bg-amber-950/40',     text: 'text-amber-700 dark:text-amber-300' },
 };
 
 function CellContent({ result, adoptionType, reason }: { result: CompatibilityResult; adoptionType: AdoptionType | null; reason: string }) {
@@ -113,9 +113,9 @@ export function CompatibilityMatrixView({ matrix }: Props) {
 
         {/* Legend */}
         <div className="flex items-center gap-4 mt-3 pt-3 border-t text-[10px] text-muted-foreground">
-          <span>✅ 可合併</span>
-          <span>❌ 互斥</span>
-          <span>⚠️ 待確認</span>
+          <span>O 可合併</span>
+          <span>X 互斥</span>
+          <span>? 待確認</span>
           <span className="ml-auto">Hover 查看詳情</span>
         </div>
       </CardContent>

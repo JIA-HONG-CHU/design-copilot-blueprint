@@ -224,7 +224,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
               </Badge>
             )}
             {hasNoRisk && (
-              <Badge variant="destructive" className="text-[10px]">★ 未設定</Badge>
+              <Badge variant="destructive" className="text-[10px]">* 未設定</Badge>
             )}
             {a.source === 'ai_suggest' && (
               <Badge variant="secondary" className="text-[10px]">AI</Badge>
@@ -425,7 +425,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
-                假設描述 <span className="text-destructive">★</span>
+                假設描述 <span className="text-destructive">*</span>
               </label>
               <Textarea
                 value={newDesc}
@@ -443,7 +443,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">
-                風險等級 <span className="text-destructive">★</span>
+                風險等級 <span className="text-destructive">*</span>
               </label>
               <Select value={newRisk} onValueChange={(v) => setNewRisk(v as RiskLevel)}>
                 <SelectTrigger><SelectValue placeholder="選擇風險等級" /></SelectTrigger>

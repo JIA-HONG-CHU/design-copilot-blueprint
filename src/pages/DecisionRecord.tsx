@@ -609,7 +609,7 @@ export default function DecisionRecord() {
                             const isTop = sc?.alternativeId === topAlt?.alternativeId;
                             return (
                               <td key={a.id} className="py-2 px-2 text-center text-sm">
-                                {sc?.weightedTotal || 0} {isTop && <span className="text-primary">★</span>}
+                                {sc?.weightedTotal || 0} {isTop && <span className="text-primary">*</span>}
                               </td>
                             );
                           })}
@@ -758,7 +758,7 @@ export default function DecisionRecord() {
           <CardContent className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>主路線（選定方案）★</Label>
+                <Label>主路線（選定方案）*</Label>
                 <Select value={decision.selectedAlternativeId} onValueChange={v => {
                   const alt = alternatives.find(a => a.id === v);
                   setDecision(prev => ({ ...prev, selectedAlternativeId: v, selectedAlternativeName: alt?.name || '' }));
@@ -767,7 +767,7 @@ export default function DecisionRecord() {
                   <SelectContent>
                     {rankedScores.map((s, i) => (
                       <SelectItem key={s.alternativeId} value={s.alternativeId}>
-                        {s.alternativeName} ({s.weightedTotal} 分) {i === 0 ? '★' : ''}
+                        {s.alternativeName} ({s.weightedTotal} 分) {i === 0 ? '*' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -789,12 +789,12 @@ export default function DecisionRecord() {
             </div>
 
             <div className="space-y-2">
-              <Label>決策日期 ★</Label>
+              <Label>決策日期 *</Label>
               <Input type="date" value={decision.decisionDate} onChange={e => updateDecision('decisionDate', e.target.value)} disabled={isLocked} className="w-40" />
             </div>
 
             <div className="space-y-2">
-              <Label>選擇理由 ★ <span className="text-xs text-muted-foreground">(至少 20 字元)</span></Label>
+              <Label>選擇理由 * <span className="text-xs text-muted-foreground">(至少 20 字元)</span></Label>
               <Textarea value={decision.rationale} onChange={e => updateDecision('rationale', e.target.value)}
                 disabled={isLocked} rows={4} maxLength={2000} placeholder="闡述選擇該方案的理由..." />
               <p className="text-[10px] text-muted-foreground text-right">{decision.rationale.length}/2000</p>
@@ -827,9 +827,9 @@ export default function DecisionRecord() {
                     </span>
                   </AccordionTrigger>
                   <AccordionContent className="space-y-2 pb-3">
-                    <Input placeholder="行動描述 ★" value={a.description} onChange={e => updateAction(a.id, 'description', e.target.value)} disabled={isLocked} className="text-xs h-8" maxLength={100} />
+                    <Input placeholder="行動描述 *" value={a.description} onChange={e => updateAction(a.id, 'description', e.target.value)} disabled={isLocked} className="text-xs h-8" maxLength={100} />
                     <div className="flex gap-2">
-                      <Input placeholder="負責人 ★" value={a.assignee} onChange={e => updateAction(a.id, 'assignee', e.target.value)} disabled={isLocked} className="text-xs h-8 flex-1" maxLength={50} />
+                      <Input placeholder="負責人 *" value={a.assignee} onChange={e => updateAction(a.id, 'assignee', e.target.value)} disabled={isLocked} className="text-xs h-8 flex-1" maxLength={50} />
                       <Input type="date" value={a.dueDate} onChange={e => updateAction(a.id, 'dueDate', e.target.value)} disabled={isLocked} className="text-xs h-8 w-36" />
                     </div>
                     {!isLocked && (
@@ -910,7 +910,7 @@ export default function DecisionRecord() {
             {signatures.map((s, idx) => (
               <div key={idx} className="flex flex-col sm:flex-row gap-2 border rounded-lg p-3">
                 <div className="flex gap-2 flex-1">
-                  <Input placeholder="姓名 ★" value={s.name} onChange={e => updateSignature(idx, 'name', e.target.value)}
+                  <Input placeholder="姓名 *" value={s.name} onChange={e => updateSignature(idx, 'name', e.target.value)}
                     disabled={s.status === 'signed'} className="text-xs h-8 flex-1" maxLength={50} />
                   <Select value={s.role} onValueChange={v => updateSignature(idx, 'role', v)} disabled={s.status === 'signed'}>
                     <SelectTrigger className="text-xs h-8 w-32"><SelectValue /></SelectTrigger>
@@ -973,7 +973,7 @@ export default function DecisionRecord() {
           <Flag className="h-5 w-5 text-primary shrink-0" />
           <h3 className="text-sm font-semibold">Phase Gate 3 — Converge 階段完成檢查</h3>
           <Badge className={`text-xs text-primary-foreground ${phaseGate3Passed ? 'bg-primary' : 'bg-destructive'}`}>
-            {phaseGate3Passed ? 'Phase 3 Passed ★' : 'Phase 3 未通過'}
+            {phaseGate3Passed ? 'Phase 3 Passed *' : 'Phase 3 未通過'}
           </Badge>
         </div>
         <div className="space-y-2">

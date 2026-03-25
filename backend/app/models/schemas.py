@@ -352,7 +352,7 @@ class AntiAnchorRoute(BaseModel):
 
 
 class AntiAnchorResponse(BaseModel):
-    routes: list[AntiAnchorRoute]
+    routes: list[AntiAnchorRoute] = Field(default_factory=list, validation_alias="alternatives")
 
 
 # ---------------------------------------------------------------------------

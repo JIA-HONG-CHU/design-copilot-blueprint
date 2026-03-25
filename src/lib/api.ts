@@ -489,9 +489,14 @@ export interface AntiAnchorGenerateRequest {
 
 export interface AntiAnchorRouteResult {
   name: string;
+  mechanism: string;
   description: string;
   is_non_typical: boolean;
   rationale: string;
+  why_unconventional: string;
+  potential_advantage: string;
+  cross_domain_source: string;
+  validation_passport: Record<string, unknown> | null;
 }
 
 export interface AntiAnchorGenerateResponse {

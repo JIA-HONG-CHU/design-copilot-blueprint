@@ -331,13 +331,19 @@ export default function Create() {
     if (!id) return;
     setAiLoading((p) => ({ ...p, antiAnchor: true }));
     try {
+      // Clear existing routes before regenerating
+      for (const r of routes) {
+        deleteAntiAnchorRouteMut.mutate({ id: r.id });
+      }
+      setLocalRoutes([]);
+
       const result = await antiAnchorGenerate({
         project_id: id,
         mission: briefMission || MOCK_MISSION.problemStatement,
         current_constraints: constraintStrings.length > 0
           ? constraintStrings
           : MOCK_MISSION.contradictions.map((c) => c.description),
-        existing_alternatives: routes.map((r) => r.name),
+        existing_alternatives: [],
       });
       for (const route of result.routes) {
         await createAntiAnchorRoute.mutateAsync({
@@ -357,18 +363,7 @@ export default function Create() {
       toast.success(`AI 已產出 ${result.routes.length} 條非典型架構概念`);
     } catch (err) {
       console.error("Anti-anchor generation failed:", err);
-      // Fallback to mock data
-      for (const route of MOCK_AI_ANTIANCHOR) {
-        await createAntiAnchorRoute.mutateAsync({
-          project_id: id,
-          name: route.name,
-          description: route.description,
-          is_non_typical: true,
-          source: 'ai',
-        });
-      }
-      setAntiAnchorGenerated(true);
-      toast.warning("AI 產出失敗，已使用範例資料");
+      toast.error("AI 產出失敗，請確認後端服務是否啟動");
     } finally {
       setAiLoading((p) => ({ ...p, antiAnchor: false }));
     }

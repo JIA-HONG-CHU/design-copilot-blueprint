@@ -253,31 +253,29 @@ flowchart TB
 
 ---
 
-## 5. SCAMPER → 收斂迴圈回饋（Phase A 閉環）
+## 5. SCAMPER 定位：創意發散工具（不回饋收斂迴圈）
 
-**設計意圖**：SCAMPER 變形可能引入新矛盾。回饋至**同一路徑的 Phase A** 收斂迴圈。
+**設計意圖**：SCAMPER 與 Anti-Anchor 同屬**創意發散工具**。潛在風險以標註方式顯示，不自動觸發 re-scan。所有產出直接進入候選方案池，在決策中心由 RD 統一評估。
 
 ```mermaid
 flowchart TB
-    A["SCAMPER Variant 採用<br/>(路徑內)"] --> B{"產生 newContradictions?"}
-    B -->|"否"| C["進入路徑候選池"]
-    B -->|"是"| D["addContradiction()"]
-    D --> E{"severity?"}
-    E -->|"minor"| F["加入 riskRegister<br/>不阻斷流程"]
-    F --> C
-    E -->|"fatal / major"| G["加入同路徑 graph +<br/>自動排程 Phase A re-scan"]
-    G --> H["POST /convergence/scan<br/>phase: A（矛盾健康度）"]
-    H --> I{"收斂判定"}
-    I -->|"converged"| C
-    I -->|"exploring"| H
-    I -->|"halted"| J["ArchitectureHaltOverlay<br/>人類決定: 強制繼續 or 回退"]
-    J -->|"forceContinue()"| H
-    J -->|"回退"| K["返回上一步"]
+    A["SCAMPER Variant 採用"] --> B{"AI 標註潛在風險?"}
+    B -->|"否"| C["直接進入候選池"]
+    B -->|"是"| D["風險標註<br/>（severity badge + 描述）<br/>供決策中心參考"]
+    D --> C
+    C --> E["候選方案決策中心<br/>統一做 Phase B 交叉檢查"]
 
     style A fill:#D1FAE5,stroke:#10B981
-    style G fill:#FEE2E2,stroke:#EF4444
-    style J fill:#FCA5A5,stroke:#DC2626
+    style D fill:#FEF3C7,stroke:#F59E0B
+    style E fill:#F3E8FF,stroke:#8B5CF6
 ```
+
+**與 v6/v7 的差異**：
+| | v6/v7（舊） | v8（現在） |
+|---|---|---|
+| newContradictions | fatal/major → 自動 addContradiction + Phase A re-scan | 顯示為風險標註，不觸發 re-scan |
+| 確認流程 | 有未回饋矛盾 → 警告阻擋 | 無阻擋，所有風險在決策中心統一處理 |
+| 定位 | 分析工具（產出需要收斂驗證） | **創意工具**（產出直接進池，與 Anti-Anchor 同級） |
 
 ---
 

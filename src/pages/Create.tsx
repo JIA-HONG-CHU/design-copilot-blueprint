@@ -545,32 +545,9 @@ export default function Create() {
     setLocalScamperVariants((prev) => prev.map((v) => (v.id === svId ? { ...v, adopted: !v.adopted } : v)));
     updateScamperVariant.mutate({ id: svId, adopted: !sv.adopted });
   };
-  const handleFeedbackToConvergence = (variantId: string, contradictionId: string) => {
-    // Find the contradiction
-    const variant = scamperVariants.find(v => v.id === variantId);
-    const nc = variant?.newContradictions?.find(c => c.id === contradictionId);
-    if (!nc) return;
-    // Feed back to convergence graph
-    convergenceLoop.addContradiction(nc.description, nc.severity, variantId);
-    // Mark as fed back
-    setLocalScamperVariants(prev => prev.map(v => {
-      if (v.id !== variantId || !v.newContradictions) return v;
-      return {
-        ...v,
-        newContradictions: v.newContradictions.map(c =>
-          c.id === contradictionId ? { ...c, fedBack: true } : c
-        ),
-      };
-    }));
-    // Persist the updated new_contradictions to DB
-    const updatedNcs = variant.newContradictions?.map(c =>
-      c.id === contradictionId ? { ...c, fedBack: true } : c
-    ) ?? [];
-    updateScamperVariant.mutate({ id: variantId, new_contradictions: updatedNcs as unknown as Json });
-    toast.success(`已將矛盾回饋至收斂圖（${nc.severity.toUpperCase()}），AI 將重新探索`);
-    // Jump back to TRIZ to show updated graph (keep current track)
-    navigateTo(1);
-  };
+  // SCAMPER is a creative divergence tool (like Anti-Anchor).
+  // newContradictions are displayed as risk notes, NOT fed back to convergence loop.
+  // All SCAMPER outputs go directly to the candidate pool for RD comparison in Decision Hub.
   const cycleMust = (altId: string, mustId: string) => {
     const alt = alternatives.find(a => a.id === altId);
     if (!alt) return;
@@ -1334,11 +1311,11 @@ export default function Create() {
                       >
                         {v.adopted ? <><Check className="h-3 w-3 mr-1" />已採用</> : "採用"}
                       </Button>
-                      {/* SCAMPER new contradiction feedback with severity */}
+                      {/* SCAMPER risk notes (informational — no re-scan feedback) */}
                       {v.newContradictions && v.newContradictions.length > 0 && (
                         <div className="mt-2 space-y-1.5">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">潛在風險（供決策中心參考）</p>
                           {v.newContradictions.map((nc) => {
-                            const isFatalMajor = nc.severity === 'fatal' || nc.severity === 'major';
                             const borderColor = nc.severity === 'fatal' ? 'border-red-400' : nc.severity === 'major' ? 'border-orange-400' : 'border-muted';
                             const bgColor = nc.severity === 'fatal' ? 'bg-red-50 dark:bg-red-950/30' : nc.severity === 'major' ? 'bg-orange-50 dark:bg-orange-950/30' : 'bg-muted/30';
                             const sevBadge = nc.severity === 'fatal'
@@ -1351,23 +1328,10 @@ export default function Create() {
                                 <div className="flex items-start gap-1.5">
                                   <AlertTriangle className={`h-3 w-3 shrink-0 mt-0.5 ${nc.severity === 'fatal' ? 'text-red-500' : nc.severity === 'major' ? 'text-orange-500' : 'text-muted-foreground'}`} />
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 mb-0.5">
-                                      {sevBadge}
-                                      {nc.fedBack && <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-300">已回饋</Badge>}
-                                    </div>
-                                    <p className="text-[10px] text-muted-foreground">{nc.description}</p>
+                                    {sevBadge}
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{nc.description}</p>
                                   </div>
                                 </div>
-                                {isFatalMajor && !nc.fedBack && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="mt-1.5 h-6 text-[10px] border-primary/40 text-primary"
-                                    onClick={() => handleFeedbackToConvergence(v.id, nc.id)}
-                                  >
-                                    <ArrowLeft className="h-3 w-3 mr-0.5" /> 回饋至收斂圖
-                                  </Button>
-                                )}
                               </div>
                             );
                           })}
@@ -1381,64 +1345,31 @@ export default function Create() {
           );
         })}
 
-        {/* SCAMPER confirmation with unhandled contradiction check */}
-        {confirmedSubs.length > 0 && scamperVariants.some(v => v.adopted) && (() => {
-          const allNewConts = scamperVariants
-            .filter(v => v.adopted && v.newContradictions)
-            .flatMap(v => v.newContradictions!);
-          const unhandledFatalMajor = allNewConts.filter(nc => (nc.severity === 'fatal' || nc.severity === 'major') && !nc.fedBack);
-          const hasBlocker = unhandledFatalMajor.length > 0;
-
-          return (
-            <Card className={hasBlocker ? "border-destructive/40 bg-destructive/5" : "border-primary/30 bg-primary/5"}>
-              <CardContent className="p-4 space-y-3">
-                {hasBlocker && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-medium text-red-700 dark:text-red-400">
-                        {unhandledFatalMajor.length} 個 Fatal/Major 新矛盾尚未回饋至收斂圖
-                      </p>
-                      <p className="text-[10px] text-red-600/80 dark:text-red-400/80 mt-0.5">
-                        請先將 Fatal/Major 矛盾回饋至收斂圖進行 TRIZ 求解，或確認其嚴重度後再繼續。
-                      </p>
-                      {unhandledFatalMajor.map(nc => (
-                        <p key={nc.id} className="text-[10px] text-muted-foreground mt-0.5">
-                          • [{nc.severity.toUpperCase()}] {nc.description.slice(0, 50)}...
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">確認 SCAMPER 變形結果</p>
-                    <p className="text-xs text-muted-foreground">
-                      已採用 {scamperVariants.filter(v => v.adopted).length} 個變形。
-                      {hasBlocker
-                        ? " 建議先處理未回饋的矛盾再繼續。"
-                        : " 確認後進入方案整合。"}
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      if (hasBlocker) {
-                        toast.warning('仍有未處理的 Fatal/Major 矛盾，建議回饋至收斂圖後再繼續');
-                      }
-                      toast.success('SCAMPER 變形結果已確認');
-                      goNext();
-                    }}
-                    className="shrink-0"
-                    variant={hasBlocker ? "outline" : "default"}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    {hasBlocker ? "忽略警告，繼續" : "確認並繼續"}
-                  </Button>
+        {/* SCAMPER confirmation — creative tool, no convergence feedback needed */}
+        {confirmedSubs.length > 0 && scamperVariants.some(v => v.adopted) && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">確認 SCAMPER 變形結果</p>
+                  <p className="text-xs text-muted-foreground">
+                    已採用 {scamperVariants.filter(v => v.adopted).length} 個創意變形。
+                    潛在風險已標記，將在決策中心統一評估。確認後進入候選方案決策中心。
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
+                <Button
+                  onClick={() => {
+                    toast.success('SCAMPER 變形結果已確認');
+                    goNext();
+                  }}
+                  className="shrink-0"
+                >
+                  <Check className="h-4 w-4 mr-1" /> 確認並繼續
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[3] ?? []} />
       </div>
     );

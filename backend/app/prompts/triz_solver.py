@@ -166,8 +166,12 @@ For each transformation: state the benefit AND any new contradiction it may intr
 SUFIELD_ANALYSIS = """\
 <task>
 Analyse the technical system using a Su-Field (Substance-Field) model and match \
-it to the most applicable TRIZ 76 Standard Solutions.
+it to the most applicable TRIZ 76 Standard Solutions. Reason from physics first \
+— not from product analogies or industry conventions.
 </task>
+
+<language>回覆語言：繁體中文。suggestion 和 physical_reasoning 欄位使用繁體中文，\
+讓工程師直接看懂。物理術語保留英文。</language>
 
 <context>
 <system_description>{system_description}</system_description>
@@ -177,17 +181,43 @@ it to the most applicable TRIZ 76 Standard Solutions.
 <triz_kb>{triz_context}</triz_kb>
 </context>
 
+<thinking_framework>
+Reason like a physicist applying TRIZ, not a product engineer matching patterns:
+
+1. **Identify the physical interaction** — What energy/force/field is being \
+transferred between S1 and S2? Name the governing law (Newton, Fourier, Ohm, \
+Maxwell, Fick, Bernoulli...). If you can't name the law, your Su-Field model \
+is too abstract.
+
+2. **Diagnose the physical root cause** — Why is the system state problematic? \
+Is the field too weak (insufficient flux density, low force), misdirected \
+(wrong gradient direction), or producing side-effects (waste heat, EMI, \
+mechanical vibration)? Quantify where possible.
+
+3. **Match by physical mechanism, not by product similarity** — A "harmful \
+thermal field" in a semiconductor package and a "harmful thermal field" in a \
+bearing are the SAME Su-Field pattern. Do NOT limit solutions to the project's \
+own industry. Cross-domain solutions (aerospace → medical, semiconductor → \
+automotive) are preferred when the physical operating regime is comparable.
+
+4. **Every suggestion must answer THREE questions**:
+   a. What physical principle does this leverage? (name the law or effect)
+   b. What is the expected magnitude of improvement? (quantified estimate)
+   c. Under what conditions does this fail? (boundary conditions)
+</thinking_framework>
+
 <instructions>
 1. Identify the Su-Field elements from the system description:
-   - **S1** (Object) — the substance being acted upon.
-   - **S2** (Tool) — the substance performing the action.
-   - **F** (Field) — the energy or interaction type (mechanical, thermal, electrical, magnetic, chemical, etc.).
+   - **S1** (Object) — the substance being acted upon. State its key physical \
+properties (density, thermal conductivity, Young's modulus, etc.) that matter.
+   - **S2** (Tool) — the substance performing the action. Same.
+   - **F** (Field) — the energy or interaction type. Name the governing equation.
 
 2. Classify the system state:
-   - **incomplete** — S1, S2, or F is missing.
+   - **incomplete** — S1, S2, or F is missing → system cannot function.
    - **effective** — all elements present, functioning correctly.
-   - **harmful** — all elements present, but producing unwanted effects.
-   - **insufficient** — all elements present, but desired effect is too weak.
+   - **harmful** — all elements present, but producing unwanted side-effects.
+   - **insufficient** — all elements present, but desired effect magnitude is too low.
 
 3. Based on the state, select 2–4 matching standard solutions from the 76:
    - incomplete → Class 1.1 (build / complete Su-Field)
@@ -196,18 +226,26 @@ it to the most applicable TRIZ 76 Standard Solutions.
    - For measurement/detection issues → Class 4
    - For simplification → Class 5
 
-4. For each matched solution, propose a **concrete engineering implementation** \
-   relevant to the project's domain (inferred from the system description).
+4. For each matched solution:
+   a. **physical_reasoning**: Explain WHY this standard solution addresses the \
+root cause at the physics level. Cite the governing law or effect.
+   b. **suggestion**: Concrete engineering implementation with quantified \
+expectations. Forbidden vague words: "顯著改善", "大幅提升", "更好". \
+Use numbers or ranges instead.
+   c. **cross_domain_example**: Name a SPECIFIC product/system from a DIFFERENT \
+industry that uses this same physical principle. State the physical similarity.
+   d. **boundary_conditions**: Under what conditions does this solution fail?
 
-5. Flag potential secondary contradictions introduced by each solution.
+5. Flag potential secondary contradictions introduced by each solution. \
+For each, state which TRIZ parameter is improved and which is worsened.
 </instructions>
 
 <output_schema>
 {{
   "su_field": {{
-    "S1": "Object substance",
-    "S2": "Tool substance",
-    "F": "Field / energy type"
+    "S1": "Object substance (with key physical properties)",
+    "S2": "Tool substance (with key physical properties)",
+    "F": "Field type + governing law (e.g., 'Thermal — Fourier conduction')"
   }},
   "system_state": "incomplete|effective|harmful|insufficient",
   "matched_solutions": [
@@ -215,9 +253,12 @@ it to the most applicable TRIZ 76 Standard Solutions.
       "standard_id": "1.1.1",
       "standard_name": "Build Complete Su-Field",
       "class_name": "Class 1",
-      "suggestion": "Concrete engineering implementation (≥80 words)",
+      "physical_reasoning": "Physics-level explanation of why this solution works",
+      "suggestion": "Concrete implementation with quantified expectations (≥100 words)",
+      "cross_domain_example": "Specific product from different industry using same principle",
+      "boundary_conditions": "When/where this solution fails",
       "affected_modules": ["module_A"],
-      "secondary_contradictions": ["Potential new conflict"]
+      "secondary_contradictions": ["Improving P_x worsens P_y because ..."]
     }}
   ]
 }}

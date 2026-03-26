@@ -517,37 +517,46 @@ flowchart LR
 
 ```mermaid
 graph TD
-    subgraph Step5 ["Step 5: 創造與調整 (更新)"]
+    subgraph Step5 ["Step 5: 創造與調整 (v9)"]
         InputC["矛盾句 (C-001~N)"] --> S5_0["5-0: Anti-Anchor Sprint<br>產出 3 種非典型架構 (至少 1 種非對標)"]
         InputBP["斷路點 (BP-001~N)"] --> S5_0
-        S5_0 --> AntiAnchorGate{"經 Anti-Anchor Gate 篩選"}
-        AntiAnchorGate --> S5a["5a: TRIZ 解矛盾<br>輸入: 矛盾句<br>輸出: 原理+策略+工程對映"]
 
+        %% ── Reverse track (amber) ──
+        S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> Pool["候選池<br>(auto-aggregation)"]
+
+        %% ── Forward track (blue) ──
+        InputC2["矛盾句 (C-001~N)"] --> S5a["5a: TRIZ 三路徑產出<br>TC / PC / SF 平行生成<br>全部 pending，附 Phase A 健康摘要"]
         S5a --"解法方向<br>(工程對映指出受影響子系統)"--> S5b["5b: 子系統定義<br>(散熱/支撐/傳動/控制器/隔振)"]
         S5b --"每個子系統"--> S5c["5c: SCAMPER 模組變形<br>對每個子系統 × 7 動作<br>輸出: 七欄規格"]
+        S5a --"TC/PC/SF 候選"--> Pool
+        S5c --"SCAMPER 候選"--> Pool
 
-        S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> S5d["5d: 決策中心 (Decision Hub)<br>RD per-contradiction 選擇 TRIZ 路徑<br>→ 觸發 Phase B 收斂掃描<br>整合 TRIZ + SCAMPER + Anti-Anchor<br>附帶: 機制+假設+風險+robust+最小驗證+Interface Contract+Validation Passport"]
-        S5a --> S5d
-        S5c --> S5d
+        %% ── Decision Hub (convergence) ──
+        Pool --> S5d["5d: 決策中心 (Decision Hub)<br>來源徽章: 🟠 reverse / 🔵 forward<br>三層資訊展開 (名稱→機制→假設/VP)<br>同矛盾多路徑警告<br>RD 手動觸發 Phase B"]
 
         S5d --> S5e["5e: MUST 快篩<br>Go/No-Go 淘汰 (可機器執行規則)<br>留下 3-5 條架構級路線"]
+        S5e --> PreCAD["Pre-CAD Confidence Gate"]
     end
 ```
 
 ### 5a TRIZ 解矛盾 (每條矛盾執行)
 
-> **v8 更新**：Step 5a 僅執行 **Phase A（矛盾空間健康度）**。Phase B（方案交叉檢查）延後至 **Step 5d 決策中心**，在 RD 選定每條矛盾的 TRIZ 路徑後才觸發。TC/PC/SF 三條路徑平行產出候選方案，但不會被同時採納——RD 在決策中心 per-contradiction 選擇最佳路徑。
+> **v9 更新**：Step 5a 同時完成兩件事：**(1) 三路徑候選生成** — TC（`trizSolve`）、PC（分離原則）、SF（`suFieldAnalyze`）平行產出候選方案，全部標記為 `pending`，直接進入候選池；**(2) Phase A 健康摘要卡** — 以一行摘要（score / health / counts）顯示矛盾空間健康度，僅在 warning / critical / circular 時自動展開 ConvergenceGraph（React Flow + Dagre auto-DAG layout）。
+>
+> Phase B（方案交叉檢查）**不再自動觸發**——由 RD 在 Step 5d 決策中心手動啟動。BranchExplorationPanel 已從 Phase A 移除（Phase A 無分支概念）。
 >
 > **AutoTRIZ 執行模式**：此步驟分為「規則引擎查表」和「LLM 具體化」兩階段，並在具體化後執行**二次矛盾掃描**。
 >
 > | 子步驟 | 執行方式 | 動作 |
 > |--------|---------|------|
-> | 5a-1 矛盾矩陣查表 | **規則引擎** | 改善參數 × 惡化參數 → Top-N 推薦原理 |
-> | 5a-2 分離原則映射 | **規則引擎** | 物理矛盾 → 時間/空間/條件/整體局部分離策略 |
-> | 5a-3 Su-Field 標準解 | **規則引擎** | 若為 Su-Field 問題 → 76 標準解匹配 |
+> | 5a-1 矛盾矩陣查表 (TC) | **規則引擎 `trizSolve`** | 改善參數 × 惡化參數 → Top-N 推薦原理 |
+> | 5a-2 分離原則映射 (PC) | **規則引擎** | 物理矛盾 → 時間/空間/條件/整體局部分離策略 |
+> | 5a-3 Su-Field 標準解 (SF) | **規則引擎 `suFieldAnalyze`** | 若為 Su-Field 問題 → 76 標準解匹配 |
 > | 5a-4 原理具體化 | **LLM + RAG** | 把抽象原理翻譯成本領域可執行的工程手段 |
 > | 5a-5 品質校驗 | **規則 + 人審** | 檢查工程對映是否違反已知約束 |
 > | **5a-6 二次矛盾掃描** | **LLM + 規則** | 每個解法與 CLD/Interface Contract 交叉比對，識別受影響模組，檢查是否產生新矛盾 |
+>
+> **所有 TC/PC/SF 候選皆為 `pending` 狀態**，直接進入候選池等待 RD 在決策中心選擇。
 >
 > **矛盾收斂圖 (Contradiction Convergence Graph) — Phase A / Phase B**
 >
@@ -556,15 +565,15 @@ graph TD
 > **Phase A（矛盾空間健康度，Step 2 起可執行）**：
 > - 分析矛盾空間的 inter-contradiction 衝突、循環依賴、覆蓋缺口
 > - **不需要方案/替代方案**，從 Step 2 識別出矛盾後即可運行
+> - **顯示為一行摘要卡**（score / health / counts），僅在 warning / critical / circular 時自動展開完整 DAG 圖
+> - ConvergenceGraph 使用 **React Flow + Dagre** 自動 DAG 佈局
 > - 收斂分數公式使用 `well_formed`、`non_circular`、`no_fatal`、`coverage` 權重
 > - API: `POST /convergence/scan` (phase=A)
 >
-> **Phase B（方案交叉檢查，Step 5 後自動觸發）**：
+> **Phase B（方案交叉檢查，RD 在決策中心手動觸發）**：
 > - 完整的 alternative × contradiction 交叉比對，檢查二次矛盾
 > - 收斂分數公式使用 `resolved`、`fatal`、`major`、`clean_alts` 權重
 > - API: `POST /convergence/scan` (phase=B)
->
-> **自動轉換**：Phase A 收斂 + 方案出現 → 自動啟動 Phase B。
 >
 > TRIZ 解法本身是新的設計決策，會改變模組間的交互作用，可能產生二次矛盾。**所有致命和重大矛盾都必須被解決**——目標是在 Pre-CAD 階段就達成高信心。
 >
@@ -588,9 +597,9 @@ graph TD
 > | 信號 | 含義 | AI 行為 |
 > |------|------|---------|
 > | 節點 ≤ 3 | 架構健康 | 正常求解 |
-> | 節點 4-5 | 架構有壓力 | ⚠️ 告警：建議檢視是否有更簡潔的架構 |
-> | 節點 > 5 | **架構根本性問題** | 🛑 **強制暫停**：「矛盾級聯超過 5 個節點，這是架構問題不是 TRIZ 問題。回到 Step 1 重新定義，或考慮根本不同的架構。」 |
-> | 循環矛盾 | 架構內在矛盾 | 🛑 **強制暫停**：「A 的解法導致 B，B 的解法導致 A。此架構有內在矛盾，無法透過 TRIZ 解決，必須重構。」 |
+> | 節點 4-5 | 架構有壓力 | 告警：建議檢視是否有更簡潔的架構 |
+> | 節點 > 5 | **架構根本性問題** | **強制暫停**：「矛盾級聯超過 5 個節點，這是架構問題不是 TRIZ 問題。回到 Step 1 重新定義，或考慮根本不同的架構。」 |
+> | 循環矛盾 | 架構內在矛盾 | **強制暫停**：「A 的解法導致 B，B 的解法導致 A。此架構有內在矛盾，無法透過 TRIZ 解決，必須重構。」 |
 >
 > **核心洞察**：最好的設計流程不是「解矛盾的能力最強」，而是「選到矛盾最少的架構」。
 >
@@ -601,10 +610,11 @@ graph TD
 > ```
 > Phase A (Step 2 起, 不需方案):
 >   矛盾空間 → 健康度掃描
->     ├─ well_formed ✓, non_circular ✓, no_fatal ✓, coverage ✓ → Phase A 收斂
->     └─ 任一不通過 → 提示修正矛盾定義
+>     ├─ 一行摘要卡: score / health / counts
+>     ├─ well_formed ✓, non_circular ✓, no_fatal ✓, coverage ✓ → Phase A 收斂 (摘要保持收合)
+>     └─ warning / critical / circular → 自動展開 ConvergenceGraph (React Flow + Dagre)
 >
-> Phase B (Step 5 後自動觸發, Phase A 收斂 + 方案出現):
+> Phase B (RD 在決策中心手動觸發):
 >   TRIZ 解法 → 5a-6 方案×矛盾交叉掃描 + 分級
 >     ├─ 無新矛盾 → 進入 5b ✓
 >     ├─ Minor 矛盾 → 記入 Risk Register → 進入 5b ✓
@@ -612,8 +622,8 @@ graph TD
 >     └─ Fatal 矛盾 → 加入矛盾收斂圖 → 回到 5a-1 求解
 >
 >   安全閥:
->     ├─ 深度 > 3 → ⚠️ 告警: 人類審核架構合理性
->     └─ 循環矛盾 → ⚠️ 告警: 考慮根本重構
+>     ├─ 深度 > 3 → 告警: 人類審核架構合理性
+>     └─ 循環矛盾 → 告警: 考慮根本重構
 > ```
 
 **TRIZ 輸出規格 (固定欄位) (工件: Concept Route 的一部分)**
@@ -667,9 +677,25 @@ TRIZ_解法_[編號]:
 
 ### 5d 方案整合 / 決策中心 (工件: Concept Route, Interface)
 
-> **v8 更新**：Step 5d 是**決策中心 (Decision Hub)**——RD 在此選擇每條矛盾應採用哪條 TRIZ 路徑（TC / PC / SF），選定後觸發 **Phase B 收斂掃描**（方案交叉檢查）。這體現「產出與選擇分離」原則：5a 產出候選，5d 做選擇。
+> **v9 更新**：Step 5d 是**決策中心 (Decision Hub)**——候選池自動匯聚三類來源的候選方案，RD 在此做最終選擇與觸發 Phase B。
 >
-> **候選來源**：Step 5d 整合三類候選——(1) TRIZ 候選解法（TC/PC/SF 平行產出，RD per-contradiction 選擇）、(2) SCAMPER 變形候選、(3) 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)。每個候選方案由 AI 生成 Validation Passport。
+> **自動匯聚 (Auto-Aggregation)**：候選池自動收集來自三個來源的所有候選：
+> - **(1) Anti-Anchor 晉升路線** (source: `anti_anchor`)
+> - **(2) TRIZ 三路徑候選** (source: `triz`, sub-type: TC / PC / SF)
+> - **(3) SCAMPER 變形候選** (source: `scamper`)
+>
+> **來源徽章 (Source Badges)**：每個候選顯示來源徽章——amber (🟠) = reverse track (Anti-Anchor)，blue (🔵) = forward track (TRIZ / SCAMPER)。
+>
+> **三層資訊展開 (Three-Layer Info Expand)**：
+> - **第 1 層 (預設)**：名稱 / 來源徽章 / confidence level
+> - **第 2 層 (第一次展開)**：物理機制說明
+> - **第 3 層 (第二次展開)**：assumptions 清單 / Validation Passport 完整內容
+>
+> **同矛盾多路徑警告 (Same-Contradiction Multi-Path Warning)**：當同一條矛盾有多條 TRIZ 路徑（TC + PC + SF）同時存在候選池中，系統顯示警告提示 RD 需擇一。
+>
+> **Phase B 手動觸發**：RD 在決策中心選定每條矛盾的路徑後，**手動觸發 Phase B 收斂掃描**（方案交叉檢查）。Phase B 不再自動啟動。
+>
+> 每個候選方案由 AI 生成 Validation Passport。
 > **API**: `POST /alternatives/validation-passport`
 
 **每個方案必須附帶**

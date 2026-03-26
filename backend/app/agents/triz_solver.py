@@ -55,11 +55,17 @@ def _solve_tc(req: TrizLookupRequest) -> TrizLookupResponse:
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
     data = json.loads(raw)
 
+    # Ensure each suggestion carries path="TC"
+    suggestions = data.get("suggestions", [])
+    for s in suggestions:
+        if not s.get("path"):
+            s["path"] = "TC"
+
     return TrizLookupResponse(
         mapped_improving=improving,
         mapped_worsening=worsening,
         candidate_principles=candidates,
-        suggestions=data.get("suggestions", []),
+        suggestions=suggestions,
     )
 
 
@@ -74,8 +80,14 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
     data = json.loads(raw)
 
+    # Ensure each suggestion carries path="PC"
+    suggestions = data.get("suggestions", [])
+    for s in suggestions:
+        if not s.get("path"):
+            s["path"] = "PC"
+
     return TrizLookupResponse(
-        suggestions=data.get("suggestions", []),
+        suggestions=suggestions,
     )
 
 
@@ -89,6 +101,8 @@ def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
         triz_context=triz_context,
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt, max_tokens=4096)
+    if not raw or not raw.strip():
+        raise ValueError("LLM returned empty response for Su-Field analysis")
     data = json.loads(raw)
 
     return SuFieldResponse(

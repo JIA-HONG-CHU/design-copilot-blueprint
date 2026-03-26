@@ -392,12 +392,26 @@ class TrizLookupRequest(BaseModel):
 
 
 class TrizSuggestion(BaseModel):
-    path: str  # TC, PC, or SuField
+    path: str = ""  # TC, PC, or SuField — auto-derived if missing
     principle_number: int | None = None
     principle_name: str = ""
     suggestion: str
+    separation_principle: str = ""  # PC path: time/space/condition/system_level
     affected_modules: list[str] = Field(default_factory=list)
     secondary_contradictions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_path(cls, values):
+        """Auto-derive `path` from LLM output when missing."""
+        if isinstance(values, dict) and not values.get("path"):
+            if values.get("separation_principle"):
+                values["path"] = "PC"
+            elif values.get("principle_number"):
+                values["path"] = "TC"
+            else:
+                values["path"] = "unknown"
+        return values
 
 
 class TrizLookupResponse(BaseModel):

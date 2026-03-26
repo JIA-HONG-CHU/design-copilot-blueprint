@@ -3,6 +3,7 @@
 本文件以程式設計角度繪製 `RD Design Copilot 整合流程 (E2E)` 的狀態機圖，並說明每個階段的 Roles & Responsibilities (R&R)。
 本文件核心概念為 **雙層狀態機 (Dual-Layer State Machine)**，同時管理 **流程狀態 (Process State)** 與 **工件狀態 (Artifact State)**。
 
+> **v1.7 更新**：對齊 triz-to-scamper-flow v9 — 雙軌分析（反向創意/正向演繹）→ 候選池匯流 → 決策中心 → 統一評估。TRIZ 步驟拆為三路徑候選生成 + Phase A 健康度摘要卡。Phase B 由決策中心 RD 手動觸發。BranchExplorationPanel 從 Phase A 移除（Phase A 無分支概念）。ConvergenceGraph 改用 React Flow + Dagre。
 > **v1.6 更新**：收斂掃描拆為 Phase A（矛盾空間健康度）/Phase B（方案交叉檢查），Anti-Anchor 可晉升為候選方案，每個方案自帶 Validation Passport。
 > **v1.5 更新**：新增三層 AI 主動質疑機制——Gate 1 增加約束可行性驗證、Step 2 索克拉底擴展為七類（增加「重構」提問）、Step 5a-6 增加架構健康度監控（節點 > 5 或循環矛盾 → 強制回到 Step 1）。AI 角色從 solver 升級為 challenger。
 > **v1.4 更新**：Step 5 內部子流程新增「5a-6: 矛盾收斂圖 (Contradiction Convergence Graph)」，Fatal/Major 矛盾必須完全收斂（不設次數上限），Minor 矛盾記入 Risk Register。新增 Pre-CAD Confidence Score。
@@ -63,38 +64,53 @@ stateDiagram-v2
     S8 --> [*] : Gate 8 (COMPLETED)
 ```
 
-> **Note**: Step 5 內部子流程 (5-0 Anti-Anchor Sprint → 5a TRIZ → 5b 子系統 → 5c SCAMPER → 5d AI 方案 → 5e MUST 快篩) 詳見下方「Step 5 內部子流程」圖。Anti-Anchor 概念現可晉升為 Step 5 候選方案 (source: `anti_anchor`)，不再是孤島。
+> **Note**: Step 5 採雙軌架構：反向創意（Anti-Anchor）直入候選池，正向演繹（TRIZ → 子系統 → SCAMPER）生成候選。所有路徑匯流至決策中心 (Decision Hub)，由 RD 做 adopt/skip，Phase B 手動觸發。最終通過 MUST 快篩進入 Pre-CAD。
 
 #### Step 5 內部子流程
 
 ```mermaid
 stateDiagram-v2
-    state "5-0: Anti-Anchor Sprint" as S5_0
-    state "5a: TRIZ 解矛盾" as S5a
-    state "5a-6: 矛盾收斂圖掃描 + 分級 (Phase A/B)" as S5a6
-    state "5b: 子系統定義" as S5b
-    state "5c: SCAMPER 變形" as S5c
-    state "5d: AI 方案生成" as S5d
+    state "反向創意軌 (Reverse Track)" as ReverseTrack {
+        state "5-0: Anti-Anchor Sprint" as S5_0
+        note right of S5_0 : 直入候選池\n附 Validation Passport\n不經 TRIZ/子系統/SCAMPER
+    }
+
+    state "正向演繹軌 (Forward Track)" as ForwardTrack {
+        state "5a: TRIZ 三路徑候選生成" as S5a
+        state "Phase A: 健康度摘要卡" as S5a_phA
+        state "5b: 子系統定義 (3-level)" as S5b
+        state "5c: SCAMPER 創意工具" as S5c
+
+        note right of S5a : TC/PC/SF 三路徑\n全部 pending 生成
+        note right of S5a_phA : 摘要卡 (score/health/counts)\n僅 warning/critical/circular\n時展開圖形
+        note right of S5b : System → Module → Component\n+ 6-dim interface contracts
+        note right of S5c : 創意工具，無收斂回饋\n風險為資訊性備註
+
+        S5a --> S5a_phA : 三路徑產出
+        S5a_phA --> S5a : warning/critical → 繼續求解
+        S5a_phA --> S1 : 🛑 循環矛盾 → 強制回到問題定義
+        S5a_phA --> S5b : healthy/minor → 進入子系統
+        S5b --> S5c : 每個子系統執行 SCAMPER
+    }
+
+    state "5d: Decision Hub (決策中心)" as S5d
     state "5e: MUST 快篩" as S5e
 
+    note right of S5d : 候選池匯流\nRD adopt/skip\nPhase B 手動觸發\n同矛盾多路徑警告
+
     [*] --> S5_0
-    S5_0 --> S5a : Anti-Anchor Gate
-    S5a --> S5a6 : 解法產出 → 交叉比對 CLD/Interface + 分級
-    S5a6 --> S5a : Fatal/Major 矛盾 → 必須繼續求解 (不設次數上限)
-    S5a6 --> S1 : 🛑 節點 > 5 或循環矛盾 → 強制回到問題定義 (架構根本性問題)
-    S5a6 --> S5b : 收斂 ✓ (無新矛盾 或 僅 Minor → Risk Register)
-    S5b --> S5c : 每個子系統執行 SCAMPER
-    S5a6 --> S5d : TRIZ 解法 (收斂 ✓)
-    S5c --> S5d : SCAMPER 變形
-    S5d --> S5e : 候選方案 Go/No-Go
-    S5e --> [*]
+    [*] --> S5a
+    S5_0 --> S5d : Anti-Anchor 候選 (附 VP)
+    S5c --> S5d : SCAMPER 候選
+    S5a_phA --> S5d : TRIZ 候選 (healthy)
+    S5d --> S5e : RD adopted 候選 → MUST Go/No-Go
+    S5e --> [*] : 通過 → Pre-CAD
 ```
 
-> **矛盾收斂圖 + 架構健康度監控 (5a-6)**：收斂掃描分為兩個階段：
+> **矛盾收斂圖 + 架構健康度監控 (Phase A / Phase B)**：收斂掃描分為兩個階段：
 >
-> - **Phase A（矛盾空間健康度，Step 2 起可執行）**：分析矛盾空間的 inter-contradiction 衝突、循環依賴、覆蓋缺口。**不需要方案/替代方案**。收斂分數公式使用 `well_formed`、`non_circular`、`no_fatal`、`coverage` 權重。
-> - **Phase B（方案交叉檢查，Step 5 後自動觸發）**：完整的 alternative × contradiction 交叉比對，檢查二次矛盾。收斂分數公式使用 `resolved`、`fatal`、`major`、`clean_alts` 權重。
-> - **自動轉換**：Phase A 收斂 + 方案出現 → 自動啟動 Phase B。
+> - **Phase A（健康度摘要卡，Step 2 起可執行）**：以精簡摘要卡呈現（score / health / counts 內嵌顯示），**僅在 warning / critical / circular 時展開完整圖形**（ConvergenceGraph 使用 React Flow + Dagre 佈局）。分析矛盾空間的 inter-contradiction 衝突、循環依賴、覆蓋缺口。**不需要方案/替代方案**。**Phase A 無分支概念，BranchExplorationPanel 已移除**。
+> - **Phase B（方案交叉檢查，由 RD 在 Decision Hub 手動觸發）**：完整的 alternative × contradiction 交叉比對，檢查二次矛盾。收斂分數公式使用 `resolved`、`fatal`、`major`、`clean_alts` 權重。**Phase B 不再自動啟動，改由 RD 在決策中心明確觸發**。
 >
 > 新矛盾分級為 Fatal/Major/Minor：
 > - **Fatal + Major**：必須回到 5a 繼續求解，直到完全收斂。**不設硬性次數上限**。
@@ -248,13 +264,12 @@ flowchart LR
     - 審查 AI 生成的解法方向、SCAMPER 變形及完整方案。
     - 定義 MUST 條件並執行 Go/No-Go 判定。
 - **AI (Copilot) R&R**:
-    - **5-0 Anti-Anchor Sprint**: 引導產生非典型架構概念。保留 `mechanism`、`cross_domain_source`、`validation_passport`。每個概念可「晉升」為 Step 5 候選方案 (source: `anti_anchor`)。Prompt 採用第一性原理：物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛。
-    - **5a TRIZ 解矛盾**: 根據矛盾句生成原理+抽象策略+工程對映。
-    - **5a-6 矛盾收斂圖掃描 (Phase A/B)**：**Phase A**（Step 2 起，矛盾空間健康度：inter-contradiction 衝突、循環依賴、覆蓋缺口，不需方案）；**Phase B**（Step 5 後自動觸發，完整方案×矛盾交叉比對）。Phase A 收斂 + 方案出現 → 自動啟動 Phase B。Fatal + Major 矛盾必須繼續求解直到完全收斂（不設次數上限）；Minor 矛盾記入 Risk Register。深度 > 3 層或循環矛盾時觸發人類審核告警。
-    - **5b 子系統定義**: 識別受影響子系統。
-    - **5c SCAMPER 模組變形**: 對每個子系統執行 SCAMPER 動作。
-    - **5d AI 方案生成**: 整合 TRIZ 已採納解法 + SCAMPER 已採納變形 + 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)，生成完整方案規格 (含 Interface Contract + Validation Passport)。每個候選方案自帶 Validation Passport（assumptions[]、weak_points[]、required_verifications[]、confidence_level）。
-    - **5e MUST 快篩**: 對候選方案逐項檢查 MUST 條件，不通過者淘汰。
+    - **5-0 Anti-Anchor Sprint（反向創意軌）**: 引導產生非典型架構概念，直接進入候選池（不經 TRIZ / 子系統 / SCAMPER）。保留 `mechanism`、`cross_domain_source`、`validation_passport`。每個概念附帶 Validation Passport，直接匯入 Decision Hub (source: `anti_anchor`)。Prompt 採用第一性原理：物理原則、因果鏈量化預期、邊界條件、邏輯謬誤守衛。
+    - **5a TRIZ 三路徑候選生成（正向演繹軌）**: 根據矛盾句生成三路徑候選（TC 技術矛盾 / PC 物理矛盾 / SF 物質場），所有路徑初始狀態為 pending。產出後進入 **Phase A 健康度摘要卡**（score / health / counts 內嵌顯示，僅 warning / critical / circular 時展開完整圖形；ConvergenceGraph 使用 React Flow + Dagre）。Phase A 無分支概念，BranchExplorationPanel 已移除。Fatal + Major 矛盾必須繼續求解直到完全收斂（不設次數上限）；Minor 矛盾記入 Risk Register。循環矛盾 → 強制回到 Step 1。
+    - **5b 子系統定義**: 三層階層結構（System → Module → Component）+ 六維介面合約 (6-dim interface contracts)。
+    - **5c SCAMPER 創意工具**: 對每個子系統執行 SCAMPER 動作。作為純創意工具使用，無收斂回饋機制，風險標記為資訊性備註 (informational notes)。
+    - **5d Decision Hub（決策中心）**: 候選池匯流——聚合 Anti-Anchor 候選、TRIZ 候選、SCAMPER 候選。RD 對每個候選執行 adopt / skip 決策。**Phase B（方案交叉檢查）由 RD 在此手動觸發**（不再自動啟動）。同一矛盾存在多路徑時顯示警告。每個候選方案自帶 Validation Passport（assumptions[]、weak_points[]、required_verifications[]、confidence_level）。
+    - **5e MUST 快篩**: 對 RD adopted 候選方案逐項檢查 MUST 條件，不通過者淘汰。
 - **平行處理**: 不同矛盾句的 TRIZ 解法、不同子系統的 SCAMPER 變形可並行執行。
 - **Gate P (Pre-CAD Gate) 前提**: 至少保留 3 條「架構級」路線，其中包含至少 1 條 Anti-Anchor 路線。每條路線都有完整的方案規格 (機制、假設、風險、最小驗證)，並產出初步的 **Interface Contract**。每條路線的 **MUST Rule** 都經過判斷，並提供對應的初步證據。**核心工件 Concept Route, Interface 狀態: Draft → Reviewed**。
 

@@ -104,6 +104,24 @@ interface AlternativeRow {
 // Mappers: DB row → frontend type
 // ---------------------------------------------------------------------------
 
+function mapValidationPassport(raw: Record<string, unknown> | null): ValidationPassport | null {
+  if (!raw) return null;
+  return {
+    assumptions: (Array.isArray(raw.assumptions) ? raw.assumptions : []).map((a: Record<string, unknown>) => ({
+      content: (a.content as string) ?? '',
+      category: (a.category as string) ?? '',
+      evidenceLevel: (a.evidence_level ?? a.evidenceLevel ?? 'E0') as string,
+      worstConsequence: (a.worst_consequence ?? a.worstConsequence ?? '') as string,
+      worstSeverity: (a.worst_severity ?? a.worstSeverity ?? 'medium') as string,
+      suggestedExperiment: (a.suggested_experiment ?? a.suggestedExperiment ?? '') as string,
+    })),
+    weakPoints: Array.isArray(raw.weak_points ?? raw.weakPoints) ? (raw.weak_points ?? raw.weakPoints) as string[] : [],
+    requiredVerifications: Array.isArray(raw.required_verifications ?? raw.requiredVerifications) ? (raw.required_verifications ?? raw.requiredVerifications) as string[] : [],
+    crossDomainSource: (raw.cross_domain_source ?? raw.crossDomainSource ?? '') as string,
+    confidenceLevel: Number(raw.confidence_level ?? raw.confidenceLevel ?? 0),
+  };
+}
+
 function mapAntiAnchorRoute(row: AntiAnchorRouteRow): AntiAnchorRoute {
   return {
     id: row.id,
@@ -113,7 +131,7 @@ function mapAntiAnchorRoute(row: AntiAnchorRouteRow): AntiAnchorRoute {
     whyUnconventional: row.why_unconventional ?? '',
     potentialAdvantage: row.potential_advantage ?? '',
     crossDomainSource: row.cross_domain_source ?? '',
-    validationPassport: (row.validation_passport as ValidationPassport | null) ?? null,
+    validationPassport: mapValidationPassport(row.validation_passport as Record<string, unknown> | null),
     createdAt: row.created_at,
   };
 }

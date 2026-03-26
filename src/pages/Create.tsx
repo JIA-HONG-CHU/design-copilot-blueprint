@@ -908,11 +908,11 @@ export default function Create() {
                           信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
                         </Badge>
                       </div>
-                      {(r.validationPassport.assumptions?.length ?? 0) > 0 && (
+                      {(r.validationPassport.assumptions ?? []).length > 0 && (
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({r.validationPassport.assumptions.length})</p>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({(r.validationPassport.assumptions ?? []).length})</p>
                           <ul className="space-y-1">
-                            {r.validationPassport.assumptions.map((a, ai) => (
+                            {(r.validationPassport.assumptions ?? []).map((a, ai) => (
                               <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
                                 <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5">{a.evidenceLevel ?? '?'}</span>
                                 <span className="leading-relaxed">{a.content}</span>
@@ -921,19 +921,19 @@ export default function Create() {
                           </ul>
                         </div>
                       )}
-                      {(r.validationPassport.weakPoints?.length ?? 0) > 0 && (
+                      {(r.validationPassport.weakPoints ?? []).length > 0 && (
                         <div>
                           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Weak Points</p>
                           <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                            {r.validationPassport.weakPoints.map((wp, wi) => <li key={wi}>{wp}</li>)}
+                            {(r.validationPassport.weakPoints ?? []).map((wp, wi) => <li key={wi}>{wp}</li>)}
                           </ul>
                         </div>
                       )}
-                      {(r.validationPassport.requiredVerifications?.length ?? 0) > 0 && (
+                      {(r.validationPassport.requiredVerifications ?? []).length > 0 && (
                         <div>
                           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Verifications</p>
                           <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-                            {r.validationPassport.requiredVerifications.map((rv, ri) => <li key={ri}>{rv}</li>)}
+                            {(r.validationPassport.requiredVerifications ?? []).map((rv, ri) => <li key={ri}>{rv}</li>)}
                           </ol>
                         </div>
                       )}

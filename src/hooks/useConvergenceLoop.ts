@@ -158,7 +158,13 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     if (!projectId) return;
     restoreState(projectId).then((saved) => {
       if (saved && saved.status !== 'idle') {
-        _setStateRaw(saved);
+        // 'exploring' in DB means the loop was interrupted (page reload / crash).
+        // Timers aren't persisted, so restore as 'halted' to let user re-trigger.
+        if (saved.status === 'exploring') {
+          _setStateRaw({ ...saved, status: 'halted' });
+        } else {
+          _setStateRaw(saved);
+        }
       }
     });
   }, [projectId]);

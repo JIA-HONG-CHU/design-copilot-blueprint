@@ -823,35 +823,128 @@ export default function Create() {
           <div className="space-y-4">
             {routes.map((r, i) => (
               <Card key={r.id} className="overflow-hidden border-l-[3px] border-l-accent">
-                <CardContent className="p-5 space-y-3">
+                <CardContent className="p-5 space-y-4">
+                  {/* Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
-                      <Badge variant="secondary" className="text-[10px] gap-1">
-                        <Sparkles className="h-2.5 w-2.5" /> AI
-                      </Badge>
+                      <span className="badge-ai">AI</span>
                     </div>
                     <button onClick={() => deleteAntiAnchorRoute(r.id)} className="p-1 rounded hover:bg-destructive/10" title="刪除此路線">
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </button>
                   </div>
-                  <p className="text-sm font-medium">{r.name}</p>
+                  <h4 className="text-sm font-semibold">{r.name}</h4>
+
+                  {/* Mechanism — structured: split by known section markers */}
                   {r.mechanism && (
-                    <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">{r.mechanism}</p>
-                  )}
-                  <p className="text-sm text-muted-foreground leading-relaxed">{r.description}</p>
-                  {r.crossDomainSource && (
-                    <Badge variant="outline" className="text-[10px]">跨域靈感: {r.crossDomainSource}</Badge>
-                  )}
-                  {r.validationPassport && (
-                    <div className="text-xs space-y-1 border-t pt-2 mt-2">
-                      <p className="font-medium text-muted-foreground">Validation Passport (信心: {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%)</p>
-                      {(r.validationPassport.weakPoints?.length ?? 0) > 0 && (
-                        <p className="text-muted-foreground">弱點: {r.validationPassport.weakPoints.join('; ')}</p>
-                      )}
-                      <p className="text-muted-foreground">假設 {r.validationPassport.assumptions?.length ?? 0} 項 / 待驗證 {r.validationPassport.requiredVerifications?.length ?? 0} 項</p>
+                    <div className="text-xs space-y-2 bg-muted/40 dark:bg-muted/20 rounded-lg p-3">
+                      {(() => {
+                        const text = r.mechanism;
+                        const sections: { label: string; content: string }[] = [];
+                        // Try to split by known markers from the prompt
+                        const markers = [
+                          { re: /Physical principle:\s*/i, label: "Physical Principle" },
+                          { re: /Causal chain:\s*/i, label: "Causal Chain" },
+                          { re: /Boundary conditions?:\s*/i, label: "Boundary Conditions" },
+                        ];
+                        let remaining = text;
+                        for (const { re, label } of markers) {
+                          const idx = remaining.search(re);
+                          if (idx >= 0) {
+                            if (idx > 0 && sections.length === 0) {
+                              sections.push({ label: "Overview", content: remaining.slice(0, idx).trim() });
+                            }
+                            remaining = remaining.slice(idx).replace(re, '');
+                            // Find next marker
+                            let end = remaining.length;
+                            for (const { re: nextRe } of markers) {
+                              const nextIdx = remaining.search(nextRe);
+                              if (nextIdx > 0 && nextIdx < end) end = nextIdx;
+                            }
+                            sections.push({ label, content: remaining.slice(0, end).trim() });
+                            remaining = remaining.slice(end);
+                          }
+                        }
+                        if (sections.length === 0) {
+                          // Fallback: no markers found, show as single block
+                          sections.push({ label: "Mechanism", content: text });
+                        }
+                        return sections.map((s, si) => (
+                          <div key={si}>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{s.label}</p>
+                            <p className="text-muted-foreground leading-relaxed">{s.content}</p>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
+
+                  {/* Why Unconventional */}
+                  {r.whyUnconventional && (
+                    <div className="text-xs">
+                      <p className="font-semibold text-muted-foreground mb-1">Why Unconventional</p>
+                      <p className="text-muted-foreground leading-relaxed">{r.whyUnconventional}</p>
+                    </div>
+                  )}
+
+                  {/* Potential Advantage */}
+                  {r.potentialAdvantage && (
+                    <div className="text-xs">
+                      <p className="font-semibold text-muted-foreground mb-1">Potential Advantage</p>
+                      <p className="text-muted-foreground leading-relaxed">{r.potentialAdvantage}</p>
+                    </div>
+                  )}
+
+                  {/* Cross-Domain Source */}
+                  {r.crossDomainSource && (
+                    <div className="text-xs">
+                      <p className="font-semibold text-muted-foreground mb-1">Cross-Domain Source</p>
+                      <p className="text-muted-foreground leading-relaxed">{r.crossDomainSource}</p>
+                    </div>
+                  )}
+
+                  {/* Validation Passport */}
+                  {r.validationPassport && (
+                    <div className="text-xs space-y-2 border-t pt-3">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-muted-foreground">Validation Passport</p>
+                        <Badge variant="outline" className="text-[9px]">
+                          信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
+                        </Badge>
+                      </div>
+                      {(r.validationPassport.assumptions?.length ?? 0) > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({r.validationPassport.assumptions.length})</p>
+                          <ul className="space-y-1">
+                            {r.validationPassport.assumptions.map((a, ai) => (
+                              <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
+                                <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5">{a.evidenceLevel ?? '?'}</span>
+                                <span className="leading-relaxed">{a.content}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {(r.validationPassport.weakPoints?.length ?? 0) > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Weak Points</p>
+                          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                            {r.validationPassport.weakPoints.map((wp, wi) => <li key={wi}>{wp}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {(r.validationPassport.requiredVerifications?.length ?? 0) > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Verifications</p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                            {r.validationPassport.requiredVerifications.map((rv, ri) => <li key={ri}>{rv}</li>)}
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Button
                     variant="outline"
                     size="sm"

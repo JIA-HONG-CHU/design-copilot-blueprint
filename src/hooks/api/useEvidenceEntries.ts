@@ -311,3 +311,75 @@ export function useDeleteEvidenceEntry() {
     },
   });
 }
+
+  // ---------------------------------------------------------------------------
+  // useUpdateEvidenceEntry — UPDATE
+  // ---------------------------------------------------------------------------
+
+  export interface UpdateEvidenceEntryInput {
+    id: string;
+    projectId: string;
+    title?: string;
+    measuredValue?: string;
+    unit?: string;
+    evidenceLevel?: string;
+    method?: string;
+    notes?: string;
+    measuredAt?: string;
+    kpiId?: string | null;
+    experimentId?: string | null;
+    linkedAssumptionCodes?: string[];
+    linkedMustIds?: string[];
+  }
+
+  export function useUpdateEvidenceEntry() {
+    const queryClient = useQueryClient();
+
+    return useMutation<EvidenceEntry, Error, UpdateEvidenceEntryInput>({
+      mutationFn: async (input) => {
+        const updateData: Record<string, unknown> = {};
+        if (input.title !== undefined) updateData.title = input.title;
+        if (input.measuredValue !== undefined) updateData.measured_value = input.measuredValue;
+        if (input.unit !== undefined) updateData.unit = input.unit;
+        if (input.evidenceLevel !== undefined) updateData.evidence_level = input.evidenceLevel;
+        if (input.method !== undefined) updateData.method = input.method;
+        if (input.notes !== undefined) updateData.notes = input.notes;
+        if (input.measuredAt !== undefined) updateData.measured_at = input.measuredAt;
+        if (input.kpiId !== undefined) updateData.kpi_id = input.kpiId;
+        if (input.experimentId !== undefined) updateData.experiment_id = input.experimentId;
+        if (input.linkedAssumptionCodes !== undefined) updateData.linked_assumption_codes = input.linkedAssumptionCodes;
+        if (input.linkedMustIds !== undefined) updateData.linked_must_ids = input.linkedMustIds;
+
+        const { data, error } = await supabase
+          .from('evidence_entries')
+          .update(updateData)
+          .eq('id', input.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        try {
+          await propagateEvidence(data as EvidenceEntryRow);
+        } catch (propagationError) {
+          console.error('[useUpdateEvidenceEntry] propagation failed:', propagationError);
+          toast.warning('證據已更新，但相關 KPI / 矩陣同步失敗');
+        }
+
+        return mapRow(data as EvidenceEntryRow);
+      },
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byProject(data.projectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.kpis.byProject(data.projectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.evidence_matrix.byProject(data.projectId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(data.projectId) });
+        if (data.kpiId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byKpi(data.kpiId) });
+        }
+        toast.success('證據已更新');
+      },
+      onError: (error) => {
+        toast.error(`更新證據失敗：${error.message}`);
+      },
+    });
+  }

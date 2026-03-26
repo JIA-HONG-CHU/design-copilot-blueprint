@@ -219,14 +219,9 @@ export default function Create() {
     constraints: constraintStrings,
     kpis: kpiStrings,
   });
-  // Auto-trigger Phase B when Phase A converged and alternatives become available
-  const phaseAConverged = convergenceLoop.state.phase === 'A' && convergenceLoop.state.status === 'converged';
-  useEffect(() => {
-    if (phaseAConverged && alternatives.length > 0 && (contradictionsQuery.data?.length ?? 0) > 0) {
-      convergenceLoop.startExploration(); // will auto-detect Phase B
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phaseAConverged, alternatives.length]);
+  // Phase B is now manually triggered from the Decision Hub (Step 4),
+  // NOT auto-triggered when Phase A converges. This prevents the infinite
+  // loop caused by TC/PC/SF solutions from the same contradiction conflicting.
 
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
@@ -978,14 +973,14 @@ export default function Create() {
 
   // ── Step 2: TRIZ Convergence (AI Autonomous) ──
   function renderTrizConvergence() {
-    const { state, startExploration, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
+    const { state, startPhaseA, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
     const contradictionsList = contradictionsQuery.data ?? [];
     const canStartConvergence = !!id && contradictionsList.length > 0;
 
     const handleStartExploration = () => {
       if (!id) { toast.error("缺少專案 ID"); return; }
       if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
-      startExploration();
+      startPhaseA(); // TRIZ step only runs Phase A (contradiction health), never Phase B
     };
 
     return (
@@ -1527,19 +1522,43 @@ export default function Create() {
           </AiButton>
         </div>
 
-        {/* P3: Spec confirmation */}
-        {alternatives.length > 0 && alternatives.some(a => a.name && a.mechanism && a.mechanism.length >= 20) && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium">確認方案規格</p>
-                <p className="text-xs text-muted-foreground">
-                  {alternatives.filter(a => a.name && a.mechanism).length} 個方案已填寫完整。確認後進入 MUST 快篩。
+        {/* Phase B: cross-check adopted solutions before proceeding */}
+        {alternatives.length > 0 && (
+          <Card className="border-violet-300 bg-violet-50/30">
+            <CardContent className="p-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold">方案交叉檢查（Phase B 收斂掃描）</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  檢查已選方案之間是否存在跨矛盾衝突或二次矛盾。
+                  {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'converged'
+                    ? ' ✓ 掃描完成，可進入 MUST 快篩。'
+                    : convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'exploring'
+                    ? ' 掃描進行中...'
+                    : ' 請先執行掃描。'}
                 </p>
               </div>
-              <Button onClick={() => { toast.success('方案規格已確認'); goNext(); }} className="shrink-0">
-                <Check className="h-4 w-4 mr-1" /> 確認方案規格
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { convergenceLoop.startPhaseB(); toast.info('Phase B 收斂掃描已啟動'); }}
+                  disabled={convergenceLoop.state.status === 'exploring'}
+                >
+                  {convergenceLoop.state.status === 'exploring'
+                    ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> 掃描中...</>
+                    : <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> 執行收斂掃描</>}
+                </Button>
+                {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'converged' && (
+                  <Button onClick={() => { toast.success('方案規格已確認'); goNext(); }} className="shrink-0">
+                    <Check className="h-4 w-4 mr-1" /> 確認並進入 MUST 快篩
+                  </Button>
+                )}
+              </div>
+              {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'halted' && (
+                <p className="text-xs text-destructive">
+                  ⚠ 收斂掃描發現問題（可能有跨方案衝突）。請檢查後重新掃描或調整方案。
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

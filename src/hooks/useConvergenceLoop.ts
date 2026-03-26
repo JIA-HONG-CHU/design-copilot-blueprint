@@ -388,10 +388,9 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   );
 
   // ------------------------------------------------------------------
-  // startExploration — kicks off the convergence loop
+  // Internal: shared bootstrap logic for starting a scan
   // ------------------------------------------------------------------
-  const startExploration = useCallback(() => {
-    // Abort any in-flight scan from previous run: bump generation so old callbacks discard
+  const _bootstrap = useCallback((phase: 'A' | 'B') => {
     abortRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
     generationRef.current += 1;
@@ -399,17 +398,12 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
 
     if (!projectId || contradictions.length === 0) {
       setState({ ...initialState });
-      return;
+      return null;
     }
 
-    // Auto-detect phase: A (contradiction-only) if no alternatives, B if alternatives exist
-    const effectivePhase = alternatives.length > 0 ? 'B' : 'A';
-    phaseRef.current = effectivePhase;
-
-    // Reset node ID counter
+    phaseRef.current = phase;
     nodeIdCounter = 0;
 
-    // Build initial branches from real contradictions
     const initialBranches: BranchExploration[] = contradictions.map((c) => ({
       contradictionId: c.id,
       contradictionLabel: c.naturalDescription,
@@ -420,7 +414,6 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
 
     const initialGraph = buildInitialGraph(contradictions);
 
-    // Count initial fatal/major from real contradictions
     const initialFatal = {
       total: contradictions.filter((c) => c.severity === 'fatal').length,
       resolved: contradictions.filter((c) => c.severity === 'fatal' && c.resolved).length,
@@ -433,18 +426,43 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     setState({
       ...initialState,
       status: 'exploring',
-      phase: effectivePhase,
+      phase,
       branches: initialBranches,
       graph: initialGraph,
       fatalCount: initialFatal,
       majorCount: initialMajor,
     });
 
-    // Kick off the first API scan round
     timerRef.current = setTimeout(() => {
       runScanRound(1, initialBranches, initialGraph, [], initialFatal, initialMajor, 0);
     }, STEP_DELAY_MS);
-  }, [projectId, contradictions, alternatives, buildInitialGraph, runScanRound]);
+
+    return { initialBranches, initialGraph, initialFatal, initialMajor };
+  }, [projectId, contradictions, buildInitialGraph, runScanRound]);
+
+  // ------------------------------------------------------------------
+  // startPhaseA — contradiction space health check only (no alternatives)
+  // Used by TRIZ step: just analyse contradictions, don't check solutions.
+  // ------------------------------------------------------------------
+  const startPhaseA = useCallback(() => {
+    _bootstrap('A');
+  }, [_bootstrap]);
+
+  // ------------------------------------------------------------------
+  // startPhaseB — full cross-check with adopted alternatives
+  // Used by Decision Hub: after RD selects which solutions to adopt.
+  // ------------------------------------------------------------------
+  const startPhaseB = useCallback(() => {
+    _bootstrap('B');
+  }, [_bootstrap]);
+
+  // ------------------------------------------------------------------
+  // startExploration — backward-compatible (auto-detects phase)
+  // ------------------------------------------------------------------
+  const startExploration = useCallback(() => {
+    const phase = alternatives.length > 0 ? 'B' : 'A';
+    _bootstrap(phase);
+  }, [_bootstrap, alternatives]);
 
   // ------------------------------------------------------------------
   // confirmSeverity — override a node's severity in the graph
@@ -612,6 +630,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   return {
     state,
     startExploration,
+    startPhaseA,
+    startPhaseB,
     confirmSeverity,
     forceHalt,
     forceContinue,

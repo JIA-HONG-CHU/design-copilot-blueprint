@@ -371,7 +371,13 @@ needs flexibility in the same component).
 4. **PC state conflict** — for contradictions of type PC, check if any alternative \
 forces a state that contradicts the physical_contradiction's required dual state.
 
-5. **Record secondary contradictions** with:
+5. **Same-contradiction multi-path risk** — check if multiple alternatives resolve \
+the SAME original contradiction but via different TRIZ paths (e.g., one via TC matrix, \
+another via PC separation, another via Su-Field). These are fundamentally different \
+problem formulations and are likely physically incompatible. If found, record as a \
+secondary contradiction with severity "major" and reasoning explaining the path conflict.
+
+6. **Record secondary contradictions** with:
    - The specific parameters or physical properties in conflict
    - severity: fatal (physically impossible) / major (requires redesign) / minor (risk only)
    - type: TC (two parameters trade off) or PC (same parameter needs opposite states)

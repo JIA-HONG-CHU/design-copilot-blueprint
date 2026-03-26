@@ -268,7 +268,7 @@ export default function Feynman() {
       {/* Generate more */}
       <div className="flex flex-wrap gap-3">
         <AiButton loading={isGenerating} onClick={handleGenerate}>
-          生成更多知識條目
+          生成知識條目
         </AiButton>
       </div>
 

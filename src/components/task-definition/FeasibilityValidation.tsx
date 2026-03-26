@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, AlertTriangle, XCircle, CheckCircle, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { ShieldCheck, AlertTriangle, XCircle, CheckCircle, Loader2, Sparkles } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +67,7 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
               <p className="text-sm text-muted-foreground">尚未驗證。AI 將檢查約束之間是否存在物理衝突。</p>
             </div>
             <AiButton size="sm" onClick={onCheck}>
-              執行驗證
+              驗證可行性
             </AiButton>
           </div>
         )}
@@ -84,16 +84,16 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
             <div className="flex items-center gap-3 py-2">
               <CheckCircle className="h-5 w-5 text-success" />
               <p className="text-sm flex-1">所有約束組合通過物理可行性驗證，可進入下一步。</p>
-              <Button size="sm" variant="ghost" onClick={onCheck} className="shrink-0 text-xs">
-                <RefreshCw className="h-3 w-3 mr-1" /> 重新驗證
-              </Button>
+              <AiButton aiVariant="outline" size="sm" onClick={onCheck} className="shrink-0 text-xs">
+                驗證可行性
+              </AiButton>
             </div>
             {stale && (
               <div className="flex items-center gap-2 rounded-md border border-warning/50 bg-warning/5 dark:bg-warning/10 px-3 py-2">
                 <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
                 <p className="text-sm text-warning flex-1">約束或 Mission 已變更，驗證結果可能過期。</p>
                 <AiButton size="sm" aiVariant="outline" onClick={onCheck} className="shrink-0 text-xs border-warning/50 text-warning">
-                  重新驗證
+                  驗證可行性
                 </AiButton>
               </div>
             )}
@@ -108,7 +108,7 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
                 <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
                 <p className="text-sm text-warning flex-1">約束或 Mission 已變更，驗證結果可能過期。</p>
                 <AiButton size="sm" aiVariant="outline" onClick={onCheck} className="shrink-0 text-xs">
-                  重新驗證
+                  驗證可行性
                 </AiButton>
               </div>
             )}
@@ -134,7 +134,7 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
 
             {/* Re-check button */}
             <AiButton aiVariant="outline" size="sm" onClick={onCheck}>
-              重新驗證約束可行性
+              驗證可行性
             </AiButton>
 
             {status === "conflict" && !showOverride && (

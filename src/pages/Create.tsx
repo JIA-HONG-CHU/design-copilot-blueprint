@@ -1004,7 +1004,7 @@ export default function Create() {
               onClick={handleStartExploration}
               className="text-xs"
             >
-              {state.status === 'exploring' ? '收斂分析中...' : '重新執行矛盾收斂'}
+              {state.status === 'exploring' ? '收斂分析中...' : '重新收斂分析'}
             </AiButton>
           </div>
         )}
@@ -1027,7 +1027,7 @@ export default function Create() {
                 onClick={handleStartExploration}
                 size="lg"
               >
-                {state.status === 'exploring' ? '收斂分析中...' : '啟動矛盾收斂探索'}
+                {state.status === 'exploring' ? '收斂分析中...' : '啟動收斂分析'}
               </AiButton>
               {!canStartConvergence && (
                 <p className="text-xs text-muted-foreground mt-2">
@@ -1080,7 +1080,7 @@ export default function Create() {
                 onClick={handleStartExploration}
                 className="text-xs"
               >
-                {state.status === 'exploring' ? '收斂分析中...' : '重新執行矛盾收斂'}
+                {state.status === 'exploring' ? '收斂分析中...' : '重新收斂分析'}
               </AiButton>
               {state.status === 'halted' && (
                 <Button
@@ -1448,7 +1448,7 @@ export default function Create() {
             <Plus className="h-4 w-4 mr-1.5" /> 手動新增
           </Button>
           <AiButton size="sm" loading={aiLoading.alts} onClick={handleAiGenAlts}>
-            整合生成
+            整合方案
           </AiButton>
         </div>
 
@@ -1525,7 +1525,7 @@ export default function Create() {
           <Badge className="bg-muted text-muted-foreground border-0 px-3 py-1">{alternatives.filter((a) => Object.values(a.mustScores).includes("marginal")).length} 待定</Badge>
           <div className="flex-1" />
           <AiButton size="sm" aiVariant="outline" loading={anyAiLoading} onClick={handleAiMustEvaluateAll}>
-            全部預判
+            全部評估
           </AiButton>
         </div>
 

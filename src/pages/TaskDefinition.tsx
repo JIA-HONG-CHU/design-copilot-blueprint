@@ -168,7 +168,7 @@ export default function TaskDefinition() {
                   onClick={form.handleMissionRewrite}
                   className="text-xs h-7"
                 >
-                  改寫
+                  改寫 Mission
                 </AiButton>
               )}
             </div>
@@ -206,7 +206,7 @@ export default function TaskDefinition() {
               onClick={form.handleConstraintSuggest}
               disabled={form.isConstraintSuggesting || form.activeConstraintActionIndex !== null}
             >
-              建議
+              建議約束
             </AiButton>
           </div>
         </CardHeader>

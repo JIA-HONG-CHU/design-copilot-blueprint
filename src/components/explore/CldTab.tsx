@@ -321,7 +321,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
             <p className="text-muted-foreground font-medium">尚無因果迴路圖</p>
             <p className="text-sm text-muted-foreground">點擊下方按鈕，AI 將根據問答和矛盾生成因果迴路圖</p>
             <AiButton loading={isGenerating} onClick={handleGenerate}>
-              生成因果迴路
+              生成 CLD
             </AiButton>
           </div>
         )}

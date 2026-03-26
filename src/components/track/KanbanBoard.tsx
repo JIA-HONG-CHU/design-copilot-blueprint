@@ -534,7 +534,10 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                         <p className="text-sm text-muted-foreground italic">尚無實驗記錄</p>
                       )}
                       {exps.map((exp) => {
-                        const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status];
+                        const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status] ?? { 
+                          label: exp.status, 
+                          color: '#6b7280' 
+                        };
                         const isEditing = editingExpId === exp.id;
                         return (
                           <div key={exp.id} className="border rounded-lg p-2.5 space-y-2">
@@ -589,13 +592,37 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                   <p className="text-[10px] text-muted-foreground/60">
                                     {new Date(exp.createdAt).toLocaleDateString('zh-TW')}
                                   </p>
-                                  <Button size="sm" variant="ghost" className="h-5 text-[10px] text-muted-foreground" onClick={() => {
-                                    setEditingExpId(exp.id);
-                                    setEditExpStatus(exp.status);
-                                    setEditExpResult(exp.result || '');
-                                  }}>
-                                    編輯
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button size="sm" variant="ghost" className="h-5 text-[10px] text-muted-foreground" onClick={() => {
+                                      setEditingExpId(exp.id);
+                                      setEditExpStatus(exp.status);
+                                      setEditExpResult(exp.result || '');
+                                    }}>
+                                      編輯
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-5 text-[10px] text-destructive hover:text-destructive"
+                                      onClick={() => {
+                                        const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
+                                        setExperiments((prev) => ({
+                                          ...prev,
+                                          [selectedCard.id]: updated,
+                                        }));
+                                        onUpdateAssumptions(
+                                          assumptions.map((a) =>
+                                            a.id === selectedCard.id
+                                              ? { ...a, experimentCount: updated.length }
+                                              : a
+                                          )
+                                        );
+                                        toast.success('實驗已刪除');
+                                      }}
+                                    >
+                                      刪除
+                                    </Button>
+                                  </div>
                                 </div>
                               </>
                             )}
@@ -616,7 +643,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                             const newExp: Experiment = {
                               id: `exp-${Date.now()}`,
                               name: newExpName.trim(),
-                              status: 'planned',
+                              status: 'Plan',
                               result: null,
                               createdAt: new Date().toISOString(),
                             };

@@ -732,12 +732,29 @@ export default function Create() {
     setActiveTrack(track !== undefined ? track : inferTrack(step));
   };
   const goNext = () => {
-    const next = Math.min(currentStep + 1, 6);
-    navigateTo(next);
+    if (activeTrack === "reverse") {
+      // Reverse (step 0) → jump to Decision Hub
+      navigateTo(4, null);
+    } else if (activeTrack === "forward" && currentStep < 3) {
+      // Forward sub-tabs: TRIZ(1) → Subsystem(2) → SCAMPER(3)
+      navigateTo(currentStep + 1, "forward");
+    } else if (activeTrack === "forward" && currentStep === 3) {
+      // Last forward sub-tab → Decision Hub
+      navigateTo(4, null);
+    } else {
+      navigateTo(Math.min(currentStep + 1, 6));
+    }
   };
   const goPrev = () => {
-    const prev = Math.max(currentStep - 1, 0);
-    navigateTo(prev);
+    if (activeTrack === "forward" && currentStep > 1) {
+      // Forward sub-tabs: SCAMPER(3) → Subsystem(2) → TRIZ(1)
+      navigateTo(currentStep - 1, "forward");
+    } else if (currentStep === 4) {
+      // Decision Hub → back to whichever track was last active (default forward)
+      navigateTo(3, "forward");
+    } else {
+      navigateTo(Math.max(currentStep - 1, 0));
+    }
   };
 
   if (isLoading) {
@@ -1923,13 +1940,17 @@ export default function Create() {
             activeTrack === "forward" ? "bg-blue-500 text-white" :
             "bg-primary text-primary-foreground"
           )}>
-            {activeTrack === "reverse" ? "R" :
-             activeTrack === "forward" ? "F" :
+            {activeTrack === "reverse" ? "⚡" :
+             activeTrack === "forward" ? "🎯" :
              currentStep === 4 ? "⬡" : currentStep - 3}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">{STEPS[currentStep].label}</h2>
+              <h2 className="text-lg font-semibold">
+                {activeTrack === "reverse" ? "反向探索 Anti-Anchor" :
+                 activeTrack === "forward" ? "正向分析" :
+                 STEPS[currentStep].label}
+              </h2>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                 activeTrack === "reverse" ? ZONE_LABELS.reverse.color :
                 activeTrack === "forward" ? ZONE_LABELS.forward.color :
@@ -1940,7 +1961,11 @@ export default function Create() {
                  ZONE_LABELS[STEPS[currentStep].zone].badge}
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">{STEPS[currentStep].description}</p>
+            <p className="text-sm text-muted-foreground">
+              {activeTrack === "reverse" ? "從約束出發，AI 產出非典型架構概念，每條自帶 Validation Passport" :
+               activeTrack === "forward" ? "TRIZ 矛盾解 → 子系統分解 → SCAMPER 變形 — 系統化產出候選方案" :
+               STEPS[currentStep].description}
+            </p>
           </div>
         </div>
       </div>

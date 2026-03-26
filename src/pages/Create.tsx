@@ -67,7 +67,7 @@ import { LayoutGrid, List } from "lucide-react";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
 import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
 import { ConvergenceDashboard } from "@/components/create/ConvergenceDashboard";
-import { BranchExplorationPanel } from "@/components/create/BranchExplorationPanel";
+// BranchExplorationPanel removed — Phase A has no branch concept, Phase B uses Decision Hub
 import { HumanReviewPanel } from "@/components/create/HumanReviewPanel";
 import { ArchitectureHaltOverlay } from "@/components/create/ArchitectureHaltOverlay";
 import { MultiSolutionAdoptionPanel } from "@/components/create/MultiSolutionAdoptionPanel";

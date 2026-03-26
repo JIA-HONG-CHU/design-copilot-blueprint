@@ -653,6 +653,9 @@ class ExtractedAssumption(BaseModel):
     source: str = ""
     worst_consequence: str = ""
     worst_severity: str = "medium"  # critical, high, medium, low
+    is_falsifiable: bool = True
+    evidence_level: str = "E0"  # E0 (speculation) → E4 (production-proven)
+    falsification_method: str = ""  # experiment to disprove; "N/A" if not falsifiable
 
 
 class AssumptionExtractResponse(BaseModel):

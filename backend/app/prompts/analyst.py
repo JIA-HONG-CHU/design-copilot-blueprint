@@ -580,7 +580,7 @@ Extract hidden assumptions from the Socratic Q&A session below.
 
 <instructions>
 For each assumption found:
-1. **content** — What the assumption states.
+1. **content** — What the assumption states (as a falsifiable proposition).
 2. **source** — Which question/answer led to this.
 3. **worst_consequence** — Worst outcome if the assumption is wrong.
 4. **worst_severity** — One of:
@@ -588,16 +588,30 @@ For each assumption found:
    - high: affects a core performance KPI
    - medium: affects secondary objectives
    - low: affects convenience or aesthetics
+5. **is_falsifiable** — Can this assumption be disproved by an experiment \
+or measurement? true/false. If false, state why.
+6. **evidence_level** — Current evidence strength:
+   - E0: speculation (no evidence)
+   - E1: physics reasoning / first-principles estimate
+   - E2: measured analogy from a different domain
+   - E3: test data in a similar application
+   - E4: production-proven in this application
+7. **falsification_method** — If falsifiable, describe the experiment: \
+method, estimated duration, cost tier (low < $1k / mid $1k-10k / high > $10k), \
+and quantified success/failure criterion. If not falsifiable, write "N/A — [reason]".
 </instructions>
 
 <output_schema>
 {{
   "assumptions": [
     {{
-      "content": "Assumption text",
+      "content": "Assumption text (falsifiable proposition)",
       "source": "Derived from Q3 / A3",
       "worst_consequence": "What could go wrong",
-      "worst_severity": "medium"
+      "worst_severity": "medium",
+      "is_falsifiable": true,
+      "evidence_level": "E1",
+      "falsification_method": "Thermal chamber test at 55°C for 72h; success: latency degradation < 10%; duration: 5 days; cost: mid"
     }}
   ]
 }}

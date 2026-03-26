@@ -72,6 +72,12 @@ interface ExploreContradictionRow {
   engineering_statement: string | null;
   severity: string;
   resolved: boolean;
+  // Su-Field fields (populated when type === 'SF')
+  sf_substance_1: string | null;
+  sf_substance_2: string | null;
+  sf_field: string | null;
+  sf_interaction: string | null;
+  sf_completeness: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,6 +106,11 @@ const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradi
     worseningParam: r.worsening_param,
     pcAttributeA: pcA,
     pcAttributeNotA: pcNotA,
+    sfSubstance1: r.sf_substance_1 ?? null,
+    sfSubstance2: r.sf_substance_2 ?? null,
+    sfField: r.sf_field ?? null,
+    sfInteraction: r.sf_interaction ?? null,
+    sfCompleteness: r.sf_completeness ?? null,
     description: r.engineering_statement || r.natural_description || '',
     engineeringStatement: r.engineering_statement ?? null,
     status: (r.resolved ? 'confirmed' : 'draft') as ContradictionStatus,

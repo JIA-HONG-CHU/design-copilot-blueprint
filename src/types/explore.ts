@@ -26,7 +26,7 @@ export const CATEGORY_CONFIG: Record<QuestionCategory, { label: string; labelZh:
 };
 
 // Contradiction types (enhanced from existing)
-export type ContradictionType = 'TC' | 'PC';
+export type ContradictionType = 'TC' | 'PC' | 'SF';
 export type ContradictionStatus = 'draft' | 'confirmed' | 'rejected';
 
 export interface ExploreContradiction {
@@ -37,6 +37,12 @@ export interface ExploreContradiction {
   worseningParam: number | null;
   pcAttributeA: string | null;
   pcAttributeNotA: string | null;
+  // Su-Field fields (populated when type === 'SF')
+  sfSubstance1: string | null;
+  sfSubstance2: string | null;
+  sfField: string | null;
+  sfInteraction: string | null;  // useful / harmful / insufficient / missing
+  sfCompleteness: string | null;  // complete / incomplete / harmful_complete
   description: string;
   engineeringStatement: string | null;
   status: ContradictionStatus;

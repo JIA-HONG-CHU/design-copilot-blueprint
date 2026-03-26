@@ -177,6 +177,11 @@ export default function Explore() {
                         physical_contradiction: result.pc_attribute_a && result.pc_attribute_not_a
                           ? `${result.pc_attribute_a} | ${result.pc_attribute_not_a}`
                           : result.physical_contradiction,
+                        sf_substance_1: result.sf_substance_1,
+                        sf_substance_2: result.sf_substance_2,
+                        sf_field: result.sf_field,
+                        sf_interaction: result.sf_interaction,
+                        sf_completeness: result.sf_completeness,
                         updated_at: new Date().toISOString(),
                       })
                       .eq('id', data.id)
@@ -282,6 +287,7 @@ export default function Explore() {
   const answeredCount = questions.filter((q) => q.answer && q.answer.trim().length >= 5).length;
   const tcCount = contradictions.filter((c) => c.type === 'TC').length;
   const pcCount = contradictions.filter((c) => c.type === 'PC').length;
+  const sfCount = contradictions.filter((c) => c.type === 'SF').length;
   const breakpointsCount = causalLoop?.nodes.filter((n) => n.isBreakpoint).length ?? 0;
 
   // Gate 1.2 check
@@ -297,11 +303,11 @@ export default function Explore() {
 
   // Phase Gate 1 check
   // Allow zero-contradiction projects to pass — classification check only applies when contradictions exist
-  const allContradictionsClassified = contradictions.length === 0 || contradictions.every((c) => c.type === 'TC' || c.type === 'PC');
+  const allContradictionsClassified = contradictions.length === 0 || contradictions.every((c) => c.type === 'TC' || c.type === 'PC' || c.type === 'SF');
   const phaseGate1Items: GateCheckItem[] = useMemo(() => [
     { label: '至少 1 個因果迴路圖已建立', current: causalLoop ? 1 : 0, target: 1, passed: !!causalLoop },
     { label: '至少 3 個斷路點已標記', current: breakpointsCount, target: 3, passed: breakpointsCount >= 3 },
-    { label: '所有矛盾已分類為 TC 或 PC（或無矛盾）', current: allContradictionsClassified ? Math.max(contradictions.length, 1) : 0, target: Math.max(contradictions.length, 1), passed: allContradictionsClassified },
+    { label: '所有矛盾已分類為 TC / PC / SF（或無矛盾）', current: allContradictionsClassified ? Math.max(contradictions.length, 1) : 0, target: Math.max(contradictions.length, 1), passed: allContradictionsClassified },
   ], [causalLoop, breakpointsCount, contradictions, allContradictionsClassified]);
 
   if (isLoading) {
@@ -368,7 +374,7 @@ export default function Explore() {
           <TabsTrigger value="contradictions" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-blue-500 rounded-none">
             矛盾識別
             <Badge variant="secondary" className="text-[10px] ml-1.5 hidden sm:inline-flex">
-              {tcCount} TC + {pcCount} PC
+              {tcCount} TC + {pcCount} PC{sfCount > 0 ? ` + ${sfCount} SF` : ''}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="cld" className="text-xs sm:text-sm data-[state=active]:border-b-[3px] data-[state=active]:border-b-blue-500 rounded-none">

@@ -33,8 +33,17 @@ from app.models.schemas import (
 
 
 def solve_triz(req: TrizLookupRequest) -> TrizLookupResponse:
-    """Resolve a TRIZ contradiction — TC or PC path."""
-    if req.type == "TC" and req.improving_param and req.worsening_param:
+    """Resolve a TRIZ contradiction — route by type (TC / PC / SF).
+
+    Step 3 classifies each contradiction/problem into a type; Step 5a
+    dispatches to the corresponding solver path:
+      TC → contradiction matrix → 40 principles
+      PC → separation principles
+      SF → Su-Field 76 standard solutions
+    """
+    if req.type == "SF":
+        return _solve_sf(req)
+    elif req.type == "TC" and req.improving_param and req.worsening_param:
         return _solve_tc(req)
     else:
         return _solve_pc(req)
@@ -89,6 +98,37 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
     return TrizLookupResponse(
         suggestions=suggestions,
     )
+
+
+def _solve_sf(req: TrizLookupRequest) -> TrizLookupResponse:
+    """Su-Field path: delegate to analyze_sufield and wrap result as TrizLookupResponse."""
+    from app.models.schemas import SuFieldRequest as _SFReq
+
+    sf_req = _SFReq(
+        project_id=req.project_id,
+        system_description=req.natural_description,
+        current_issues=[req.natural_description],
+        contradiction_id=req.contradiction_id,
+        substance_1=req.sf_substance_1,
+        substance_2=req.sf_substance_2,
+        field_type=req.sf_field,
+    )
+    sf_resp = analyze_sufield(sf_req)
+
+    # Convert matched 76-standard solutions into TrizSuggestion format
+    suggestions = []
+    for sol in sf_resp.matched_solutions:
+        suggestions.append({
+            "path": "SuField",
+            "principle_number": None,
+            "principle_name": f"{sol.standard_id} {sol.standard_name}",
+            "suggestion": sol.suggestion,
+            "separation_principle": "",
+            "affected_modules": sol.affected_modules,
+            "secondary_contradictions": sol.secondary_contradictions,
+        })
+
+    return TrizLookupResponse(suggestions=suggestions)
 
 
 def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:

@@ -404,6 +404,13 @@ export type Database = {
           type: string | null
           severity: string
           resolved: boolean
+          source_question_id: string | null
+          source_type: string | null
+          sf_substance_1: string | null
+          sf_substance_2: string | null
+          sf_field: string | null
+          sf_interaction: string | null
+          sf_completeness: string | null
           created_at: string
           updated_at: string
         }
@@ -418,6 +425,13 @@ export type Database = {
           type?: string | null
           severity?: string
           resolved?: boolean
+          source_question_id?: string | null
+          source_type?: string | null
+          sf_substance_1?: string | null
+          sf_substance_2?: string | null
+          sf_field?: string | null
+          sf_interaction?: string | null
+          sf_completeness?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -432,6 +446,13 @@ export type Database = {
           type?: string | null
           severity?: string
           resolved?: boolean
+          source_question_id?: string | null
+          source_type?: string | null
+          sf_substance_1?: string | null
+          sf_substance_2?: string | null
+          sf_field?: string | null
+          sf_interaction?: string | null
+          sf_completeness?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -714,6 +735,45 @@ export type Database = {
           linked_assumption_codes?: string[] | null
           linked_must_ids?: string[] | null
           attachment_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      unknown_factors: {
+        Row: {
+          id: string
+          project_id: string
+          unknown_code: string
+          description: string
+          impact: string
+          status: string
+          note: string | null
+          linked_assumption_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          unknown_code: string
+          description: string
+          impact?: string
+          status?: string
+          note?: string | null
+          linked_assumption_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          unknown_code?: string
+          description?: string
+          impact?: string
+          status?: string
+          note?: string | null
+          linked_assumption_id?: string | null
           created_at?: string
           updated_at?: string
         }

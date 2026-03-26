@@ -44,6 +44,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
   const tcList = contradictions.filter((c) => c.type === 'TC');
   const pcList = contradictions.filter((c) => c.type === 'PC');
+  const sfList = contradictions.filter((c) => c.type === 'SF');
   const confirmedCount = contradictions.filter((c) => c.status === 'confirmed').length;
 
   const getParamLabel = (paramId: number | null) => {
@@ -90,6 +91,12 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     if (editForm.pcAttributeA !== undefined || editForm.pcAttributeNotA !== undefined) {
       updateData.physical_contradiction = `${editForm.pcAttributeA ?? ''} | ${editForm.pcAttributeNotA ?? ''}`;
     }
+    // Su-Field fields
+    if (editForm.sfSubstance1 !== undefined) updateData.sf_substance_1 = editForm.sfSubstance1;
+    if (editForm.sfSubstance2 !== undefined) updateData.sf_substance_2 = editForm.sfSubstance2;
+    if (editForm.sfField !== undefined) updateData.sf_field = editForm.sfField;
+    if (editForm.sfInteraction !== undefined) updateData.sf_interaction = editForm.sfInteraction;
+    if (editForm.sfCompleteness !== undefined) updateData.sf_completeness = editForm.sfCompleteness;
 
     const { error } = await supabase
       .from('contradictions')
@@ -103,6 +110,13 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   };
 
   const handleDelete = async (id: string) => {
+    // Delete dependent triz_solutions first to avoid FK constraint violation
+    const { error: trizErr } = await supabase
+      .from('triz_solutions')
+      .delete()
+      .eq('contradiction_id', id);
+    if (trizErr) { toast.error(`刪除關聯 TRIZ 解法失敗：${trizErr.message}`); return; }
+
     const { error } = await supabase
       .from('contradictions')
       .delete()
@@ -110,7 +124,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     if (error) { toast.error(`刪除失敗：${error.message}`); return; }
     setDeleteConfirmId(null);
     invalidate();
-    toast.success('矛盾已刪除');
+    toast.success('矛盾及關聯 TRIZ 解法已刪除');
   };
 
   const handleAddManual = async (type: ContradictionType) => {
@@ -135,6 +149,8 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       id: data.id, projectId, type,
       improvingParam: null, worseningParam: null,
       pcAttributeA: null, pcAttributeNotA: null,
+      sfSubstance1: null, sfSubstance2: null, sfField: null,
+      sfInteraction: null, sfCompleteness: null,
       description: '', status: 'draft' as const,
       source: 'manual' as const,
       createdAt: now, updatedAt: now,
@@ -149,7 +165,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     try {
       const subset = contradictions.filter((c) => c.type === type);
       const targets = subset.filter(
-        (c) => c.description && !c.improvingParam && !c.worseningParam && !c.pcAttributeA
+        (c) => c.description && !c.improvingParam && !c.worseningParam && !c.pcAttributeA && !c.sfSubstance1
       );
 
       if (targets.length > 0) {
@@ -172,6 +188,11 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                 physical_contradiction: result.pc_attribute_a && result.pc_attribute_not_a
                   ? `${result.pc_attribute_a} | ${result.pc_attribute_not_a}`
                   : result.physical_contradiction,
+                sf_substance_1: result.sf_substance_1,
+                sf_substance_2: result.sf_substance_2,
+                sf_field: result.sf_field,
+                sf_interaction: result.sf_interaction,
+                sf_completeness: result.sf_completeness,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', c.id);
@@ -182,7 +203,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         toast.success(`AI 已形式化 ${count} 個 ${type} 矛盾`);
       } else {
         // Create new contradiction of this specific type
-        const typeLabel = type === 'TC' ? 'technical' : 'physical';
+        const typeLabel = type === 'TC' ? 'technical' : type === 'PC' ? 'physical' : 'su-field';
         const desc = mission
           ? `Based on mission "${mission}", identify a key ${typeLabel} contradiction.`
           : `Identify a key ${typeLabel} design contradiction from the project context.`;
@@ -217,6 +238,11 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
             worsening_param: result.worsening_param,
             engineering_statement: result.engineering_statement,
             physical_contradiction: result.physical_contradiction,
+            sf_substance_1: result.sf_substance_1,
+            sf_substance_2: result.sf_substance_2,
+            sf_field: result.sf_field,
+            sf_interaction: result.sf_interaction,
+            sf_completeness: result.sf_completeness,
             natural_description: result.engineering_statement || desc,
             updated_at: new Date().toISOString(),
           })
@@ -250,7 +276,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
               className="text-xs text-white"
-              style={{ backgroundColor: c.type === 'TC' ? '#3B82F6' : '#F59E0B' }}
+              style={{ backgroundColor: c.type === 'TC' ? '#3B82F6' : c.type === 'SF' ? '#10B981' : '#F59E0B' }}
             >
               {c.type}
             </Badge>
@@ -298,6 +324,69 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              ) : editForm.type === 'SF' ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">S1 工具物質 *</span>
+                      <Input
+                        value={editForm.sfSubstance1 ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, sfSubstance1: e.target.value }))}
+                        placeholder="例：軸承"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">S2 產品物質 *</span>
+                      <Input
+                        value={editForm.sfSubstance2 ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, sfSubstance2: e.target.value }))}
+                        placeholder="例：轉子"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">場 (Field) *</span>
+                      <Input
+                        value={editForm.sfField ?? ''}
+                        onChange={(e) => setEditForm((f) => ({ ...f, sfField: e.target.value }))}
+                        placeholder="例：機械場"
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">交互作用</span>
+                      <Select
+                        value={editForm.sfInteraction ?? ''}
+                        onValueChange={(v) => setEditForm((f) => ({ ...f, sfInteraction: v }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="選擇" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="useful">有用 (useful)</SelectItem>
+                          <SelectItem value="harmful">有害 (harmful)</SelectItem>
+                          <SelectItem value="insufficient">不足 (insufficient)</SelectItem>
+                          <SelectItem value="missing">缺失 (missing)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">Su-Field 完整性</span>
+                      <Select
+                        value={editForm.sfCompleteness ?? ''}
+                        onValueChange={(v) => setEditForm((f) => ({ ...f, sfCompleteness: v }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="選擇" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="complete">完整 (complete)</SelectItem>
+                          <SelectItem value="incomplete">不完整 (incomplete)</SelectItem>
+                          <SelectItem value="harmful_complete">有害完整 (harmful)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -355,6 +444,35 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                     <span className="font-medium">{getParamLabel(c.worseningParam)}</span>
                   </div>
                 </div>
+              ) : c.type === 'SF' ? (
+                c.sfSubstance1 ? (
+                  <div className="flex flex-wrap gap-2">
+                    <div className="bg-muted rounded px-2 py-1 text-xs">
+                      <span className="text-muted-foreground">S1: </span>
+                      <span className="font-medium">{c.sfSubstance1}</span>
+                    </div>
+                    <span className="text-muted-foreground text-xs self-center">⟶</span>
+                    <div className="bg-muted rounded px-2 py-1 text-xs">
+                      <span className="text-muted-foreground">F: </span>
+                      <span className="font-medium">{c.sfField || '—'}</span>
+                    </div>
+                    <span className="text-muted-foreground text-xs self-center">⟶</span>
+                    <div className="bg-muted rounded px-2 py-1 text-xs">
+                      <span className="text-muted-foreground">S2: </span>
+                      <span className="font-medium">{c.sfSubstance2 || '—'}</span>
+                    </div>
+                    {c.sfInteraction && (
+                      <Badge variant="outline" className="text-[10px]">{c.sfInteraction}</Badge>
+                    )}
+                    {c.sfCompleteness && (
+                      <Badge variant="outline" className="text-[10px]">{c.sfCompleteness}</Badge>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">
+                    Su-Field 模型細節待補充 — 點擊上方「識別 SF」自動填入，或手動編輯 S1/F/S2
+                  </div>
+                )
               ) : c.pcAttributeA && c.pcAttributeNotA ? (
                 /* Structured PC: user-defined A / non-A pair */
                 <div className="flex flex-wrap gap-2">
@@ -376,7 +494,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                 </div>
               ) : (
                 <div className="bg-muted rounded px-2 py-1 text-xs text-muted-foreground">
-                  物理矛盾尚未定義 — 請編輯或使用 AI 識別
+                  物理矛盾細節待補充 — 點擊上方「識別 PC」自動填入，或手動編輯
                 </div>
               )}
 
@@ -415,12 +533,13 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   // ── Render a type section (TC or PC) ──────────────────────────────────
 
   const renderSection = (type: ContradictionType, list: ExploreContradiction[]) => {
-    const isTc = type === 'TC';
-    const color = isTc ? '#3B82F6' : '#F59E0B';
-    const label = isTc ? '技術矛盾 (TC)' : '物理矛盾 (PC)';
-    const help = isTc
-      ? 'TC（技術矛盾）：改善參數 A 會惡化參數 B，可用 TRIZ 矛盾矩陣查表求解。'
-      : 'PC（物理矛盾）：同一物件需要同時滿足相反屬性，可用分離原理（時間/空間/條件/系統層級）求解。';
+    const color = type === 'TC' ? '#3B82F6' : type === 'SF' ? '#10B981' : '#F59E0B';
+    const label = type === 'TC' ? '技術矛盾 (TC)' : type === 'SF' ? 'Su-Field 問題 (SF)' : '物理矛盾 (PC)';
+    const help = type === 'TC'
+      ? 'TC（技術矛盾）：改善參數 A 會惡化參數 B，Step 5a 路徑 → 矛盾矩陣 → 40 原理。'
+      : type === 'SF'
+      ? 'SF（Su-Field 問題）：物質-場交互作用不完整/有害/不足，Step 5a 路徑 → 76 標準解。'
+      : 'PC（物理矛盾）：同一物件需要同時滿足相反屬性，Step 5a 路徑 → 分離原則。';
     const isLoading = aiLoadingType === type;
     const confirmed = list.filter((c) => c.status === 'confirmed').length;
 
@@ -455,7 +574,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         ) : (
           <div className="text-center py-8 bg-muted/30 rounded-lg border border-dashed">
             <p className="text-sm text-muted-foreground">
-              尚無{isTc ? '技術' : '物理'}矛盾 — 點擊「AI 識別 {type}」讓 AI 分析，或手動新增
+              尚無{type === 'TC' ? '技術矛盾' : type === 'SF' ? 'Su-Field 問題' : '物理矛盾'} — 點擊「AI 識別 {type}」讓 AI 分析，或手動新增
             </p>
           </div>
         )}
@@ -477,6 +596,9 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           <Button variant="ghost" onClick={() => setAddingType('PC')}>
             <Plus className="h-4 w-4 mr-1" /> 新增 PC
           </Button>
+          <Button variant="ghost" onClick={() => setAddingType('SF')}>
+            <Plus className="h-4 w-4 mr-1" /> 新增 SF
+          </Button>
         </div>
       </div>
     );
@@ -487,12 +609,13 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   return (
     <div className="space-y-6">
       {/* Purpose intro */}
-      <SectionIntro text="根據問答結果，AI 會自動識別設計中的技術矛盾 (TC) 與物理矛盾 (PC)。TC 表示改善一個參數會惡化另一個參數；PC 表示同一物件需要同時具備矛盾的屬性。確認矛盾後仍可撤回修改。" />
+      <SectionIntro text="根據問答結果，AI 會自動識別三種問題類型：技術矛盾 (TC) — 改善一個參數會惡化另一個；物理矛盾 (PC) — 同一物件需要同時具備矛盾屬性；Su-Field 問題 (SF) — 物質-場交互作用不完整/有害/不足。每種類型在 Step 5a 走各自對應的解法路徑。" />
 
       {/* Summary stats */}
       <div className="flex flex-wrap gap-2">
         <Badge className="bg-blue-500 text-white text-xs">TC: {tcList.length}</Badge>
         <Badge className="bg-amber-500 text-white text-xs">PC: {pcList.length}</Badge>
+        <Badge className="bg-emerald-500 text-white text-xs">SF: {sfList.length}</Badge>
         <Badge variant="secondary" className="text-xs">總計: {contradictions.length}</Badge>
         <Badge className="bg-green-600 text-white text-xs">已確認: {confirmedCount}</Badge>
       </div>
@@ -506,16 +629,24 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       {/* PC Section */}
       {renderSection('PC', pcList)}
 
+      {/* Divider */}
+      <div className="border-t" />
+
+      {/* SF Section */}
+      {renderSection('SF', sfList)}
+
       {/* Add new — direct type (no type selection dialog needed) */}
       <Dialog open={!!addingType} onOpenChange={() => setAddingType(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新增{addingType === 'TC' ? '技術' : '物理'}矛盾</DialogTitle>
+            <DialogTitle>新增{addingType === 'TC' ? '技術矛盾' : addingType === 'SF' ? 'Su-Field 問題' : '物理矛盾'}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {addingType === 'TC'
-              ? '技術矛盾 (TC)：改善一個參數會導致另一個參數惡化。建立後可編輯改善/惡化參數。'
-              : '物理矛盾 (PC)：同一屬性需要同時滿足相反需求。建立後可編輯屬性 A / 非 A。'}
+              ? '技術矛盾 (TC)：改善一個參數會導致另一個參數惡化。建立後可編輯改善/惡化參數。Step 5a → 矛盾矩陣 → 40 原理。'
+              : addingType === 'SF'
+              ? 'Su-Field 問題 (SF)：物質-場交互作用不完整、有害或不足。建立後可編輯 S1/S2/F。Step 5a → 76 標準解。'
+              : '物理矛盾 (PC)：同一屬性需要同時滿足相反需求。建立後可編輯屬性 A / 非 A。Step 5a → 分離原則。'}
           </p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddingType(null)}>取消</Button>

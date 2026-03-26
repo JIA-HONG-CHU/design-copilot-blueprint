@@ -306,6 +306,37 @@ class CldGenerationResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Step 3: Function Model (Su-Field Analysis)
+# ---------------------------------------------------------------------------
+
+class FunctionModelRequest(BaseModel):
+    """Build a Function Model (Substance-Field) for a system interaction."""
+    project_id: str
+    system_function: str  # what the system is supposed to do
+    substance_1: str = ""  # S1: tool substance (acts on S2)
+    substance_2: str = ""  # S2: product substance (acted upon)
+    field_type: str = ""  # mechanical / thermal / electrical / magnetic / chemical / ...
+    interaction_type: str = ""  # useful / harmful / insufficient / missing
+    su_field_completeness: str = ""  # complete / incomplete / harmful_complete
+    related_contradiction_ids: list[str] = Field(default_factory=list)
+    mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+
+
+class FunctionModelResponse(BaseModel):
+    """AI-analysed Function Model with Su-Field classification."""
+    system_function: str
+    substance_1: str
+    substance_2: str
+    field_type: str
+    interaction_type: str  # useful / harmful / insufficient / missing
+    su_field_completeness: str  # complete / incomplete / harmful_complete
+    problem_description: str = ""  # natural language description of the Su-Field problem
+    suggested_contradiction_type: str = "SF"  # always SF for function-model derived problems
+    confidence: float = Field(ge=0, le=1, default=0.7)
+
+
+# ---------------------------------------------------------------------------
 # Validation Passport (shared — attached to any solution hypothesis)
 # ---------------------------------------------------------------------------
 
@@ -381,14 +412,24 @@ class ValidationPassportResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class TrizLookupRequest(BaseModel):
-    """TRIZ contradiction matrix lookup + principle instantiation."""
+    """TRIZ contradiction matrix lookup + principle instantiation.
+
+    Routes by type:
+      TC → contradiction matrix → 40 principles
+      PC → separation principles
+      SF → Su-Field 76 standard solutions (delegates to analyze_sufield)
+    """
     project_id: str
     contradiction_id: str
     natural_description: str
     improving_param: int | None = None
     worsening_param: int | None = None
     physical_contradiction: str | None = None
-    type: str = "TC"  # TC or PC
+    # Su-Field fields (used when type == "SF")
+    sf_substance_1: str | None = None
+    sf_substance_2: str | None = None
+    sf_field: str | None = None
+    type: str = "TC"  # TC, PC, or SF
 
 
 class TrizSuggestion(BaseModel):
@@ -430,6 +471,11 @@ class SuFieldRequest(BaseModel):
     project_id: str
     system_description: str
     current_issues: list[str] = Field(default_factory=list)
+    # Traceability back to Step 3 Function Model / contradiction
+    contradiction_id: str | None = None
+    substance_1: str | None = None  # S1 from Function Model
+    substance_2: str | None = None  # S2 from Function Model
+    field_type: str | None = None  # field from Function Model
 
 
 class MatchedStandardSolution(BaseModel):
@@ -464,9 +510,30 @@ class ScamperVariant(BaseModel):
     potential_benefits: str = ""
     new_contradictions: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keys(cls, values):
+        """Accept LLM output keys: benefit → potential_benefits, new_contradiction → new_contradictions."""
+        if isinstance(values, dict):
+            if "benefit" in values and "potential_benefits" not in values:
+                values["potential_benefits"] = values.pop("benefit")
+            if "new_contradiction" in values and "new_contradictions" not in values:
+                nc = values.pop("new_contradiction")
+                values["new_contradictions"] = [nc] if isinstance(nc, str) and nc else []
+        return values
+
 
 class ScamperResponse(BaseModel):
-    variants: list[ScamperVariant]
+    variants: list[ScamperVariant] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keys(cls, values):
+        """Accept LLM key 'transformations' as alias for 'variants'."""
+        if isinstance(values, dict):
+            if "transformations" in values and "variants" not in values:
+                values["variants"] = values.pop("transformations")
+        return values
 
 
 # ---------------------------------------------------------------------------
@@ -532,11 +599,15 @@ class ConvergenceContradictionInput(BaseModel):
     natural_description: str
     severity: str  # fatal / major / minor
     resolved: bool = False
-    type: str | None = None  # TC or PC
+    type: str | None = None  # TC, PC, or SF
     improving_param: int | None = None  # TRIZ 39-param number
     worsening_param: int | None = None
     engineering_statement: str = ""
     physical_contradiction: str = ""
+    # Su-Field fields (populated when type == "SF")
+    sf_substance_1: str = ""
+    sf_substance_2: str = ""
+    sf_field: str = ""
 
 
 class ConvergenceScanRequest(BaseModel):
@@ -553,7 +624,7 @@ class SecondaryContradiction(BaseModel):
     description: str
     severity: str  # fatal, major, minor
     source_alternative: str = ""  # empty in Phase A (no alternatives)
-    type: str = "TC"  # TC or PC
+    type: str = "TC"  # TC, PC, or SF
     improving_param: int | None = None
     worsening_param: int | None = None
     reasoning: str = ""
@@ -637,14 +708,20 @@ class ContradictionFormalizeRequest(BaseModel):
 
 
 class ContradictionFormalizeResponse(BaseModel):
-    """TRIZ-formalized contradiction."""
+    """TRIZ-formalized contradiction — supports TC, PC, and SF types."""
     engineering_statement: str
     improving_param: int | None = None
     worsening_param: int | None = None
     physical_contradiction: str | None = None
     pc_attribute_a: str | None = None
     pc_attribute_not_a: str | None = None
-    type: str = "TC"  # TC or PC
+    # Su-Field fields (populated when type == "SF")
+    sf_substance_1: str | None = None  # S1: tool substance
+    sf_substance_2: str | None = None  # S2: product substance
+    sf_field: str | None = None  # field type (mechanical/thermal/electrical/...)
+    sf_interaction: str | None = None  # useful/harmful/insufficient/missing
+    sf_completeness: str | None = None  # complete/incomplete/harmful_complete
+    type: str = "TC"  # TC, PC, or SF
     confidence: float = Field(ge=0, le=1, default=0.7)
 
 
@@ -748,6 +825,31 @@ class PreCadAnalyzeResponse(BaseModel):
     overall_pass: bool
     analysis: str
     evidence_references: list[EvidenceReference] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Unknown Factor Discovery (SOW: POST /unknown-factors/discover)
+# ---------------------------------------------------------------------------
+
+class UnknownFactorDiscoverRequest(BaseModel):
+    """Discover unknown factors from project context."""
+    project_id: str
+    mission: str
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+    existing_assumptions: list[str] = Field(default_factory=list)
+    existing_unknowns: list[str] = Field(default_factory=list)
+
+
+class DiscoveredUnknownFactor(BaseModel):
+    description: str
+    impact: str = "medium"  # high / medium / low
+    reason: str = ""
+
+
+class UnknownFactorDiscoverResponse(BaseModel):
+    factors: list[DiscoveredUnknownFactor]
 
 
 # ---------------------------------------------------------------------------

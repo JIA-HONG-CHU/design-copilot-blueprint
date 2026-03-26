@@ -9,6 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, ArrowRight, X, Check } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
+import { unknownFactorDiscover } from "@/lib/api";
+import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
+import { useContradictions } from "@/hooks/api/useContradictions";
 import type { UnknownFactor, ImpactLevel, TrackAssumption } from "@/types/track";
 import { IMPACT_CONFIG, UNKNOWN_STATUS_CONFIG } from "@/types/track";
 
@@ -24,6 +27,12 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
   const [addOpen, setAddOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{ desc: string; impact: ImpactLevel; reason: string }[]>([]);
+
+  // Fetch project context for AI discovery
+  const { data: brief } = useBrief(projectId || undefined);
+  const { data: constraints } = useConstraints(projectId || undefined);
+  const { data: contradictions } = useContradictions(projectId || undefined);
+  const { data: kpis } = useKpis(projectId || undefined);
 
   // Form state
   const [newDesc, setNewDesc] = useState('');
@@ -73,21 +82,29 @@ export function UnknownFactors({ factors, assumptions, onUpdateFactors, onConver
 
   const handleAiDiscover = async () => {
     setIsAiLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setAiSuggestions([
-      {
-        desc: '馬達控制器在極端低溫 (-20°C) 下的啟動可靠性',
-        impact: 'high',
-        reason: '根據現有矛盾分析，溫度因素尚未被充分考慮，可能影響系統在寒冷地區的使用。',
-      },
-      {
-        desc: '長期震動對焊接點的疲勞影響',
-        impact: 'medium',
-        reason: '從因果迴路圖中發現振動與結構耐久性存在潛在關聯，但尚未被假設化。',
-      },
-    ]);
-    setIsAiLoading(false);
-    toast.success('AI 已識別潛在未知因素');
+    try {
+      const resp = await unknownFactorDiscover({
+        project_id: projectId,
+        mission: brief?.mission ?? '',
+        constraints: (constraints ?? []).map(c => c.description),
+        kpis: (kpis ?? []).map(k => `${k.kpiName}: ${k.targetValue} ${k.unit ?? ''}`),
+        contradictions: (contradictions ?? []).map(c => c.naturalDescription ?? c.description ?? ''),
+        existing_assumptions: assumptions.map(a => a.content),
+        existing_unknowns: factors.map(f => f.description),
+      });
+      const mapped = (resp.factors ?? []).map(f => ({
+        desc: f.description,
+        impact: (f.impact || 'medium') as ImpactLevel,
+        reason: f.reason || '',
+      }));
+      setAiSuggestions(mapped);
+      toast.success(`AI 已識別 ${mapped.length} 個潛在未知因素`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`AI 識別失敗：${msg}`);
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleAdoptSuggestion = (suggestion: typeof aiSuggestions[0]) => {

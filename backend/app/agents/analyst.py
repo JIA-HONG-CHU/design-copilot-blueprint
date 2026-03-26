@@ -22,6 +22,7 @@ from app.prompts.analyst import (
     ANTI_ANCHOR_GENERATION,
     CONTRADICTION_FORMALIZATION,
     ASSUMPTION_EXTRACTION,
+    UNKNOWN_FACTOR_DISCOVERY,
 )
 from app.models.schemas import (
     BriefExtractionRequest,
@@ -53,6 +54,8 @@ from app.models.schemas import (
     ContradictionFormalizeResponse,
     AssumptionExtractRequest,
     AssumptionExtractResponse,
+    UnknownFactorDiscoverRequest,
+    UnknownFactorDiscoverResponse,
 )
 from app.services.evidence_retrieval import (
     retrieve_constraint_evidence,
@@ -311,3 +314,18 @@ def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
     return AntiAnchorResponse(**data)
+
+
+def discover_unknown_factors(req: UnknownFactorDiscoverRequest) -> UnknownFactorDiscoverResponse:
+    """Discover unknown factors from project context gaps."""
+    prompt = UNKNOWN_FACTOR_DISCOVERY.format(
+        mission=req.mission or "（未提供）",
+        constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+        kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+        contradictions="\n".join(f"- {c}" for c in req.contradictions) or "（尚無）",
+        existing_assumptions="\n".join(f"- {a}" for a in req.existing_assumptions) or "（尚無）",
+        existing_unknowns="\n".join(f"- {u}" for u in req.existing_unknowns) or "（尚無）",
+    )
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    return UnknownFactorDiscoverResponse(**data)

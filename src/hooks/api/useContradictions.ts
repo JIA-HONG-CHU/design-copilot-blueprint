@@ -33,6 +33,12 @@ interface ContradictionRow {
   resolved: boolean;
   source_question_id: string | null;
   source_type: string | null;
+  // Su-Field fields (populated when type === 'SF')
+  sf_substance_1: string | null;
+  sf_substance_2: string | null;
+  sf_field: string | null;
+  sf_interaction: string | null;
+  sf_completeness: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,11 +53,16 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   worseningParam: r.worsening_param,
   engineeringStatement: r.engineering_statement ?? '',
   physicalContradiction: r.physical_contradiction ?? '',
-  type: (r.type === 'TC' || r.type === 'PC' ? r.type : null) as 'TC' | 'PC' | null,
+  type: (r.type === 'TC' || r.type === 'PC' || r.type === 'SF' ? r.type : null) as 'TC' | 'PC' | 'SF' | null,
   severity: (validSeverities.has(r.severity) ? r.severity : DEFAULT_SEVERITY) as ContradictionSeverity,
   resolved: (r as any).resolved ?? false,
   sourceQuestionId: r.source_question_id ?? null,
   sourceType: (r.source_type ?? 'manual') as Contradiction['sourceType'],
+  sfSubstance1: r.sf_substance_1 ?? null,
+  sfSubstance2: r.sf_substance_2 ?? null,
+  sfField: r.sf_field ?? null,
+  sfInteraction: r.sf_interaction ?? null,
+  sfCompleteness: r.sf_completeness ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -174,6 +185,13 @@ export function useDeleteContradiction() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string; projectId: string }>({
     mutationFn: async (vars) => {
+      // Delete dependent triz_solutions first to avoid FK constraint violation
+      const { error: trizErr } = await supabase
+        .from('triz_solutions')
+        .delete()
+        .eq('contradiction_id', vars.id);
+      if (trizErr) throw trizErr;
+
       const { error } = await supabase
         .from('contradictions')
         .delete()
@@ -182,7 +200,8 @@ export function useDeleteContradiction() {
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(vars.projectId) });
-      toast.success('矛盾已刪除');
+      qc.invalidateQueries({ queryKey: queryKeys.triz_solutions.all });
+      toast.success('矛盾及關聯 TRIZ 解法已刪除');
     },
     onError: (err) => {
       toast.error(`刪除矛盾失敗：${err.message}`);

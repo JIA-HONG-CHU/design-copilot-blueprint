@@ -12,10 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   ArrowLeft, Check, Plus, Sparkles, Loader2, AlertTriangle,
-  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, Pencil, Trash2
+  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, ChevronRight, Pencil, Trash2
 } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -25,7 +27,7 @@ import {
 import type {
   AntiAnchorRoute, TrizSolution, Subsystem, ScamperVariant, ScamperNewContradiction,
   Alternative, AccordionStepStatus, TrizPath, TrizActionStatus, CreateGateItem,
-  SubsystemSource
+  SubsystemSource, SubsystemLevel
 } from "@/types/create";
 import { DEFAULT_MUST_CRITERIA, PRECAD_DIMENSIONS, SCAMPER_LABELS } from "@/types/create";
 import type { MustCriterion } from "@/types/create";
@@ -52,10 +54,11 @@ import {
 } from "@/hooks/api";
 import { useContradictions } from "@/hooks/api/useContradictions";
 import type { Json } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, suFieldAnalyze, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
-import type { MustCriterionResult } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, scamperTransform, scamperSubsystemSuggest, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
+import type { MustCriterionResult, SuggestedSubsystem } from "@/lib/api";
 import { useProject } from "@/hooks/api/useProjects";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
@@ -163,7 +166,7 @@ export default function Create() {
     [briefKpis],
   );
   const contradictionDescs = useMemo(
-    () => (contradictionsQuery.data || []).map((c) => c.naturalDescription),
+    () => (contradictionsQuery.data || []).map((c) => c.naturalDescription || c.engineeringStatement || '').filter(Boolean),
     [contradictionsQuery.data],
   );
 
@@ -234,6 +237,9 @@ export default function Create() {
   const [ssFormReason, setSsFormReason] = useState("");
   const [ssFormContradictions, setSsFormContradictions] = useState<string[]>([]);
   const [ssFormInterfaces, setSsFormInterfaces] = useState("");
+  const [ssFormLevel, setSsFormLevel] = useState<SubsystemLevel>("module");
+  const [ssFormParentId, setSsFormParentId] = useState<string | null>(null);
+  const [aiSubsystemLoading, setAiSubsystemLoading] = useState(false);
 
   // Loading state — true while any query is loading
   const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
@@ -417,117 +423,74 @@ export default function Create() {
     }
     setAiLoading((p) => ({ ...p, trizGen: true }));
     try {
+      // Reset: delete all existing TRIZ solutions for this project, then clear local state
+      const { error: delErr } = await supabase
+        .from('triz_solutions')
+        .delete()
+        .eq('project_id', id);
+      if (delErr) console.warn('Failed to clear old TRIZ solutions:', delErr.message);
+      setLocalTrizSolutions([]);
+
       const generated: TrizSolution[] = [];
-      // For each contradiction, generate TC + PC + SF candidates in parallel
+      // Route each contradiction by its type (Step 3 classification):
+      //   TC → contradiction matrix → 40 principles
+      //   PC → separation principles
+      //   SF → Su-Field 76 standard solutions
+      // Each contradiction walks its own path — NOT all three.
       const tasks = contrs.map(async (c) => {
         const results: TrizSolution[] = [];
-        // TC + PC (via trizSolve)
-        const [tcResult, pcResult, sfResult] = await Promise.allSettled([
-          trizSolve({
+        const cType = (c.type || "TC") as "TC" | "PC" | "SF";
+
+        const solveResult = await trizSolve({
+          project_id: id,
+          contradiction_id: c.id,
+          natural_description: c.naturalDescription,
+          improving_param: cType === "TC" ? c.improvingParam : undefined,
+          worsening_param: cType === "TC" ? c.worseningParam : undefined,
+          physical_contradiction: cType === "PC" ? c.physicalContradiction : undefined,
+          sf_substance_1: cType === "SF" ? (c as Record<string, unknown>).sfSubstance1 as string | undefined : undefined,
+          sf_substance_2: cType === "SF" ? (c as Record<string, unknown>).sfSubstance2 as string | undefined : undefined,
+          sf_field: cType === "SF" ? (c as Record<string, unknown>).sfField as string | undefined : undefined,
+          type: cType,
+        });
+
+        for (const s of solveResult.suggestions) {
+          const path = (s.path === "SuField" ? "SF" : s.path || cType) as TrizPath;
+          const opt: TrizSolution = {
+            id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            contradictionId: c.id,
+            path,
+            principleNumber: s.principle_number,
+            principleName: s.principle_name,
+            suggestion: s.suggestion,
+            status: "pending" as TrizActionStatus,
+          };
+          results.push(opt);
+          createTrizSolution.mutate({
             project_id: id,
             contradiction_id: c.id,
-            natural_description: c.naturalDescription,
-            improving_param: c.improvingParam,
-            worsening_param: c.worseningParam,
-            type: "TC",
-          }),
-          trizSolve({
-            project_id: id,
-            contradiction_id: c.id,
-            natural_description: c.naturalDescription,
-            improving_param: c.improvingParam,
-            worsening_param: c.worseningParam,
-            physical_contradiction: c.physicalContradiction,
-            type: "PC",
-          }),
-          suFieldAnalyze({
-            project_id: id,
-            system_description: `${briefMission} — 矛盾: ${c.naturalDescription}`,
-            current_issues: [c.naturalDescription, c.engineeringStatement || ""].filter(Boolean),
-          }),
-        ]);
-        // Process TC results
-        if (tcResult.status === "fulfilled") {
-          for (const s of tcResult.value.suggestions) {
-            const opt: TrizSolution = {
-              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              contradictionId: c.id,
-              path: "TC" as TrizPath,
-              principleNumber: s.principle_number,
-              principleName: s.principle_name,
-              suggestion: s.suggestion,
-              status: "pending" as TrizActionStatus,
-            };
-            results.push(opt);
-            createTrizSolution.mutate({
-              project_id: id,
-              contradiction_id: c.id,
-              path: "TC",
-              principle_number: s.principle_number,
-              principle_name: s.principle_name,
-              suggestion: s.suggestion,
-              status: "pending",
-            });
-          }
-        }
-        // Process PC results
-        if (pcResult.status === "fulfilled") {
-          for (const s of pcResult.value.suggestions) {
-            const opt: TrizSolution = {
-              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              contradictionId: c.id,
-              path: "PC" as TrizPath,
-              principleNumber: s.principle_number,
-              principleName: s.principle_name,
-              suggestion: s.suggestion,
-              status: "pending" as TrizActionStatus,
-            };
-            results.push(opt);
-            createTrizSolution.mutate({
-              project_id: id,
-              contradiction_id: c.id,
-              path: "PC",
-              principle_number: s.principle_number,
-              principle_name: s.principle_name,
-              suggestion: s.suggestion,
-              status: "pending",
-            });
-          }
-        }
-        // Process SF results
-        if (sfResult.status === "fulfilled") {
-          for (const s of sfResult.value.matched_solutions) {
-            const opt: TrizSolution = {
-              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              contradictionId: c.id,
-              path: "SF" as TrizPath,
-              principleNumber: null,
-              principleName: `${s.standard_id} ${s.standard_name}`,
-              suggestion: s.suggestion,
-              status: "pending" as TrizActionStatus,
-            };
-            results.push(opt);
-            createTrizSolution.mutate({
-              project_id: id,
-              contradiction_id: c.id,
-              path: "SF",
-              principle_number: null,
-              principle_name: `${s.standard_id} ${s.standard_name}`,
-              suggestion: s.suggestion,
-              status: "pending",
-            });
-          }
+            path,
+            principle_number: s.principle_number,
+            principle_name: s.principle_name,
+            suggestion: s.suggestion,
+            status: "pending",
+          });
         }
         return results;
       });
-      const allResults = await Promise.all(tasks);
-      for (const r of allResults) generated.push(...r);
-      // Optimistic update
-      setLocalTrizSolutions((prev) => [...prev, ...generated]);
-      toast.success(`AI 已產出 ${generated.length} 條 TRIZ 候選（TC/PC/SF 三路徑）`);
+      const allResults = await Promise.allSettled(tasks);
+      for (const r of allResults) {
+        if (r.status === "fulfilled") generated.push(...r.value);
+      }
+      // Replace with freshly generated solutions (old ones were deleted)
+      setLocalTrizSolutions(generated);
+      const pathCounts: Record<string, number> = {};
+      for (const g of generated) pathCounts[g.path] = (pathCounts[g.path] || 0) + 1;
+      const pathSummary = Object.entries(pathCounts).map(([k, v]) => `${k}:${v}`).join(' / ');
+      toast.success(`AI 已產出 ${generated.length} 條 TRIZ 候選（依矛盾類型分派：${pathSummary}）`);
     } catch (err) {
       console.error("TRIZ generation failed:", err);
-      toast.error("TRIZ 三路徑生成失敗");
+      toast.error("TRIZ 解法生成失敗");
     } finally {
       setAiLoading((p) => ({ ...p, trizGen: false }));
     }
@@ -535,10 +498,10 @@ export default function Create() {
 
   // TRIZ state transition guard — preserve traceability of human edits
   const TRIZ_VALID_TRANSITIONS: Record<TrizActionStatus, TrizActionStatus[]> = {
-    pending:  ['adopted', 'skipped', 'edited'],
-    adopted:  ['pending', 'skipped'],
-    skipped:  ['pending'],
-    edited:   ['adopted', 'skipped'],  // edited → pending blocked (traceability)
+    pending:  ['adopted', 'skipped'],
+    adopted:  ['skipped'],
+    skipped:  ['adopted'],
+    edited:   ['adopted', 'skipped'],
   };
   const setTrizStatus = (tsId: string, next: TrizActionStatus) => {
     const ts = localTrizSolutions.find((t) => t.id === tsId);
@@ -573,6 +536,8 @@ export default function Create() {
       confirmed: true,
       source: "rd",
       interfaces: ssFormInterfaces.trim() || undefined,
+      level: ssFormLevel,
+      parent_id: ssFormParentId,
     });
     resetSsForm();
     setShowAddSubsystemForm(false);
@@ -585,6 +550,8 @@ export default function Create() {
     setSsFormReason(ss.reason);
     setSsFormContradictions([...ss.relatedContradictions]);
     setSsFormInterfaces(ss.interfaces?.join(", ") ?? "");
+    setSsFormLevel(ss.level);
+    setSsFormParentId(ss.parentId);
   };
   const saveEditSubsystem = () => {
     if (!editingSubsystemId || !ssFormName.trim()) return;
@@ -598,6 +565,8 @@ export default function Create() {
         relatedContradictions: ssFormContradictions,
         interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(x => x.trim()).filter(Boolean) : [],
         source: (newSource ?? s.source) as SubsystemSource,
+        level: ssFormLevel,
+        parentId: ssFormParentId,
       };
     }));
     updateSubsystemMut.mutate({
@@ -607,6 +576,8 @@ export default function Create() {
       related_contradictions: ssFormContradictions,
       interfaces: ssFormInterfaces.trim() || undefined,
       source: newSource,
+      level: ssFormLevel,
+      parent_id: ssFormParentId,
     });
     resetSsForm();
     setEditingSubsystemId(null);
@@ -693,7 +664,73 @@ export default function Create() {
   };
   const resetSsForm = () => {
     setSsFormName(""); setSsFormReason(""); setSsFormContradictions([]); setSsFormInterfaces("");
+    setSsFormLevel("module"); setSsFormParentId(null);
   };
+
+  const aiSuggestSubsystems = async () => {
+    if (!id) return;
+    setAiSubsystemLoading(true);
+    try {
+      const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.naturalDescription || c.engineeringStatement || '').filter(Boolean);
+      const existingNames = subsystems.map(s => s.name);
+      const resp = await scamperSubsystemSuggest({
+        project_id: id,
+        mission: briefMission || "",
+        contradictions: contradictionDescs,
+        existing_subsystems: existingNames,
+      });
+
+      // Flatten tree → sequential inserts preserving parent chain
+      const tree = resp.subsystems ?? [];
+      let created = 0;
+
+      const insertTree = async (nodes: SuggestedSubsystem[], parentId: string | null) => {
+        for (const node of nodes) {
+          // Insert this node, get back the real DB id
+          const insertData: Record<string, unknown> = {
+            project_id: id,
+            name: node.name,
+            level: node.level ?? "module",
+            reason: node.reason ?? "",
+            related_contradictions: node.related_contradictions ?? [],
+            confirmed: false,
+            source: "ai",
+            parent_id: parentId,
+            interfaces: node.interface_contracts ? Object.keys(node.interface_contracts).join(", ") : null,
+            interface_contracts: node.interface_contracts ?? null,
+          };
+
+          const { data, error } = await (await import("@/integrations/supabase/client")).supabase
+            .from("subsystems")
+            .insert(insertData)
+            .select("id")
+            .single();
+
+          if (error) {
+            console.error("[aiSuggestSubsystems] insert error:", error);
+            continue;
+          }
+          created++;
+
+          // Recurse into children with the real parent id
+          if (node.children?.length && data?.id) {
+            await insertTree(node.children, data.id);
+          }
+        }
+      };
+
+      await insertTree(tree, null);
+      // Refetch to get all new rows
+      subsystemsQuery.refetch();
+      toast.success(`AI 建議了 ${created} 個子系統（含層級結構）`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`AI 子系統建議失敗：${msg}`);
+    } finally {
+      setAiSubsystemLoading(false);
+    }
+  };
+
   const toggleScamperAdopt = (svId: string) => {
     const sv = scamperVariants.find(v => v.id === svId);
     if (!sv) return;
@@ -997,143 +1034,166 @@ export default function Create() {
             </AiButton>
           </div>
         ) : (
-          <div className="space-y-4">
-            {routes.map((r, i) => (
-              <Card key={r.id} className="overflow-hidden border-l-[3px] border-l-accent">
-                <CardContent className="p-5 space-y-4">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs font-mono">路線 {i + 1}</Badge>
-                      <span className="badge-ai">AI</span>
-                    </div>
-                    <button onClick={() => deleteAntiAnchorRoute(r.id)} className="p-1 rounded hover:bg-destructive/10" title="刪除此路線">
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </button>
-                  </div>
-                  <h4 className="text-sm font-semibold">{r.name}</h4>
-
-                  {/* Mechanism — structured: split by known section markers */}
-                  {r.mechanism && (
-                    <div className="text-xs space-y-2 bg-muted/40 dark:bg-muted/20 rounded-lg p-3">
-                      {(() => {
-                        const text = r.mechanism;
-                        const sections: { label: string; content: string }[] = [];
-                        // Try to split by known markers from the prompt
-                        const markers = [
-                          { re: /Physical principle:\s*/i, label: "Physical Principle" },
-                          { re: /Causal chain:\s*/i, label: "Causal Chain" },
-                          { re: /Boundary conditions?:\s*/i, label: "Boundary Conditions" },
-                        ];
-                        let remaining = text;
-                        for (const { re, label } of markers) {
-                          const idx = remaining.search(re);
-                          if (idx >= 0) {
-                            if (idx > 0 && sections.length === 0) {
-                              sections.push({ label: "Overview", content: remaining.slice(0, idx).trim() });
-                            }
-                            remaining = remaining.slice(idx).replace(re, '');
-                            // Find next marker
-                            let end = remaining.length;
-                            for (const { re: nextRe } of markers) {
-                              const nextIdx = remaining.search(nextRe);
-                              if (nextIdx > 0 && nextIdx < end) end = nextIdx;
-                            }
-                            sections.push({ label, content: remaining.slice(0, end).trim() });
-                            remaining = remaining.slice(end);
-                          }
-                        }
-                        if (sections.length === 0) {
-                          // Fallback: no markers found, show as single block
-                          sections.push({ label: "Mechanism", content: text });
-                        }
-                        return sections.map((s, si) => (
-                          <div key={si}>
-                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{s.label}</p>
-                            <p className="text-muted-foreground leading-relaxed">{s.content}</p>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  )}
-
-                  {/* Why Unconventional */}
-                  {r.whyUnconventional && (
-                    <div className="text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">Why Unconventional</p>
-                      <p className="text-muted-foreground leading-relaxed">{r.whyUnconventional}</p>
-                    </div>
-                  )}
-
-                  {/* Potential Advantage */}
-                  {r.potentialAdvantage && (
-                    <div className="text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">Potential Advantage</p>
-                      <p className="text-muted-foreground leading-relaxed">{r.potentialAdvantage}</p>
-                    </div>
-                  )}
-
-                  {/* Cross-Domain Source */}
-                  {r.crossDomainSource && (
-                    <div className="text-xs">
-                      <p className="font-semibold text-muted-foreground mb-1">Cross-Domain Source</p>
-                      <p className="text-muted-foreground leading-relaxed">{r.crossDomainSource}</p>
-                    </div>
-                  )}
-
-                  {/* Validation Passport */}
-                  {r.validationPassport && (
-                    <div className="text-xs space-y-2 border-t pt-3">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-muted-foreground">Validation Passport</p>
-                        <Badge variant="outline" className="text-[9px]">
-                          信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
-                        </Badge>
+          <div className="space-y-3">
+            {routes.map((r, i) => {
+              const confidence = r.validationPassport ? Math.round((r.validationPassport.confidenceLevel ?? 0) * 100) : null;
+              const assumptionCount = r.validationPassport?.assumptions?.length ?? 0;
+              return (
+              <Collapsible key={r.id}>
+                <Card className="overflow-hidden border-l-[3px] border-l-accent">
+                  {/* Collapsed header — always visible */}
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full text-left p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors group">
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+                      <Badge variant="outline" className="text-xs font-mono shrink-0">路線 {i + 1}</Badge>
+                      <span className="text-sm font-semibold flex-1 truncate">{r.name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {r.crossDomainSource && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="text-[9px] max-w-[120px] truncate cursor-default">{r.crossDomainSource}</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs text-xs">{r.crossDomainSource}</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {confidence !== null && (
+                          <Badge variant="outline" className="text-[9px]">信心 {confidence}%</Badge>
+                        )}
+                        {assumptionCount > 0 && (
+                          <Badge variant="outline" className="text-[9px]">{assumptionCount} 假設</Badge>
+                        )}
+                        <span className="badge-ai text-[9px]">AI</span>
                       </div>
-                      {(r.validationPassport.assumptions ?? []).length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({(r.validationPassport.assumptions ?? []).length})</p>
-                          <ul className="space-y-1">
-                            {(r.validationPassport.assumptions ?? []).map((a, ai) => (
-                              <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
-                                <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5">{a.evidenceLevel ?? '?'}</span>
-                                <span className="leading-relaxed">{a.content}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {(r.validationPassport.weakPoints ?? []).length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Weak Points</p>
-                          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                            {(r.validationPassport.weakPoints ?? []).map((wp, wi) => <li key={wi}>{wp}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      {(r.validationPassport.requiredVerifications ?? []).length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Verifications</p>
-                          <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-                            {(r.validationPassport.requiredVerifications ?? []).map((rv, ri) => <li key={ri}>{rv}</li>)}
-                          </ol>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    </button>
+                  </CollapsibleTrigger>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs gap-1.5 mt-1"
-                    onClick={() => promoteAntiAnchorToCandidate(r.id)}
-                  >
-                    <ArrowRight className="h-3 w-3" />
-                    晉升為候選方案
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                  {/* Expanded detail */}
+                  <CollapsibleContent>
+                    <CardContent className="px-5 pb-5 pt-0 space-y-4 border-t">
+                      {/* Mechanism — structured */}
+                      {r.mechanism && (
+                        <div className="text-xs space-y-2 bg-muted/40 dark:bg-muted/20 rounded-lg p-3 mt-3">
+                          {(() => {
+                            const text = r.mechanism;
+                            const sections: { label: string; content: string }[] = [];
+                            const markers = [
+                              { re: /Physical principle:\s*/i, label: "Physical Principle" },
+                              { re: /Causal chain:\s*/i, label: "Causal Chain" },
+                              { re: /Boundary conditions?:\s*/i, label: "Boundary Conditions" },
+                            ];
+                            let remaining = text;
+                            for (const { re, label } of markers) {
+                              const idx = remaining.search(re);
+                              if (idx >= 0) {
+                                if (idx > 0 && sections.length === 0) {
+                                  sections.push({ label: "Overview", content: remaining.slice(0, idx).trim() });
+                                }
+                                remaining = remaining.slice(idx).replace(re, '');
+                                let end = remaining.length;
+                                for (const { re: nextRe } of markers) {
+                                  const nextIdx = remaining.search(nextRe);
+                                  if (nextIdx > 0 && nextIdx < end) end = nextIdx;
+                                }
+                                sections.push({ label, content: remaining.slice(0, end).trim() });
+                                remaining = remaining.slice(end);
+                              }
+                            }
+                            if (sections.length === 0) {
+                              sections.push({ label: "Mechanism", content: text });
+                            }
+                            return sections.map((s, si) => (
+                              <div key={si}>
+                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{s.label}</p>
+                                <p className="text-muted-foreground leading-relaxed">{s.content}</p>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Detail sections — 2-column grid for compact layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {r.whyUnconventional && (
+                          <div className="text-xs">
+                            <p className="font-semibold text-muted-foreground mb-1">Why Unconventional</p>
+                            <p className="text-muted-foreground leading-relaxed">{r.whyUnconventional}</p>
+                          </div>
+                        )}
+                        {r.potentialAdvantage && (
+                          <div className="text-xs">
+                            <p className="font-semibold text-muted-foreground mb-1">Potential Advantage</p>
+                            <p className="text-muted-foreground leading-relaxed">{r.potentialAdvantage}</p>
+                          </div>
+                        )}
+                        {r.crossDomainSource && (
+                          <div className="text-xs">
+                            <p className="font-semibold text-muted-foreground mb-1">Cross-Domain Source</p>
+                            <p className="text-muted-foreground leading-relaxed">{r.crossDomainSource}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Validation Passport */}
+                      {r.validationPassport && (
+                        <div className="text-xs space-y-2 border-t pt-3">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-muted-foreground">Validation Passport</p>
+                            <Badge variant="outline" className="text-[9px]">
+                              信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
+                            </Badge>
+                          </div>
+                          {(r.validationPassport.assumptions ?? []).length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({(r.validationPassport.assumptions ?? []).length})</p>
+                              <ul className="space-y-1">
+                                {(r.validationPassport.assumptions ?? []).map((a, ai) => (
+                                  <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
+                                    <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5">{a.evidenceLevel ?? '?'}</span>
+                                    <span className="leading-relaxed">{a.content}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {(r.validationPassport.weakPoints ?? []).length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Weak Points</p>
+                              <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                {(r.validationPassport.weakPoints ?? []).map((wp, wi) => <li key={wi}>{wp}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {(r.validationPassport.requiredVerifications ?? []).length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Verifications</p>
+                              <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                                {(r.validationPassport.requiredVerifications ?? []).map((rv, ri) => <li key={ri}>{rv}</li>)}
+                              </ol>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs gap-1.5"
+                          onClick={() => promoteAntiAnchorToCandidate(r.id)}
+                        >
+                          <ArrowRight className="h-3 w-3" />
+                          晉升為候選方案
+                        </Button>
+                        <button onClick={() => deleteAntiAnchorRoute(r.id)} className="p-1.5 rounded hover:bg-destructive/10" title="刪除此路線">
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+              );
+            })}
             <AiButton aiVariant="outline" size="sm" loading={aiLoading.antiAnchor} onClick={handleAiGenAntiAnchor} className="text-xs">
               重新生成
             </AiButton>
@@ -1201,14 +1261,14 @@ export default function Create() {
                 <p className="text-sm text-muted-foreground">
                   {contradictionsList.length === 0
                     ? '前置條件：需先在「深度探索」階段完成矛盾識別'
-                    : `已識別 ${contradictionsList.length} 條矛盾，可啟動三路徑生成`}
+                    : `已識別 ${contradictionsList.length} 條矛盾，可依類型分派生成 TRIZ 候選`}
                 </p>
                 <AiButton
                   loading={!!aiLoading.trizGen}
                   onClick={handleAiGenTriz}
                   disabled={!canStart}
                 >
-                  {aiLoading.trizGen ? '生成中...' : 'AI 生成三路徑候選'}
+                  {aiLoading.trizGen ? '生成中...' : 'AI 依矛盾類型生成候選'}
                 </AiButton>
               </CardContent>
             </Card>
@@ -1247,11 +1307,6 @@ export default function Create() {
                                   跳過
                                 </Button>
                               )}
-                              {ts.status === 'adopted' && (
-                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2 text-muted-foreground" onClick={() => setTrizStatus(ts.id, 'pending')}>
-                                  取消
-                                </Button>
-                              )}
                             </div>
                           </div>
                         );
@@ -1261,7 +1316,7 @@ export default function Create() {
                 </Card>
               ))}
               <AiButton aiVariant="outline" size="sm" loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} className="text-xs">
-                重新生成三路徑候選
+                重新生成 TRIZ 候選
               </AiButton>
             </div>
           )}
@@ -1420,6 +1475,41 @@ export default function Create() {
         <CardContent className="p-4 space-y-3">
           <p className="text-sm font-medium">{isEdit ? "編輯子系統" : "新增 RD 定義子系統"}</p>
           <Input placeholder="子系統名稱 *" value={ssFormName} onChange={e => setSsFormName(e.target.value)} />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground mb-1">層級</p>
+              <Select value={ssFormLevel} onValueChange={(v) => setSsFormLevel(v as SubsystemLevel)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">System (系統)</SelectItem>
+                  <SelectItem value="module">Module (模組)</SelectItem>
+                  <SelectItem value="component">Component (零件)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground mb-1">上層節點</p>
+              <Select value={ssFormParentId ?? "__none__"} onValueChange={(v) => setSsFormParentId(v === "__none__" ? null : v)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="無（頂層）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">無（頂層）</SelectItem>
+                  {subsystems
+                    .filter(s => s.id !== (isEdit ? editingSubsystemId : undefined))
+                    .map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="text-muted-foreground mr-1">[{s.level === 'system' ? 'S' : s.level === 'module' ? 'M' : 'C'}]</span>
+                        {s.name}
+                      </SelectItem>
+                    ))
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <Textarea placeholder="職責 / 原因描述" value={ssFormReason} onChange={e => setSsFormReason(e.target.value)} rows={2} />
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">關聯矛盾</p>
@@ -1434,7 +1524,7 @@ export default function Create() {
                         setSsFormContradictions(prev => checked ? [...prev, cId] : prev.filter(x => x !== cId));
                       }}
                     />
-                    <span>{c.naturalDescription.slice(0, 40)}…</span>
+                    <span>{(c.naturalDescription ?? '').slice(0, 40)}…</span>
                   </label>
                 );
               })}
@@ -1460,6 +1550,9 @@ export default function Create() {
             <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => { resetSsForm(); setShowAddSubsystemForm(true); setEditingSubsystemId(null); }}>
               <Plus className="h-3.5 w-3.5" /> 新增子系統
             </Button>
+            <AiButton size="sm" loading={aiSubsystemLoading} onClick={aiSuggestSubsystems}>
+              建議子系統
+            </AiButton>
             <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>
           </div>
           <div className="flex items-center border rounded-md overflow-hidden">

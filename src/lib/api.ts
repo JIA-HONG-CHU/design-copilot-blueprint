@@ -518,7 +518,11 @@ export interface TrizSolveRequest {
   improving_param?: number | null;
   worsening_param?: number | null;
   physical_contradiction?: string | null;
-  type?: "TC" | "PC";
+  // Su-Field fields (used when type === "SF")
+  sf_substance_1?: string | null;
+  sf_substance_2?: string | null;
+  sf_field?: string | null;
+  type?: "TC" | "PC" | "SF";
 }
 
 export interface TrizSuggestionResult {
@@ -655,11 +659,15 @@ export interface ConvergenceContradictionInput {
   natural_description: string;
   severity: string;
   resolved: boolean;
-  type: string | null;
+  type: string | null;  // "TC" | "PC" | "SF"
   improving_param: number | null;
   worsening_param: number | null;
   engineering_statement: string;
   physical_contradiction: string;
+  // Su-Field fields (populated when type === "SF")
+  sf_substance_1?: string;
+  sf_substance_2?: string;
+  sf_field?: string;
 }
 
 export interface ConvergenceScanRequest {
@@ -788,7 +796,13 @@ export interface ContradictionFormalizeResponse {
   physical_contradiction: string | null;
   pc_attribute_a: string | null;
   pc_attribute_not_a: string | null;
-  type: "TC" | "PC";
+  // Su-Field fields (populated when type === "SF")
+  sf_substance_1: string | null;
+  sf_substance_2: string | null;
+  sf_field: string | null;
+  sf_interaction: string | null;
+  sf_completeness: string | null;
+  type: "TC" | "PC" | "SF";
   confidence: number;
 }
 
@@ -831,10 +845,26 @@ export interface SubsystemSuggestRequest {
   existing_subsystems?: string[];
 }
 
+export interface SuggestedInterfaceContract {
+  envelope?: string;
+  loadPath?: string;
+  load_path?: string;
+  thermalPath?: string;
+  thermal_path?: string;
+  signalPath?: string;
+  signal_path?: string;
+  datumTolerance?: string;
+  datum_tolerance?: string;
+  serviceability?: string;
+}
+
 export interface SuggestedSubsystem {
   name: string;
+  level?: string;  // system | module | component
   reason: string;
   related_contradictions: string[];
+  children?: SuggestedSubsystem[];
+  interface_contracts?: Record<string, SuggestedInterfaceContract>;
 }
 
 export interface SubsystemSuggestResponse {
@@ -842,7 +872,7 @@ export interface SubsystemSuggestResponse {
 }
 
 export function scamperSubsystemSuggest(body: SubsystemSuggestRequest) {
-  return request<SubsystemSuggestResponse>("/scamper/subsystem-suggestions", body);
+  return request<SubsystemSuggestResponse>("/scamper/subsystem-suggestions", body, { timeoutMs: 300_000 });
 }
 
 // ─── SCAMPER Feedback Contradictions ───────────────────────────────────────
@@ -988,6 +1018,32 @@ export function getApiErrorMessage(error: unknown, actionLabel = "操作"): stri
     return `${actionLabel}失敗：${error.message}`;
   }
   return `${actionLabel}失敗：未知錯誤`;
+}
+
+// ─── Unknown Factor Discovery ─────────────────────────────────────────────
+
+export interface UnknownFactorDiscoverRequest {
+  project_id: string;
+  mission: string;
+  constraints?: string[];
+  kpis?: string[];
+  contradictions?: string[];
+  existing_assumptions?: string[];
+  existing_unknowns?: string[];
+}
+
+export interface DiscoveredUnknownFactor {
+  description: string;
+  impact: string;
+  reason: string;
+}
+
+export interface UnknownFactorDiscoverResponse {
+  factors: DiscoveredUnknownFactor[];
+}
+
+export function unknownFactorDiscover(body: UnknownFactorDiscoverRequest) {
+  return request<UnknownFactorDiscoverResponse>("/unknown-factors/discover", body, { timeoutMs: 300_000 });
 }
 
 export { ApiError, ApiNetworkError, type RequestOptions };

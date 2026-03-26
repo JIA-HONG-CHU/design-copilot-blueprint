@@ -493,7 +493,8 @@ Each field: 50–150 words.
 
 CONTRADICTION_FORMALIZATION = """\
 <task>
-Convert the following natural-language contradiction into a TRIZ-standard formal representation.
+Convert the following natural-language contradiction or problem into a TRIZ-standard formal representation.
+Classify it into one of three types: TC (Technical Contradiction), PC (Physical Contradiction), or SF (Su-Field Problem).
 </task>
 
 <context>
@@ -511,10 +512,13 @@ Convert the following natural-language contradiction into a TRIZ-standard formal
 </input>
 
 <instructions>
-1. Produce an engineering statement describing the contradiction in one sentence.
-2. Classify the contradiction type:
-   - **TC** (Technical Contradiction): two different parameters conflict.
+1. Produce an engineering statement describing the contradiction/problem in one sentence.
+2. Classify the type using these rules:
+   - **TC** (Technical Contradiction): two different parameters conflict — improving one worsens another.
    - **PC** (Physical Contradiction): one parameter must simultaneously satisfy opposing demands.
+   - **SF** (Su-Field Problem): a substance-field interaction is incomplete, harmful, or insufficient.
+     Use SF when the problem is about a system interaction that is missing, too weak, or produces
+     undesirable effects — rather than a parameter trade-off.
 3. For TC:
    - Map improving and worsening parameters to TRIZ 39 engineering parameters (1–39).
    - Use null if no confident mapping exists.
@@ -523,17 +527,27 @@ Convert the following natural-language contradiction into a TRIZ-standard formal
    - Extract the opposing attribute (pc_attribute_not_a): the contradictory property the system also needs.
    - Each attribute should be a concise phrase (e.g., "高計算深度", "低計算量"), NOT a full sentence.
    - Store the full description in physical_contradiction.
-5. Assign a confidence score (0–1) for the mapping quality.
+5. For SF:
+   - Identify S1 (tool substance that acts), S2 (product substance acted upon), F (field type).
+   - Classify sf_interaction: "useful" | "harmful" | "insufficient" | "missing".
+   - Classify sf_completeness: "complete" | "incomplete" | "harmful_complete".
+   - Set improving_param, worsening_param, physical_contradiction, pc_attribute_a, pc_attribute_not_a to null.
+6. Assign a confidence score (0–1) for the mapping quality.
 </instructions>
 
 <output_schema>
 {{
-  "engineering_statement": "Improving X worsens Y",
+  "engineering_statement": "...",
   "improving_param": 14,
   "worsening_param": 1,
   "physical_contradiction": null,
   "pc_attribute_a": null,
   "pc_attribute_not_a": null,
+  "sf_substance_1": null,
+  "sf_substance_2": null,
+  "sf_field": null,
+  "sf_interaction": null,
+  "sf_completeness": null,
   "type": "TC",
   "confidence": 0.8
 }}
@@ -547,10 +561,29 @@ Convert the following natural-language contradiction into a TRIZ-standard formal
   "physical_contradiction": "The core model requires large-scale parameters for high recall, but must also meet real-time inference latency requirements",
   "pc_attribute_a": "高計算深度（大規模參數以達成極高召回率）",
   "pc_attribute_not_a": "低計算量（滿足產線即時推論延遲要求）",
+  "sf_substance_1": null, "sf_substance_2": null, "sf_field": null, "sf_interaction": null, "sf_completeness": null,
   "type": "PC",
   "confidence": 0.85
 }}
 </example_pc>
+
+<example_sf>
+{{
+  "engineering_statement": "Bearing support stiffness is insufficient at high RPM, causing rotor deflection",
+  "improving_param": null,
+  "worsening_param": null,
+  "physical_contradiction": null,
+  "pc_attribute_a": null,
+  "pc_attribute_not_a": null,
+  "sf_substance_1": "軸承 (Bearing)",
+  "sf_substance_2": "轉子 (Rotor)",
+  "sf_field": "mechanical (radial support force)",
+  "sf_interaction": "insufficient",
+  "sf_completeness": "incomplete",
+  "type": "SF",
+  "confidence": 0.80
+}}
+</example_sf>
 """
 
 # ---------------------------------------------------------------------------
@@ -805,6 +838,69 @@ a concrete engineering trade-off or relaxation.
       "constraintB": "Second constraint description",
       "reason": "Why these two constraints conflict",
       "suggestion": "Concrete suggestion to resolve the tension"
+    }}
+  ]
+}}
+</output_schema>
+"""
+
+# ---------------------------------------------------------------------------
+# Unknown Factor Discovery
+# ---------------------------------------------------------------------------
+
+UNKNOWN_FACTOR_DISCOVERY = """\
+<task>
+Discover **unknown factors** — risks, assumptions, or environmental conditions \
+that have NOT been explicitly identified in the project's existing assumptions, \
+contradictions, or constraints, but could significantly impact design success.
+</task>
+
+<context>
+<mission>{mission}</mission>
+<constraints>
+{constraints}
+</constraints>
+<kpis>
+{kpis}
+</kpis>
+<contradictions>
+{contradictions}
+</contradictions>
+<existing_assumptions>
+{existing_assumptions}
+</existing_assumptions>
+<existing_unknowns>
+{existing_unknowns}
+</existing_unknowns>
+</context>
+
+<instructions>
+1. Analyse the gaps between what the project has explicitly considered \
+   (assumptions, contradictions, constraints) and what a thorough design review \
+   would cover.
+2. Focus on:
+   - **Environmental / operational unknowns**: temperature extremes, vibration, \
+     humidity, EMI, user misuse scenarios.
+   - **Supply-chain / manufacturing unknowns**: material availability, process \
+     capability, tooling constraints.
+   - **Regulatory / certification unknowns**: standards not yet checked, \
+     regional differences.
+   - **Integration unknowns**: interface tolerance stack-ups, thermal coupling, \
+     signal integrity across modules.
+   - **Lifecycle unknowns**: degradation, maintenance, end-of-life recycling.
+3. Do NOT repeat factors already listed in existing_assumptions or existing_unknowns.
+4. For each factor, assess impact (high / medium / low) and explain WHY \
+   this is a blind spot.
+5. Return 3–5 factors.
+</instructions>
+
+<output_schema>
+{{
+  "factors": [
+    {{
+      "description": "Concise description of the unknown factor",
+      "impact": "high|medium|low",
+      "reason": "Why this is a blind spot and how it could affect the design"
     }}
   ]
 }}

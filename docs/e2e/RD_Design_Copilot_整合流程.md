@@ -52,14 +52,15 @@
 
 ### 1.3 核心工件物件 (Copilot Minimal Data Model Schema)
 
-Copilot 最小資料模型將圍繞以下 6 個核心物件，實現專家知識數位化與可複用流程：
+Copilot 最小資料模型將圍繞以下 7 個核心物件，實現專家知識數位化與可複用流程：
 
 1.  **Constraint**：需求、硬限制、軟目標、非目標。
-2.  **Contradiction (TRIZ)**：改善參數、惡化參數、工程描述、物理矛盾。
-3.  **Breakpoint**：斷路點：介入位置、可操作參數。
-4.  **Concept Route**：架構路線：機制、介面契約、預估 BOM、風險、Evidence Matrix、**Validation Passport**、**source**（`triz` | `scamper` | `anti_anchor` | `manual`）。
-5.  **Evidence**：仿真報告、計算書、測試報告、供應商回覆、量測數據。
-6.  **Risk**：風險登錄 (FMEA-like)，包含失效模式、機率、嚴重度、緩解措施。
+2.  **Contradiction (TRIZ)**：矛盾類型（TC/PC/SF）、改善參數、惡化參數、工程描述、物理矛盾、Su-Field 模型。
+3.  **FunctionModel**：物質-場模型：S1（工具）、S2（產品）、F（場）、交互作用類型、Su-Field 完整性。
+4.  **Breakpoint**：斷路點：介入位置、可操作參數。
+5.  **Concept Route**：架構路線：機制、介面契約、預估 BOM、風險、Evidence Matrix、**Validation Passport**、**source**（`triz` | `scamper` | `anti_anchor` | `manual`）。
+6.  **Evidence**：仿真報告、計算書、測試報告、供應商回覆、量測數據。
+7.  **Risk**：風險登錄 (FMEA-like)，包含失效模式、機率、嚴重度、緩解措施。
 
 ### 1.4 知識增強層：企業知識庫 RAG + 網路文獻搜尋
 
@@ -188,9 +189,9 @@ rd_assistant_design_system/triz_knowledge_base/
 | AutoTRIZ 階段 | 對應 Copilot Step | 主要執行方式 |
 |--------------|-------------------|-------------|
 | Problem Structuring | **Step 1-2** (問題界定 + 理解全貌) | LLM 抽取 + 人校準 |
-| Function Model + 矛盾定義 | **Step 3** (系統建模 + TRIZ 矛盾正式化) | LLM 輔助翻譯 + 規則驗證 |
-| 矛盾矩陣/分離/標準解 | **Step 5a** (TRIZ 解矛盾) | 規則引擎查表。**注意：Phase A only（矛盾健康度），Phase B 移至決策中心（Step 5d）由 RD 選定路徑後觸發** |
-| Instantiation + Solution | **Step 5b-5d** (子系統 + SCAMPER + 方案生成) | LLM 生成 + RAG 佐證。**TC/PC/SF 平行產出候選，但非同時採納——RD 在決策中心 per-contradiction 選擇路徑** |
+| Function Model + 矛盾定義 + **矛盾類型分類** | **Step 3** (系統建模 + Function Model + TRIZ 矛盾正式化 + 矛盾類型分類) | LLM 輔助翻譯 + 規則驗證 + **規則引擎分類 (TC/PC/SF)** |
+| 矛盾矩陣/分離/標準解 | **Step 5a** (TRIZ 依矛盾類型分派解法) | 規則引擎查表。**依 Step 3 矛盾類型分派路徑：TC→矩陣、PC→分離、SF→76標準解。Phase A only（矛盾健康度），Phase B 移至決策中心（Step 5d）由 RD 選定路徑後觸發** |
+| Instantiation + Solution | **Step 5b-5d** (子系統 + SCAMPER + 方案生成) | LLM 生成 + RAG 佐證。**每條矛盾依其類型走對應路徑產出候選，非三路全跑——RD 在決策中心 per-contradiction 審核** |
 | Ranking & Evaluation | **Step 5e / Step 7** (MUST 快篩 / KT 決策) | 規則引擎 + 人審 |
 
 ---
@@ -378,11 +379,11 @@ graph TD
 
 ---
 
-## Step 3: 系統建模 (因果迴路 + TRIZ 矛盾定義)
+## Step 3: 系統建模 (因果迴路 + Function Model + TRIZ 矛盾定義)
 
 ### 3.1 目的
-找到耦合點（未知會放大的地方），並將矛盾正式化為 TRIZ 句式。
-**核心工件**：Contradiction (Verified), Breakpoint (Draft)
+找到耦合點（未知會放大的地方），建構 Function Model（物質-場模型）以識別系統交互作用類型，並將矛盾正式化為 TRIZ 句式，完成**矛盾類型分類（Technical / Physical / Su-Field）**——此分類決定 Step 5a 的解法路徑。
+**核心工件**：Contradiction (Verified), FunctionModel (Reviewed), Breakpoint (Draft)
 
 ### 3.2 知識增強輸入
 - **[RAG]** FMEA/8D 歷史報告中的失效因果鏈，直接匯入因果迴路圖
@@ -407,34 +408,125 @@ flowchart LR
     end
 ```
 
-### 3.4 TRIZ 矛盾正式化 (工件: Contradiction)
+### 3.4 Function Model 建構 (工件: FunctionModel)
 
-> **AutoTRIZ 標註**：此步驟是 TRIZ 流程中「最難規則化」的環節——把口語化的工程問題翻譯成 TRIZ 結構（39 參數、矛盾類型、物理矛盾）。Copilot 使用 **LLM 輔助翻譯 + 規則驗證** 的混合模式：
-> - **LLM 負責**：從 Step 1-2 的自然語言描述中抽取候選改善/惡化參數、判斷矛盾類型
-> - **規則引擎負責**：驗證參數是否為合法的 39 參數、矛盾句式是否完整、是否有重複/遺漏
-> - **人校準**：RD 確認 LLM 產出的矛盾句是否反映真正的工程矛盾
+> **AutoTRIZ 標註**：Function Model 是 TRIZ 三路徑分類的前置條件。只有建構出物質-場模型，才能區分哪些問題屬於 Su-Field 類型（不完整/有害/不足的場-物質交互），哪些是 Technical/Physical Contradiction。此步驟由**規則引擎 + 本體論 (Ontology)** 驅動，LLM 輔助識別隱含的場與物質。
 
-**TRIZ 矛盾句模板**
+#### 3.4.1 物質-場分析 (Su-Field Analysis)
+
+從因果迴路圖（3.3）中提取系統的物質（Substance）與場（Field）交互關係：
 
 ```
+Function Model [編號]:
+  系統功能: [系統要達成的主要功能]
+  物質1 (S1): [工具物質 — 施加作用的物件]
+  物質2 (S2): [產品物質 — 被作用的物件]
+  場 (F): [場類型: 機械場/熱場/電場/磁場/化學場/...]
+  交互作用類型: [有用/有害/不足/缺失]
+  Su-Field 完整性: [完整 / 不完整 / 有害完整]
+```
+
+**範例**
+
+```yaml
+Function Model FM-01:
+  系統功能: 馬達軸承支撐轉子
+  物質1 (S1): 軸承
+  物質2 (S2): 轉子
+  場 (F): 機械場 (徑向支撐力)
+  交互作用類型: 有用但不足 (高轉速下支撐剛度不夠)
+  Su-Field 完整性: 不完整 → Su-Field 問題候選
+
+Function Model FM-02:
+  系統功能: 外殼散熱
+  物質1 (S1): 外殼
+  物質2 (S2): 繞組 (熱源)
+  場 (F): 熱場 (傳導 + 對流)
+  交互作用類型: 不足 (熱阻過大)
+  Su-Field 完整性: 不完整 → Su-Field 問題候選
+```
+
+#### 3.4.2 矛盾類型分類規則 (規則引擎)
+
+基於 Function Model 與矛盾初步識別（Step 2），規則引擎進行分類：
+
+| 判定條件 | 矛盾類型 | Step 5a 路徑 |
+|---------|---------|-------------|
+| 兩個不同參數改善/惡化衝突 | **Technical Contradiction (TC)** | 矛盾矩陣 → 40 原理 |
+| 同一物件需同時具備矛盾屬性 | **Physical Contradiction (PC)** | 分離原則 (時間/空間/條件/整體局部) |
+| Su-Field 交互不完整/有害/不足 | **Su-Field Problem (SF)** | 76 標準解 |
+
+> **注意**：同一工程問題可能同時被歸為多種類型（例如既有 TC 也有 SF 面向）。此時保留所有適用的分類，但每種類型走各自對應的路徑——**不是每條矛盾都跑三路**。
+
+### 3.5 TRIZ 矛盾正式化 (工件: Contradiction)
+
+> **AutoTRIZ 標註**：此步驟是 TRIZ 流程中「最難規則化」的環節——把口語化的工程問題翻譯成 TRIZ 結構（39 參數、矛盾類型、物理矛盾、Su-Field 模型）。Copilot 使用 **LLM 輔助翻譯 + 規則驗證** 的混合模式：
+> - **LLM 負責**：從 Step 1-2 的自然語言描述中抽取候選改善/惡化參數、判斷矛盾類型
+> - **規則引擎負責**：驗證參數是否為合法的 39 參數、矛盾句式是否完整、是否有重複/遺漏；**基於 3.4 Function Model 分類矛盾類型**
+> - **人校準**：RD 確認 LLM 產出的矛盾句是否反映真正的工程矛盾，並確認矛盾類型分類正確
+
+**TRIZ 問題正式化模板（依類型分列）**
+
+**Technical Contradiction (TC) 模板**
+```
 矛盾 [編號]:
+  矛盾類型: Technical Contradiction
   改善參數: [TRIZ 39參數之一]
   惡化參數: [TRIZ 39參數之一]
   工程表述: 當 [動作] 時，[指標A] 改善，但 [指標B] 惡化
+  Step 5a 路徑: 矛盾矩陣 → 40 原理
+```
+
+**Physical Contradiction (PC) 模板**
+```
+矛盾 [編號]:
+  矛盾類型: Physical Contradiction
   物理矛盾: [同一物件] 需要同時具備 [屬性X] 和 [非屬性X]
+  工程表述: [物件] 在 [情境A] 下需要 [屬性X]，在 [情境B] 下需要 [非屬性X]
+  Step 5a 路徑: 分離原則 (時間/空間/條件/整體局部)
+```
+
+**Su-Field Problem (SF) 模板**
+```
+問題 [編號]:
+  矛盾類型: Su-Field Problem
+  關聯 Function Model: [FM-xxx]
+  S1 (工具): [物質1]
+  S2 (產品): [物質2]
+  F (場): [場類型]
+  問題描述: [交互作用不完整/有害/不足的具體描述]
+  Su-Field 問題類別: [不完整系統 / 有害效應 / 效應不足]
+  Step 5a 路徑: 76 標準解
 ```
 
 **範例**
 
 ```yaml
 矛盾 C1:
+  矛盾類型: Technical Contradiction
   改善參數: 9-速度
   惡化參數: 31-有害副作用(噪音)
   工程表述: 當轉速提高時，輸出功率密度改善，但 NVH 惡化
+  Step 5a 路徑: 矛盾矩陣 → 40 原理
+
+矛盾 C1-PC:
+  矛盾類型: Physical Contradiction
   物理矛盾: 轉子需要同時「高轉速」和「低振動」
+  工程表述: 轉子在輸出功率時需要高轉速，在 NVH 控制時需要低振動
+  Step 5a 路徑: 分離原則
+
+問題 SF-01:
+  矛盾類型: Su-Field Problem
+  關聯 Function Model: FM-01
+  S1 (工具): 軸承
+  S2 (產品): 轉子
+  F (場): 機械場 (徑向支撐力)
+  問題描述: 高轉速下軸承支撐剛度不足，轉子偏擺增大
+  Su-Field 問題類別: 效應不足
+  Step 5a 路徑: 76 標準解
 ```
 
-### 3.5 輸出：斷路點識別 (工件: Breakpoint)
+### 3.6 輸出：斷路點識別 (工件: Breakpoint)
 
 | 斷路點編號 | 位置 | 可能解法方向 | TRIZ 原理提示 |
 |--------|------|-------------|--------------|
@@ -444,8 +536,10 @@ flowchart LR
 
 **Gate 3 檢查點**
 > ✅ 明確點名 3 個斷路點，每個斷路點有對應 TRIZ 原理提示。
-> ✅ 每條核心矛盾都有 TRIZ 正式句。
+> ✅ 每條核心矛盾/問題都有 TRIZ 正式句，且標註矛盾類型（TC / PC / SF）與對應的 Step 5a 路徑。
+> ✅ Function Model 已建構，Su-Field 交互作用已識別。
 > ✅ 核心工件 Contradiction 狀態: Reviewed -> Verified。
+> ✅ 核心工件 FunctionModel 狀態: Draft -> Reviewed。
 > ✅ 核心工件 Breakpoint 狀態: Draft -> Reviewed。
 
 ---
@@ -525,7 +619,7 @@ graph TD
         S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> Pool["候選池<br>(auto-aggregation)"]
 
         %% ── Forward track (blue) ──
-        InputC2["矛盾句 (C-001~N)"] --> S5a["5a: TRIZ 三路徑產出<br>TC / PC / SF 平行生成<br>全部 pending，附 Phase A 健康摘要"]
+        InputC2["矛盾句/問題 (C-001~N, SF-001~N)<br>含矛盾類型標籤"] --> S5a["5a: TRIZ 依矛盾類型分派<br>TC→矩陣 / PC→分離 / SF→76標準解<br>全部 pending，附 Phase A 健康摘要"]
         S5a --"解法方向<br>(工程對映指出受影響子系統)"--> S5b["5b: 子系統定義<br>(散熱/支撐/傳動/控制器/隔振)"]
         S5b --"每個子系統"--> S5c["5c: SCAMPER 模組變形<br>對每個子系統 × 7 動作<br>輸出: 七欄規格"]
         S5a --"TC/PC/SF 候選"--> Pool
@@ -541,22 +635,22 @@ graph TD
 
 ### 5a TRIZ 解矛盾 (每條矛盾執行)
 
-> **v9 更新**：Step 5a 同時完成兩件事：**(1) 三路徑候選生成** — TC（`trizSolve`）、PC（分離原則）、SF（`suFieldAnalyze`）平行產出候選方案，全部標記為 `pending`，直接進入候選池；**(2) Phase A 健康摘要卡** — 以一行摘要（score / health / counts）顯示矛盾空間健康度，僅在 warning / critical / circular 時自動展開 ConvergenceGraph（React Flow + Dagre auto-DAG layout）。
+> **v10 更新**：Step 5a 依據 **Step 3 的矛盾類型分類**分派解法路徑——每條矛盾/問題只走其對應路徑，而非三路全跑。同時完成兩件事：**(1) 依類型分派候選生成** — TC 類走矛盾矩陣（`trizSolve`）、PC 類走分離原則、SF 類走 76 標準解（`suFieldAnalyze`），全部標記為 `pending`，直接進入候選池；**(2) Phase A 健康摘要卡** — 以一行摘要（score / health / counts）顯示矛盾空間健康度，僅在 warning / critical / circular 時自動展開 ConvergenceGraph（React Flow + Dagre auto-DAG layout）。
 >
 > Phase B（方案交叉檢查）**不再自動觸發**——由 RD 在 Step 5d 決策中心手動啟動。BranchExplorationPanel 已從 Phase A 移除（Phase A 無分支概念）。
 >
-> **AutoTRIZ 執行模式**：此步驟分為「規則引擎查表」和「LLM 具體化」兩階段，並在具體化後執行**二次矛盾掃描**。
+> **AutoTRIZ 執行模式**：此步驟依 Step 3 標註的矛盾類型分派路徑，分為「規則引擎查表」和「LLM 具體化」兩階段，並在具體化後執行**二次矛盾掃描**。
 >
-> | 子步驟 | 執行方式 | 動作 |
-> |--------|---------|------|
-> | 5a-1 矛盾矩陣查表 (TC) | **規則引擎 `trizSolve`** | 改善參數 × 惡化參數 → Top-N 推薦原理 |
-> | 5a-2 分離原則映射 (PC) | **規則引擎** | 物理矛盾 → 時間/空間/條件/整體局部分離策略 |
-> | 5a-3 Su-Field 標準解 (SF) | **規則引擎 `suFieldAnalyze`** | 若為 Su-Field 問題 → 76 標準解匹配 |
-> | 5a-4 原理具體化 | **LLM + RAG** | 把抽象原理翻譯成本領域可執行的工程手段 |
-> | 5a-5 品質校驗 | **規則 + 人審** | 檢查工程對映是否違反已知約束 |
-> | **5a-6 二次矛盾掃描** | **LLM + 規則** | 每個解法與 CLD/Interface Contract 交叉比對，識別受影響模組，檢查是否產生新矛盾 |
+> | 子步驟 | 適用矛盾類型 | 執行方式 | 動作 |
+> |--------|------------|---------|------|
+> | 5a-1 矛盾矩陣查表 | **TC (Technical Contradiction)** | **規則引擎 `trizSolve`** | 改善參數 × 惡化參數 → Top-N 推薦原理 |
+> | 5a-2 分離原則映射 | **PC (Physical Contradiction)** | **規則引擎** | 物理矛盾 → 時間/空間/條件/整體局部分離策略 |
+> | 5a-3 Su-Field 標準解 | **SF (Su-Field Problem)** | **規則引擎 `suFieldAnalyze`** | 基於 Function Model → 76 標準解匹配（5 大類） |
+> | 5a-4 原理具體化 | TC / PC / SF 各自的產出 | **LLM + RAG** | 把抽象原理翻譯成本領域可執行的工程手段 |
+> | 5a-5 品質校驗 | 所有候選 | **規則 + 人審** | 檢查工程對映是否違反已知約束 |
+> | **5a-6 二次矛盾掃描** | 所有候選 | **LLM + 規則** | 每個解法與 CLD/Interface Contract 交叉比對，識別受影響模組，檢查是否產生新矛盾 |
 >
-> **所有 TC/PC/SF 候選皆為 `pending` 狀態**，直接進入候選池等待 RD 在決策中心選擇。
+> **路徑分派邏輯**：每條矛盾/問題依 Step 3 標註的 `矛盾類型` 進入對應的 5a-1 / 5a-2 / 5a-3。若同一工程問題同時被標註多種類型（如既有 TC 也有 SF 面向），則各走各的路徑分別產出候選，但**不是每條矛盾都跑三路**。所有候選皆為 `pending` 狀態，直接進入候選池等待 RD 在決策中心選擇。
 >
 > **矛盾收斂圖 (Contradiction Convergence Graph) — Phase A / Phase B**
 >
@@ -631,8 +725,9 @@ graph TD
 ```yaml
 TRIZ_解法_[編號]:
   矛盾句: 改善 [X] 惡化 [Y]
-  矛盾類型: [技術矛盾 / 物理矛盾 / Su-Field]   # 規則引擎分類
-  採用原理: [TRIZ 40原理編號與名稱]               # 規則引擎查表推薦
+  矛盾類型: [Technical Contradiction / Physical Contradiction / Su-Field Problem]   # Step 3 規則引擎分類
+  來源矛盾/問題: [C-xxx / SF-xxx]                 # 追溯至 Step 3 問題定義
+  採用原理: [TRIZ 40原理編號 / 分離原則 / 76標準解編號]   # 依矛盾類型對應
   推薦來源: [矛盾矩陣 / 分離原則 / 76標準解]     # 標註規則來源
   抽象策略: [原理的抽象描述]
   工程對映:                                        # LLM + RAG 具體化

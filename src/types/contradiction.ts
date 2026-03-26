@@ -18,11 +18,17 @@ export interface Contradiction {
   worseningParam: number | null;
   engineeringStatement: string;
   physicalContradiction: string;
-  type: 'TC' | 'PC' | null;
+  type: 'TC' | 'PC' | 'SF' | null;
   severity: ContradictionSeverity;
   resolved: boolean;
   sourceQuestionId: string | null;
   sourceType: ContradictionSourceType;
+  // Su-Field fields (populated when type === 'SF')
+  sfSubstance1: string | null;
+  sfSubstance2: string | null;
+  sfField: string | null;
+  sfInteraction: string | null;  // useful / harmful / insufficient / missing
+  sfCompleteness: string | null;  // complete / incomplete / harmful_complete
   createdAt: string;
   updatedAt: string;
 }

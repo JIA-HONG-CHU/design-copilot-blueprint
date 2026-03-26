@@ -352,6 +352,7 @@ export function useCreateSubsystem() {
     parent_id?: string | null;
     interfaces?: string;
     source?: string;
+    level?: string;
   }>({
     table: 'subsystems',
     type: 'insert',
@@ -370,6 +371,7 @@ export function useUpdateSubsystem() {
     parent_id?: string | null;
     interfaces?: string;
     source?: string;
+    level?: string;
   }>({
     table: 'subsystems',
     type: 'update',

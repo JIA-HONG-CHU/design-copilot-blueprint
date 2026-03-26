@@ -1,6 +1,7 @@
 # 雙軌分析 → 候選方案決策中心：設計概念與流程圖
 
-> **v8 (2026-03-26)**: Four structural fixes.
+> **v9 (2026-03-26)**: 反向路徑簡化 + 四項結構性修復。
+> - **反向路徑簡化**：R2-R4（TRIZ/子系統/SCAMPER）移除 — Anti-Anchor 是創意工具，不需要再跑演繹收斂。產出直接帶 Validation Passport 進候選池。
 > - P1: SCAMPER 改為純創意工具（不回饋收斂迴圈）
 > - P2: Phase A 語意去重（`is_confirmatory` 過濾重複矛盾）
 > - P3: 子系統 3 層架構分解（System→Module→Component + 6 維介面契約）
@@ -43,14 +44,11 @@ flowchart TB
     subgraph Phase2["Phase 2: 雙軌分析 → 匯流決策"]
         direction TB
 
-        subgraph REVERSE["反向路徑 — 打破框架"]
+        subgraph REVERSE["反向路徑 — 打破框架（創意發散）"]
             direction TB
-            R1["R1: Anti-Anchor Sprint<br/>AI 非典型架構探索<br/>Output: AntiAnchorRoute[] ≥3<br/>+ Validation Passport"]
-            R2["R2: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
-            R3["R3: 子系統定義<br/>System→Module→Component 3 層<br/>+ 6 維介面契約"]
-            R4["R4: SCAMPER 變形（創意工具）<br/>7 創意行動 × 子系統<br/>風險標註，不觸發 re-scan"]
-            RP["反向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選 + AA晉升"]
-            R1 --> R2 --> R3 --> R4 --> RP
+            R1["Anti-Anchor Sprint<br/>AI 非典型架構探索<br/>Output: AntiAnchorRoute[] ≥3<br/>每條自帶 Validation Passport<br/>(assumptions + weak_points +<br/>required_verifications + confidence)"]
+            RP["反向候選池<br/>Anti-Anchor routes<br/>直接進入，不經 TRIZ 收斂"]
+            R1 --> RP
         end
 
         subgraph FORWARD["正向路徑 — 系統化解矛盾"]
@@ -91,11 +89,12 @@ flowchart TB
 
 | 決策 | 說明 |
 |------|------|
-| **產出與選擇分離** | TRIZ 步驟只產出候選（Phase A），路徑選擇在決策中心（Phase B） |
-| Phase A = 矛盾健康度 | TRIZ/子系統步驟呼叫 `startPhaseA()`（含語意去重），不涉及解法交叉。SCAMPER 為創意工具，不參與收斂 |
+| **方法獨立** | 反向（創意）和正向（演繹）是兩種本質不同的方法，不應讓創意工具再跑演繹收斂 |
+| **反向路徑簡化** | Anti-Anchor 自帶 Validation Passport，直接進候選池。不需要 R2-R4（TRIZ/子系統/SCAMPER） |
+| **產出與選擇分離** | 正向路徑：TRIZ 步驟只產出候選（Phase A），路徑選擇在決策中心（Phase B） |
+| Phase A = 矛盾健康度 | 正向路徑 TRIZ 步驟呼叫 `startPhaseA()`（含語意去重） |
 | Phase B = 方案交叉檢查 | 決策中心 RD 挑選後手動觸發 `startPhaseB()`，只送 adopted 解法 |
-| 同矛盾多路徑警告 | Phase B prompt 新增：同一矛盾的 TC+PC+SF 同時 adopt → major 風險 |
-| 無自動 A→B 轉換 | 移除 `useEffect` 自動偵測 — Phase B 完全由人類決定何時執行 |
+| 同矛盾多路徑警告 | Phase B prompt：同一矛盾的 TC+PC+SF 同時 adopt → major 風險 |
 
 ---
 
@@ -209,17 +208,10 @@ flowchart TB
     subgraph DUAL_TRACK["雙軌資料流"]
         direction TB
 
-        subgraph REV_DATA["反向路徑資料"]
-            AA["AntiAnchorRoute[]<br/>mechanism / cross_domain_source<br/>validation_passport"]
-            R_EC["Anti-Anchor 引入的矛盾"]
-            R_TS["反向 TrizSolution[]<br/>TC候選 + PC候選 + SF候選<br/>全部 pending"]
-            R_SS["反向 Subsystem[]<br/>System→Module→Component"]
-            R_SV["反向 ScamperVariant[]"]
-            R_POOL["反向候選池"]
-            AA --> R_EC -->|"1:N 求解"| R_TS
-            R_TS -->|"矛盾親和性"| R_SS
-            R_SS -->|"FK"| R_SV -->|"整合"| R_POOL
-            AA -.->|"晉升為方案"| R_POOL
+        subgraph REV_DATA["反向路徑資料（創意發散）"]
+            AA["AntiAnchorRoute[]<br/>mechanism / cross_domain_source<br/>validation_passport<br/>(assumptions + weak_points +<br/>required_verifications + confidence)"]
+            R_POOL["反向候選池<br/>直接進入，不經 TRIZ 收斂"]
+            AA --> R_POOL
         end
 
         subgraph FWD_DATA["正向路徑資料"]
@@ -310,7 +302,7 @@ flowchart TB
 
 | 階段 | 輸入 | 處理 | 輸出 | 連鎖效果 |
 |------|------|------|------|----------|
-| Anti-Anchor 生成 | mission + constraints | AI 產出非典型架構 | `AntiAnchorRoute[].length ≥ 3` | 可晉升為反向路徑方案 |
+| Anti-Anchor 生成 | mission + constraints | AI 產出非典型架構（創意工具，自帶 Validation Passport） | `AntiAnchorRoute[].length ≥ 3` | **直接進反向候選池**，不經 TRIZ/子系統/SCAMPER |
 | TRIZ 產出候選 | 路徑矛盾集 | 三路徑並行生成解法 | `TrizSolution[]` 全部 `pending` | 不做 Phase B |
 | Phase A 掃描 | `startPhaseA()` | 語意去重（`is_confirmatory` 過濾）→ 矛盾空間健康度 | converged / halted | 不觸發 Phase B |
 | 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 System→Module→Component 3 層 + 6 維介面契約 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
@@ -335,17 +327,14 @@ flowchart TB
 
 ## 9. Gate 條件
 
-### 路徑完成 Gate（各路徑獨立）
+### 路徑完成 Gate
 
 | Gate | 條件 |
 |------|------|
-| 反向: R1 | routes.length ≥ 3 |
-| 反向: R2 | Phase A converged 或 trizSolutions.length > 0 |
-| 反向: R3 | confirmed subsystems > 0 |
-| 反向: R4 | SCAMPER adopted > 0 |
-| 正向: F1 | Phase A converged 或 trizSolutions.length > 0 |
-| 正向: F2 | confirmed subsystems > 0 |
-| 正向: F3 | SCAMPER adopted > 0 |
+| **反向路徑** | Anti-Anchor routes.length ≥ 3（完成即可，無後續步驟） |
+| 正向: F1 TRIZ | Phase A converged 或 trizSolutions.length > 0 |
+| 正向: F2 子系統 | confirmed subsystems > 0 |
+| 正向: F3 SCAMPER | SCAMPER adopted > 0 |
 
 ### 決策中心 Gate
 
@@ -375,13 +364,12 @@ flowchart TB
 
 ---
 
-## 11. v7 → v8 差異摘要
+## 11. v8 → v9 差異摘要
 
-| 項目 | v7 | v8 |
+| 項目 | v8 | v9 |
 |------|----|----|
-| SCAMPER 定位 | 分析工具（newContradictions → Phase A re-scan） | **純創意工具**（風險標註，不觸發 re-scan，與 Anti-Anchor 同級） |
-| Phase A 語意去重 | 無 | **embedding cosine ≥ 0.92 → `is_confirmatory` 過濾重複矛盾** |
-| 子系統架構 | 扁平 Subsystem[] | **System→Module→Component 3 層 + 6 維介面契約** |
-| 假設品質 | assumptions[] 無品質欄位 | **`evidence_level` E0-E4 + `is_falsifiable` + `falsification_method`** |
-| 主流程圖 SCAMPER 節點 | 僅標示「7 創意行動 × 子系統」 | **明確標示「創意工具，不觸發 re-scan」** |
-| 狀態轉換表 SCAMPER 行 | 含 `addContradiction()` 注入 Phase A | **移除 re-scan 閉環，直接進候選池** |
+| **反向路徑** | R1→R2(TRIZ)→R3(子系統)→R4(SCAMPER)→候選池 | **R1(Anti-Anchor) → 候選池（直接，不經 TRIZ 收斂）** |
+| 反向路徑理由 | 假設 AA 引入新矛盾需要 TRIZ 解 | **AA 是創意工具，自帶 Validation Passport，不需演繹收斂** |
+| 雙軌對稱性 | 反向 4 步 / 正向 3 步（不對稱） | 反向 1 步 / 正向 3 步（**方法本質不同，不強求步驟對稱**） |
+| 設計原則 | 雙軌獨立分析 | **方法獨立**：創意(反向) vs 演繹(正向)，不應混用 |
+| Gate 條件 | 反向有 R1-R4 四個 gate | **反向只有一個 gate: routes ≥ 3** |

@@ -100,8 +100,19 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
           </div>
         )}
 
-        {(status === "warning" || status === "conflict") && conflicts.length > 0 && (
+        {(status === "warning" || status === "conflict") && (
           <div className="space-y-3">
+            {/* Stale banner */}
+            {stale && (
+              <div className="flex items-center gap-2 rounded-md border border-warning/50 bg-warning/5 dark:bg-warning/10 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                <p className="text-sm text-warning flex-1">約束或 Mission 已變更，驗證結果可能過期。</p>
+                <AiButton size="sm" aiVariant="outline" onClick={onCheck} className="shrink-0 text-xs">
+                  重新驗證
+                </AiButton>
+              </div>
+            )}
+
             {conflicts.map((c) => (
               <div key={c.id} className="rounded-md border p-3 space-y-2">
                 <div className="flex items-start gap-2">
@@ -120,6 +131,11 @@ export function FeasibilityValidation({ status, conflicts, stale = false, onChec
                 </div>
               </div>
             ))}
+
+            {/* Re-check button */}
+            <AiButton aiVariant="outline" size="sm" onClick={onCheck}>
+              重新驗證約束可行性
+            </AiButton>
 
             {status === "conflict" && !showOverride && (
               <Button variant="outline" size="sm" onClick={() => setShowOverride(true)} className="text-warning border-warning/50">

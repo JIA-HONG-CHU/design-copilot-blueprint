@@ -288,10 +288,11 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       // Discard stale results if a new exploration was started while we were awaiting
       if (abortRef.current || myGeneration !== generationRef.current) return;
 
-      // Process new contradictions from the scan
-      const newFatal = scanResult.new_contradictions.filter((c) => c.severity === 'fatal');
-      const newMajor = scanResult.new_contradictions.filter((c) => c.severity === 'major');
-      const newMinor = scanResult.new_contradictions.filter(
+      // Process new contradictions from the scan — skip confirmatory (semantic duplicates)
+      const genuineNew = scanResult.new_contradictions.filter((c) => !c.is_confirmatory);
+      const newFatal = genuineNew.filter((c) => c.severity === 'fatal');
+      const newMajor = genuineNew.filter((c) => c.severity === 'major');
+      const newMinor = genuineNew.filter(
         (c) => c.severity !== 'fatal' && c.severity !== 'major',
       );
 

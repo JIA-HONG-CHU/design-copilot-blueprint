@@ -653,6 +653,7 @@ export interface SecondaryContradictionResult {
   improving_param: number | null;
   worsening_param: number | null;
   reasoning: string;
+  is_confirmatory?: boolean;  // true = same causal chain as existing, doesn't count as new
 }
 
 export interface ConvergenceScanResponse {

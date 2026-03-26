@@ -543,6 +543,7 @@ class SecondaryContradiction(BaseModel):
     improving_param: int | None = None
     worsening_param: int | None = None
     reasoning: str = ""
+    is_confirmatory: bool = False  # True = same causal chain as existing, doesn't count as new
 
 
 class ConvergenceScanResponse(BaseModel):

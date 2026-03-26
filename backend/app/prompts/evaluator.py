@@ -275,6 +275,17 @@ amplify to fatal-level difficulty).
 engineering dimensions (thermal, structural, cost, safety, supply chain, regulatory) \
 that NO existing contradiction addresses? Report each gap as a minor secondary \
 contradiction.
+
+5. **Semantic deduplication** — Before finalising secondary contradictions, check:
+   a. Does this new contradiction describe the SAME causal chain as an existing \
+contradiction, just using different TRIZ parameters or wording? \
+(e.g., "thermal throttling worsens latency" vs "model complexity worsens latency" \
+are different parameter encodings of the same "compute→latency" root cause)
+   b. If the causal chain is equivalent → set `is_confirmatory: true` \
+(confirms existing contradiction, does NOT count as new)
+   c. Only contradictions with genuinely DIFFERENT causal chains → `is_confirmatory: false`
+   d. Coverage gaps that repeat the same engineering dimension across rounds \
+→ merge into one, do not duplicate
 </method>
 
 <convergence_formula>
@@ -316,7 +327,8 @@ If any fatal inter-contradiction conflict exists → force_pause = true.
       "type": "TC",
       "improving_param": 14,
       "worsening_param": null,
-      "reasoning": "C1 improves P14 while C3 worsens P14; solving both simultaneously requires careful parameter decoupling"
+      "reasoning": "C1 improves P14 while C3 worsens P14; solving both simultaneously requires careful parameter decoupling",
+      "is_confirmatory": false
     }}
   ],
   "convergence_score": 89,

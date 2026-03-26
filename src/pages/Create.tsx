@@ -1094,29 +1094,28 @@ export default function Create() {
 
             <BranchExplorationPanel branches={state.branches} />
 
-            {/* Re-run button: available when not actively exploring */}
-            {state.status !== 'exploring' && (
-              <div className="flex items-center gap-2">
-                <AiButton
-                  aiVariant="outline"
+            {/* Re-run / continue controls — always visible when loop is not idle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <AiButton
+                aiVariant="outline"
+                size="sm"
+                loading={state.status === 'exploring'}
+                onClick={handleStartExploration}
+                className="text-xs"
+              >
+                {state.status === 'exploring' ? '收斂分析中...' : '重新執行矛盾收斂'}
+              </AiButton>
+              {state.status === 'halted' && (
+                <Button
+                  variant="outline"
                   size="sm"
-                  onClick={handleStartExploration}
-                  className="text-xs"
+                  onClick={forceContinue}
+                  className="text-xs gap-1.5"
                 >
-                  重新執行矛盾收斂
-                </AiButton>
-                {state.status === 'halted' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={forceContinue}
-                    className="text-xs gap-1.5"
-                  >
-                    強制繼續探索
-                  </Button>
-                )}
-              </div>
-            )}
+                  強制繼續探索
+                </Button>
+              )}
+            </div>
           </>
         )}
 

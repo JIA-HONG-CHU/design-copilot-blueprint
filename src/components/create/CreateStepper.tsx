@@ -12,32 +12,6 @@ interface CreateStepperProps {
   onStepClick: (step: number, track: AnalysisTrack) => void;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function TrackStep({
-  label, status, isCurrent, onClick,
-}: {
-  label: string; status: AccordionStepStatus;
-  isCurrent: boolean; onClick: () => void;
-}) {
-  const isComplete = status === "complete";
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1.5 text-[11px] px-2 py-1 rounded transition-all cursor-pointer",
-        "hover:bg-accent/50",
-        isCurrent && "bg-primary/10 text-primary font-medium",
-        isComplete && !isCurrent && "text-primary/70",
-        !isCurrent && !isComplete && "text-muted-foreground",
-      )}
-    >
-      {isComplete ? <Check className="h-3 w-3 shrink-0" /> : <span className="w-3 h-3 rounded-full border shrink-0" />}
-      {label}
-    </button>
-  );
-}
-
 function EvalChip({
   label, status, isCurrent, onClick,
 }: {
@@ -62,103 +36,74 @@ function EvalChip({
   );
 }
 
-// ── Main ────────────────────────────────────────────────────────────────────
-
 export function CreateStepper({ steps, statuses, currentStep, activeTrack, onStepClick }: CreateStepperProps) {
   const HUB = 4;
   const EVAL = [5, 6];
-
-  const reverseSteps = [
-    { idx: 0, label: "Anti-Anchor" },
-    { idx: 1, label: "TRIZ" },
-    { idx: 2, label: "子系統" },
-    { idx: 3, label: "SCAMPER" },
-  ];
-  const forwardSteps = [
-    { idx: 1, label: "TRIZ" },
-    { idx: 2, label: "子系統" },
-    { idx: 3, label: "SCAMPER" },
-  ];
-
-  // A step is "current in this track" only if BOTH the index matches AND the track matches
-  const isCurrentInTrack = (stepIdx: number, track: AnalysisTrack) =>
-    currentStep === stepIdx && activeTrack === track;
 
   const isReverseActive = activeTrack === "reverse";
   const isForwardActive = activeTrack === "forward";
   const isHubActive = currentStep === HUB && activeTrack === null;
 
-  const reverseHasProgress = statuses[0] !== "not_started";
+  const reverseComplete = statuses[0] === "complete";
+  // Forward is "complete" when all 3 sub-steps are done
+  const forwardComplete = statuses[1] === "complete" && statuses[2] === "complete" && statuses[3] === "complete";
   const forwardHasProgress = statuses[1] !== "not_started";
 
   return (
     <div className="space-y-3">
 
-      {/* ── Layer 1: Dual Analysis Tracks ── */}
+      {/* ── Layer 1: Dual Analysis — two symmetric cards ── */}
       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">雙軌分析</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-        {/* Reverse Track */}
-        <div className={cn(
-          "rounded-lg border-2 p-3 transition-all",
-          isReverseActive ? "border-amber-400 shadow-sm bg-amber-50/30" : "border-muted",
-        )}>
-          <div className="flex items-center gap-2 mb-2">
+        {/* Reverse: Anti-Anchor (single node, creative) */}
+        <button
+          onClick={() => onStepClick(0, "reverse")}
+          className={cn(
+            "text-left rounded-lg border-2 p-4 transition-all cursor-pointer",
+            "hover:border-amber-300 hover:bg-amber-50/30",
+            isReverseActive && "border-amber-400 shadow-sm bg-amber-50/40",
+            !isReverseActive && "border-muted",
+          )}
+        >
+          <div className="flex items-center gap-2 mb-1.5">
             <Zap className={cn("h-4 w-4", isReverseActive ? "text-amber-500" : "text-muted-foreground")} />
-            <span className="text-xs font-semibold">反向路徑</span>
-            <span className="text-[10px] text-muted-foreground ml-auto">打破框架</span>
+            <span className="text-xs font-semibold">反向探索</span>
+            {reverseComplete && <Check className="h-3.5 w-3.5 text-green-500 ml-auto" />}
           </div>
-          <div className="space-y-0.5">
-            {reverseSteps.map((s) => (
-              <TrackStep
-                key={`r-${s.idx}-${s.label}`}
-                label={s.label}
-                status={s.idx === 0 ? statuses[s.idx] : "not_started"}
-                isCurrent={isCurrentInTrack(s.idx, "reverse")}
-                onClick={() => onStepClick(s.idx, "reverse")}
-              />
-            ))}
-          </div>
-          {reverseHasProgress && (
-            <p className="text-[10px] text-muted-foreground mt-2 border-t pt-1.5">
-              方案數：{statuses[0] === "complete" ? "待整合" : "分析中..."}
-            </p>
-          )}
-        </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Anti-Anchor Sprint — 從約束出發，AI 產出非典型架構概念，每條自帶 Validation Passport
+          </p>
+        </button>
 
-        {/* Forward Track */}
-        <div className={cn(
-          "rounded-lg border-2 p-3 transition-all",
-          isForwardActive ? "border-blue-400 shadow-sm bg-blue-50/30" : "border-muted",
-        )}>
-          <div className="flex items-center gap-2 mb-2">
-            <Target className={cn("h-4 w-4", isForwardActive ? "text-blue-500" : "text-muted-foreground")} />
-            <span className="text-xs font-semibold">正向路徑</span>
-            <span className="text-[10px] text-muted-foreground ml-auto">系統化解矛盾</span>
-          </div>
-          <div className="space-y-0.5">
-            {forwardSteps.map((s) => (
-              <TrackStep
-                key={`f-${s.idx}-${s.label}`}
-                label={s.label}
-                status={statuses[s.idx]}
-                isCurrent={isCurrentInTrack(s.idx, "forward")}
-                onClick={() => onStepClick(s.idx, "forward")}
-              />
-            ))}
-          </div>
-          {forwardHasProgress && (
-            <p className="text-[10px] text-muted-foreground mt-2 border-t pt-1.5">
-              方案數：{statuses[3] === "complete" ? "待整合" : "分析中..."}
-            </p>
+        {/* Forward: TRIZ E2E (single node, deductive) */}
+        <button
+          onClick={() => onStepClick(1, "forward")}
+          className={cn(
+            "text-left rounded-lg border-2 p-4 transition-all cursor-pointer",
+            "hover:border-blue-300 hover:bg-blue-50/30",
+            isForwardActive && "border-blue-400 shadow-sm bg-blue-50/40",
+            !isForwardActive && "border-muted",
           )}
-        </div>
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <Target className={cn("h-4 w-4", isForwardActive ? "text-blue-500" : "text-muted-foreground")} />
+            <span className="text-xs font-semibold">正向分析</span>
+            {forwardComplete && <Check className="h-3.5 w-3.5 text-green-500 ml-auto" />}
+            {forwardHasProgress && !forwardComplete && (
+              <span className="text-[9px] text-muted-foreground ml-auto">分析中</span>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            TRIZ 矛盾解 → 子系統分解 → SCAMPER 變形 — 從矛盾出發，系統化產出候選方案
+          </p>
+        </button>
       </div>
 
       {/* ── Layer 2: Decision Hub ── */}
       <div className="flex items-center justify-center py-1">
         <div className="h-px w-8 bg-border" />
-        <span className="text-[10px] text-muted-foreground mx-2">▼ 方案匯流 ▼</span>
+        <span className="text-[10px] text-muted-foreground mx-2">▼ 候選池匯流 ▼</span>
         <div className="h-px w-8 bg-border" />
       </div>
 
@@ -177,7 +122,7 @@ export function CreateStepper({ steps, statuses, currentStep, activeTrack, onSte
           {statuses[HUB] === "complete" && <Check className="h-3.5 w-3.5 text-green-500 ml-auto" />}
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">
-          攤平兩條路徑的所有方案，橫向比較來源、機制、假設、驗證需求與信心等級
+          攤平所有方案，橫向比較來源、機制、假設、驗證需求與信心等級
         </p>
       </button>
 

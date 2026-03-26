@@ -83,10 +83,10 @@ const RADAR_COLORS = [
 ];
 
 const STEPS = [
-  { label: "反向探索 Anti-Anchor", shortLabel: "Anti-Anchor", description: "跳脫既有假設，AI 產出非典型架構，注入新矛盾至反向路徑 TRIZ", zone: "reverse" as const },
-  { label: "TRIZ 解矛盾", shortLabel: "TRIZ", description: "針對已識別的矛盾，透過 TRIZ 三路徑找到解法", zone: "forward" as const },
-  { label: "子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統，聚焦變形範圍", zone: "forward" as const },
-  { label: "SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產生變異方案", zone: "forward" as const },
+  { label: "反向探索 Anti-Anchor", shortLabel: "Anti-Anchor", description: "從約束出發，AI 產出非典型架構概念，每條自帶 Validation Passport", zone: "reverse" as const },
+  { label: "正向分析：TRIZ 解矛盾", shortLabel: "TRIZ", description: "從矛盾出發 → TRIZ 三路徑求解 → 子系統分解 → SCAMPER 創意變形", zone: "forward" as const },
+  { label: "正向分析：子系統定義", shortLabel: "子系統", description: "識別受矛盾影響的子系統 (System→Module→Component)，聚焦變形範圍", zone: "forward" as const },
+  { label: "正向分析：SCAMPER 變形", shortLabel: "SCAMPER", description: "對每個子系統執行 7 種創意動作，產出方案候選", zone: "forward" as const },
   { label: "候選方案決策中心", shortLabel: "決策中心", description: "攤平兩條路徑的所有方案，橫向比較來源、機制、假設、驗證需求與信心等級", zone: "hub" as const },
   { label: "MUST 快篩", shortLabel: "MUST", description: "以必要條件（M1-M6）快速淘汰不可行方案", zone: "eval" as const },
   { label: "Pre-CAD 審查", shortLabel: "Pre-CAD", description: "五維審查：MUST/解耦/可驗證性/失效機制/MVP CAD", zone: "eval" as const },
@@ -752,6 +752,39 @@ export default function Create() {
   }
 
   const renderStepContent = () => {
+    // Forward track: show TRIZ/Subsystem/SCAMPER as tabbed sub-steps within one E2E view
+    if (activeTrack === "forward" && currentStep >= 1 && currentStep <= 3) {
+      return (
+        <div className="space-y-4">
+          {/* Internal sub-step tabs */}
+          <div className="flex gap-1 border-b pb-2">
+            {[
+              { step: 1, label: "① TRIZ 解矛盾" },
+              { step: 2, label: "② 子系統定義" },
+              { step: 3, label: "③ SCAMPER 變形" },
+            ].map(({ step, label }) => (
+              <button
+                key={step}
+                onClick={() => navigateTo(step, "forward")}
+                className={cn(
+                  "px-3 py-1.5 text-xs rounded-t-md transition-colors",
+                  currentStep === step
+                    ? "bg-blue-50 text-blue-700 font-medium border-b-2 border-blue-500"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Sub-step content */}
+          {currentStep === 1 && renderTrizConvergence()}
+          {currentStep === 2 && renderSubsystem()}
+          {currentStep === 3 && renderScamper()}
+        </div>
+      );
+    }
+
     switch (currentStep) {
       case 0: return renderAntiAnchor();
       case 1: return renderTrizConvergence();

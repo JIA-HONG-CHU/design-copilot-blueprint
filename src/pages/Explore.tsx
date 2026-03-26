@@ -155,8 +155,6 @@ export default function Explore() {
             .select()
             .single()
             .then(({ data }) => {
-              queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
-
               if (data?.id) {
                 contradictionFormalize({
                   project_id: id,
@@ -189,7 +187,11 @@ export default function Explore() {
                         queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
                       });
                   })
-                  .catch(() => {})
+                  .catch(() => {
+                    // Formalize failed — keep the record but notify user
+                    queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+                    toast.warning('AI 暫時無法自動分類此矛盾，請至矛盾識別手動指定類型（TC / PC / SF）');
+                  })
                   .finally(() => endOp());
               } else {
                 endOp();

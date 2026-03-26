@@ -63,15 +63,27 @@ export interface TrizSolution {
 
 // Subsystem
 export type SubsystemSource = 'rd' | 'ai' | 'ai_edited';
+export type SubsystemLevel = 'system' | 'module' | 'component';
+
+export interface SubsystemInterfaceContract {
+  envelope: string;
+  loadPath: string;
+  thermalPath: string;
+  signalPath: string;
+  datumTolerance: string;
+  serviceability: string;
+}
 
 export interface Subsystem {
   id: string;
   name: string;
+  level: SubsystemLevel;
   reason: string;
   relatedContradictions: string[];
   confirmed: boolean;
   parentId?: string | null;
   interfaces?: string[];
+  interfaceContracts?: Record<string, SubsystemInterfaceContract>;
   source: SubsystemSource;
   createdAt?: string;
 }

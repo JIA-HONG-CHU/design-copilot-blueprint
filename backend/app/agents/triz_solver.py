@@ -106,7 +106,7 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
     data = json.loads(raw)
-    return SubsystemSuggestResponse(**data)
+    return SubsystemSuggestResponse.model_validate(data)
 
 
 def scamper_transform(req: ScamperRequest) -> ScamperResponse:

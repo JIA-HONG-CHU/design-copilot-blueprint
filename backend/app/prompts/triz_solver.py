@@ -230,7 +230,9 @@ it to the most applicable TRIZ 76 Standard Solutions.
 
 SUBSYSTEM_SUGGESTION = """\
 <task>
-Identify subsystems that would benefit most from SCAMPER analysis.
+Decompose the system into a 3-level hierarchy (System → Module → Component) \
+based on the mission and identified contradictions. For each pair of coupled \
+modules, define a structured 6-dimensional interface contract.
 </task>
 
 <context>
@@ -244,19 +246,51 @@ Identify subsystems that would benefit most from SCAMPER analysis.
 </context>
 
 <instructions>
-Suggest 3–5 subsystems. For each:
-1. Explain why it is a good candidate for SCAMPER (link to specific contradictions).
-2. List the contradictions it relates to.
-Do not repeat subsystems already listed above.
+1. Identify 2–4 **system-level** subsystems (e.g., Power, Control, Structure).
+2. Break each system into 2–4 **modules** (e.g., Power → Motor, Gearbox, Inverter).
+3. For each module, list 2–5 **components** (e.g., Motor → Stator, Rotor, Bearing).
+4. Link each node to the contradictions it relates to.
+5. For each pair of coupled modules (sharing a contradiction or physical interface), \
+define a 6-dimensional interface contract:
+   - **envelope**: physical boundary (dimensions, mounting)
+   - **loadPath**: force/torque transfer path
+   - **thermalPath**: heat dissipation path
+   - **signalPath**: electrical/data signals
+   - **datumTolerance**: critical dimensions and tolerances
+   - **serviceability**: maintenance access and replaceability
+6. Do not repeat existing subsystems.
 </instructions>
 
 <output_schema>
 {{
   "subsystems": [
     {{
-      "name": "Subsystem name",
-      "reason": "Why SCAMPER is valuable here",
-      "related_contradictions": ["Contradiction 1", "Contradiction 2"]
+      "name": "Power Subsystem",
+      "level": "system",
+      "reason": "Contains all energy conversion components",
+      "related_contradictions": ["C1 description", "C2 description"],
+      "children": [
+        {{
+          "name": "Motor Assembly",
+          "level": "module",
+          "reason": "Primary energy converter, core of C1",
+          "related_contradictions": ["C1 description"],
+          "children": [
+            {{ "name": "Stator", "level": "component", "reason": "Winding + core" }},
+            {{ "name": "Rotor", "level": "component", "reason": "Magnet carrier" }}
+          ],
+          "interface_contracts": {{
+            "Gearbox": {{
+              "envelope": "Ø65mm shaft coupling flange",
+              "loadPath": "80Nm torque via involute spline",
+              "thermalPath": "Conductive through aluminium housing",
+              "signalPath": "3x Hall sensor + thermistor",
+              "datumTolerance": "±0.02mm shaft concentricity",
+              "serviceability": "Motor removable without gearbox disassembly"
+            }}
+          }}
+        }}
+      ]
     }}
   ]
 }}

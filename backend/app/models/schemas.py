@@ -671,10 +671,22 @@ class SubsystemSuggestRequest(BaseModel):
     existing_subsystems: list[str] = Field(default_factory=list)
 
 
+class InterfaceContract(BaseModel):
+    envelope: str = ""
+    loadPath: str = Field(default="", validation_alias="load_path")
+    thermalPath: str = Field(default="", validation_alias="thermal_path")
+    signalPath: str = Field(default="", validation_alias="signal_path")
+    datumTolerance: str = Field(default="", validation_alias="datum_tolerance")
+    serviceability: str = ""
+
+
 class SuggestedSubsystem(BaseModel):
     name: str
-    reason: str
+    level: str = "module"  # system | module | component
+    reason: str = ""
     related_contradictions: list[str] = Field(default_factory=list)
+    children: list["SuggestedSubsystem"] = Field(default_factory=list)
+    interface_contracts: dict[str, InterfaceContract] = Field(default_factory=dict)
 
 
 class SubsystemSuggestResponse(BaseModel):

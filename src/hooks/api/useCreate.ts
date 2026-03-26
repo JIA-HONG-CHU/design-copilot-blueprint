@@ -18,6 +18,8 @@ import type {
   TrizActionStatus,
   Subsystem,
   SubsystemSource,
+  SubsystemLevel,
+  SubsystemInterfaceContract,
   ScamperVariant,
   ScamperAction,
   ScamperNewContradiction,
@@ -63,11 +65,13 @@ interface SubsystemRow {
   id: string;
   project_id: string;
   name: string;
+  level: string | null;
   reason: string | null;
   related_contradictions: string[] | null;
   confirmed: boolean;
   parent_id: string | null;
   interfaces: string | null;
+  interface_contracts: Record<string, unknown> | null;
   source: string;
   created_at: string;
 }
@@ -153,11 +157,13 @@ function mapSubsystem(row: SubsystemRow): Subsystem {
   return {
     id: row.id,
     name: row.name,
+    level: (row.level as SubsystemLevel) ?? 'module',
     reason: row.reason ?? '',
     relatedContradictions: row.related_contradictions ?? [],
     confirmed: row.confirmed,
     parentId: row.parent_id,
     interfaces: row.interfaces ? row.interfaces.split(',').map(s => s.trim()).filter(Boolean) : [],
+    interfaceContracts: (row.interface_contracts as Record<string, SubsystemInterfaceContract>) ?? undefined,
     source: row.source as SubsystemSource,
     createdAt: row.created_at,
   };

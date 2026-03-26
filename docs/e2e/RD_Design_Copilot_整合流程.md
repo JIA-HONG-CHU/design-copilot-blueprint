@@ -13,11 +13,12 @@
    (擴大可能性)    (殺掉脆弱)
 ```
 
-**三個不變原則**：
+**四個不變原則**：
 
 1.  **先把未知寫下來**（假設台帳）
 2.  **先留多條路**（Set-Based + SCAMPER/TRIZ 變體）
 3.  **先切斷連鎖死法**（失效路徑 + 最小實驗）
+4.  **產出與選擇分離**（TRIZ/SCAMPER/Anti-Anchor 負責產出候選方案，選擇統一在決策中心由 RD 執行）
 
 ---
 
@@ -188,8 +189,8 @@ rd_assistant_design_system/triz_knowledge_base/
 |--------------|-------------------|-------------|
 | Problem Structuring | **Step 1-2** (問題界定 + 理解全貌) | LLM 抽取 + 人校準 |
 | Function Model + 矛盾定義 | **Step 3** (系統建模 + TRIZ 矛盾正式化) | LLM 輔助翻譯 + 規則驗證 |
-| 矛盾矩陣/分離/標準解 | **Step 5a** (TRIZ 解矛盾) | 規則引擎查表 |
-| Instantiation + Solution | **Step 5b-5d** (子系統 + SCAMPER + 方案生成) | LLM 生成 + RAG 佐證 |
+| 矛盾矩陣/分離/標準解 | **Step 5a** (TRIZ 解矛盾) | 規則引擎查表。**注意：Phase A only（矛盾健康度），Phase B 移至決策中心（Step 5d）由 RD 選定路徑後觸發** |
+| Instantiation + Solution | **Step 5b-5d** (子系統 + SCAMPER + 方案生成) | LLM 生成 + RAG 佐證。**TC/PC/SF 平行產出候選，但非同時採納——RD 在決策中心 per-contradiction 選擇路徑** |
 | Ranking & Evaluation | **Step 5e / Step 7** (MUST 快篩 / KT 決策) | 規則引擎 + 人審 |
 
 ---
@@ -350,7 +351,17 @@ graph TD
 
 > **重構類提問的目的**：不是「理解問題」，而是**質疑問題本身是否被正確框架**。人類可能鎖定了一個錯誤的架構方向，或設了物理上不可能同時滿足的約束。AI 在這裡的角色是 **challenger（質疑者）**，不只是 solver（求解者）。
 
-### 2.4 輸出：矛盾初步識別 (工件: Contradiction)
+### 2.4 假設提取增強欄位
+
+> **v8 更新**：索克拉底問答階段提取的假設新增以下欄位，以強化假設品質管理：
+>
+> | 欄位 | 說明 |
+> |------|------|
+> | `is_falsifiable` | 此假設是否可被證偽（Boolean）。不可證偽的假設需重新表述或標記為 axiom。 |
+> | `evidence_level` | 目前證據等級 (E0-E4)，與 Evidence Matrix 對齊。 |
+> | `falsification_method` | 若假設為錯，用什麼最小實驗可以推翻它。 |
+
+### 2.5 輸出：矛盾初步識別 (工件: Contradiction)
 
 **矛盾列表 v1.1** (為 Step 3 TRIZ 準備)
 
@@ -515,7 +526,7 @@ graph TD
         S5a --"解法方向<br>(工程對映指出受影響子系統)"--> S5b["5b: 子系統定義<br>(散熱/支撐/傳動/控制器/隔振)"]
         S5b --"每個子系統"--> S5c["5c: SCAMPER 模組變形<br>對每個子系統 × 7 動作<br>輸出: 七欄規格"]
 
-        S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> S5d["5d: AI 方案生成<br>整合 TRIZ + SCAMPER + Anti-Anchor<br>附帶: 機制+假設+風險+robust+最小驗證+Interface Contract+Validation Passport"]
+        S5_0 --"晉升的 Anti-Anchor 路線<br>(source: anti_anchor)"--> S5d["5d: 決策中心 (Decision Hub)<br>RD per-contradiction 選擇 TRIZ 路徑<br>→ 觸發 Phase B 收斂掃描<br>整合 TRIZ + SCAMPER + Anti-Anchor<br>附帶: 機制+假設+風險+robust+最小驗證+Interface Contract+Validation Passport"]
         S5a --> S5d
         S5c --> S5d
 
@@ -525,6 +536,8 @@ graph TD
 
 ### 5a TRIZ 解矛盾 (每條矛盾執行)
 
+> **v8 更新**：Step 5a 僅執行 **Phase A（矛盾空間健康度）**。Phase B（方案交叉檢查）延後至 **Step 5d 決策中心**，在 RD 選定每條矛盾的 TRIZ 路徑後才觸發。TC/PC/SF 三條路徑平行產出候選方案，但不會被同時採納——RD 在決策中心 per-contradiction 選擇最佳路徑。
+>
 > **AutoTRIZ 執行模式**：此步驟分為「規則引擎查表」和「LLM 具體化」兩階段，並在具體化後執行**二次矛盾掃描**。
 >
 > | 子步驟 | 執行方式 | 動作 |
@@ -623,9 +636,9 @@ TRIZ_解法_[編號]:
   最小實驗: [驗證哪個假設]
 ```
 
-### 5b/5c 子系統定義 + SCAMPER 模組級變形
+### 5b 子系統定義
 
-**對每個子系統執行 SCAMPER**
+> **v8 更新**：子系統採用 **3 層階層結構（System → Module → Component）**，每層之間以 **6 維介面契約（Envelope / Load / Signal / Thermal / Datum / Service）** 定義邊界。這確保 TRIZ 解法落地時，受影響的模組與介面能被精確追蹤。
 
 子系統清單（依專案調整）：
 - 散熱系統
@@ -633,6 +646,12 @@ TRIZ_解法_[編號]:
 - 傳動機構
 - 控制器
 - 隔振系統
+
+### 5c SCAMPER 模組級變形
+
+> **v8 更新**：SCAMPER 定位為**創意發散工具**（與 Anti-Anchor 同級），不再提供收斂回饋。SCAMPER 產出的風險僅作為資訊性備註顯示，不阻擋流程。所有 SCAMPER 變形候選直接進入候選池，由 Step 5d 決策中心統一篩選。
+
+**對每個子系統執行 SCAMPER**
 
 **SCAMPER 輸出規格 (固定 7 欄) (工件: Concept Route 的一部分)**
 
@@ -646,9 +665,11 @@ TRIZ_解法_[編號]:
 | **6. 假設台帳** | 需要哪些前提成立 |
 | **7. 最小驗證** | 用什麼測試打掉不確定 |
 
-### 5d AI 方案生成規格 (工件: Concept Route, Interface)
+### 5d 方案整合 / 決策中心 (工件: Concept Route, Interface)
 
-> **候選來源**：Step 5d 整合三類候選——(1) TRIZ 已採納解法、(2) SCAMPER 已採納變形、(3) 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)。每個候選方案由 AI 生成 Validation Passport。
+> **v8 更新**：Step 5d 是**決策中心 (Decision Hub)**——RD 在此選擇每條矛盾應採用哪條 TRIZ 路徑（TC / PC / SF），選定後觸發 **Phase B 收斂掃描**（方案交叉檢查）。這體現「產出與選擇分離」原則：5a 產出候選，5d 做選擇。
+>
+> **候選來源**：Step 5d 整合三類候選——(1) TRIZ 候選解法（TC/PC/SF 平行產出，RD per-contradiction 選擇）、(2) SCAMPER 變形候選、(3) 晉升的 Anti-Anchor 路線 (source: `anti_anchor`)。每個候選方案由 AI 生成 Validation Passport。
 > **API**: `POST /alternatives/validation-passport`
 
 **每個方案必須附帶**
@@ -1065,7 +1086,7 @@ KT_決策記錄:
 | AI 會不會取代我？ | 不會。AI 是副駕，擴大可能性空間；工程師做最終判斷。 |
 | AI 錯了誰負責？ | 人負責。AI 要有證據鏈，每個建議都可追溯假設。 |
 | 我為什麼要填假設台帳？ | 因為返工最貴。台帳讓未知可見、可管理。 |
-| SCAMPER/TRIZ 不就是喊創意？ | 不是。它們有固定輸出格式，必須附機制、風險、驗證。 |
+| SCAMPER/TRIZ 不就是喊創意？ | 不是。它們有固定輸出格式，必須附機制、風險、驗證。SCAMPER 風險以資訊性備註呈現（不阻擋流程），收斂篩選統一在決策中心執行。 |
 | **我為什麼要填 Evidence Matrix？** | 審查不是看你說了什麼，是看你有沒有證據。它幫你追蹤證據缺口與下一步。 |
 
 **Gate 8 檢查點**
@@ -1127,7 +1148,7 @@ KT_決策記錄:
 
 ---
 
-**版本**: v1.8
-**最後更新**: 2026-03-12
+**版本**: v1.9
+**最後更新**: 2026-03-26
 **適用範圍**: 早期概念設計階段 (從概念發散到主路線決策)
-**重要更新**: 整合 AutoTRIZ 混合架構（規則骨架 + LLM 生成補足），TRIZ 各步驟標註規則引擎 vs LLM 執行模式；搭配企業知識庫 RAG + 網路文獻搜尋知識增強層。v1.6 新增：多模態素材輸入（Step 1）、二次矛盾掃描（Step 5a-6）。v1.7 更新：矛盾級聯從「限 2 次迴圈」升級為「矛盾收斂圖 + 分級處理 (Fatal/Major/Minor)」，新增 Pre-CAD Confidence Score。v1.8 更新：新增三層 AI 主動質疑機制——約束可行性驗證 (Gate 1)、問題框架挑戰 (索克拉底第七類「重構」提問)、架構健康度監控 (矛盾收斂圖節點 > 5 強制暫停)。AI 角色從 solver 升級為 challenger。
+**重要更新**: 整合 AutoTRIZ 混合架構（規則骨架 + LLM 生成補足），TRIZ 各步驟標註規則引擎 vs LLM 執行模式；搭配企業知識庫 RAG + 網路文獻搜尋知識增強層。v1.6 新增：多模態素材輸入（Step 1）、二次矛盾掃描（Step 5a-6）。v1.7 更新：矛盾級聯從「限 2 次迴圈」升級為「矛盾收斂圖 + 分級處理 (Fatal/Major/Minor)」，新增 Pre-CAD Confidence Score。v1.8 更新：新增三層 AI 主動質疑機制——約束可行性驗證 (Gate 1)、問題框架挑戰 (索克拉底第七類「重構」提問)、架構健康度監控 (矛盾收斂圖節點 > 5 強制暫停)。AI 角色從 solver 升級為 challenger。v1.9 更新 (v8 methodology)：新增「產出與選擇分離」原則；Step 5a 僅執行 Phase A（矛盾健康度），Phase B 移至 Step 5d 決策中心；TC/PC/SF 平行產出但 RD per-contradiction 選擇；子系統採 3 層階層 + 6 維介面契約；SCAMPER 定位為創意工具（無收斂回饋），輸出直接進候選池；Step 2 假設新增 is_falsifiable / evidence_level / falsification_method 欄位。

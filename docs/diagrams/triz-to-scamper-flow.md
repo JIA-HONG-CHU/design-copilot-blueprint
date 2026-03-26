@@ -1,11 +1,10 @@
 # 雙軌分析 → 候選方案決策中心：設計概念與流程圖
 
-> **v7 (2026-03-26)**：產出與選擇分離 — TRIZ 三路徑不再同時收斂。
-> - **根因修正**：v6 的收斂迴圈無限迴圈，因 TC/PC/SF 是三種不同的問題表述方式，對同一矛盾天生互斥。同時送進 Phase B 收斂掃描 = 永遠衝突。
-> - **核心原則**：TRIZ 步驟只負責「產出候選」（Phase A），路徑選擇與交叉檢查（Phase B）延後到「候選方案決策中心」由 RD 挑選後才執行。
-> - **Phase A**：矛盾空間健康度（不涉及解法）→ TRIZ / 子系統 / SCAMPER 步驟使用
-> - **Phase B**：方案交叉檢查（只檢查被 RD 採用的解法）→ 決策中心使用
-> - 新增 Phase B 檢查項：同一矛盾多路徑風險（TC+PC+SF 同時 adopt → major 風險）
+> **v8 (2026-03-26)**: Four structural fixes.
+> - P1: SCAMPER 改為純創意工具（不回饋收斂迴圈）
+> - P2: Phase A 語意去重（`is_confirmatory` 過濾重複矛盾）
+> - P3: 子系統 3 層架構分解（System→Module→Component + 6 維介面契約）
+> - P4: 假設可證偽性篩選（`evidence_level` E0-E4 + `falsification_method`）
 
 ---
 
@@ -48,8 +47,8 @@ flowchart TB
             direction TB
             R1["R1: Anti-Anchor Sprint<br/>AI 非典型架構探索<br/>Output: AntiAnchorRoute[] ≥3<br/>+ Validation Passport"]
             R2["R2: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
-            R3["R3: 子系統定義<br/>受矛盾影響的子系統"]
-            R4["R4: SCAMPER 變形<br/>7 創意行動 × 子系統"]
+            R3["R3: 子系統定義<br/>System→Module→Component 3 層<br/>+ 6 維介面契約"]
+            R4["R4: SCAMPER 變形（創意工具）<br/>7 創意行動 × 子系統<br/>風險標註，不觸發 re-scan"]
             RP["反向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選 + AA晉升"]
             R1 --> R2 --> R3 --> R4 --> RP
         end
@@ -57,8 +56,8 @@ flowchart TB
         subgraph FORWARD["正向路徑 — 系統化解矛盾"]
             direction TB
             F1["F1: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
-            F2["F2: 子系統定義<br/>受矛盾影響的子系統"]
-            F3["F3: SCAMPER 變形<br/>7 創意行動 × 子系統"]
+            F2["F2: 子系統定義<br/>System→Module→Component 3 層<br/>+ 6 維介面契約"]
+            F3["F3: SCAMPER 變形（創意工具）<br/>7 創意行動 × 子系統<br/>風險標註，不觸發 re-scan"]
             FP["正向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選"]
             F1 --> F2 --> F3 --> FP
         end
@@ -93,7 +92,7 @@ flowchart TB
 | 決策 | 說明 |
 |------|------|
 | **產出與選擇分離** | TRIZ 步驟只產出候選（Phase A），路徑選擇在決策中心（Phase B） |
-| Phase A = 矛盾健康度 | TRIZ/子系統/SCAMPER 步驟呼叫 `startPhaseA()`，不涉及解法交叉 |
+| Phase A = 矛盾健康度 | TRIZ/子系統步驟呼叫 `startPhaseA()`（含語意去重），不涉及解法交叉。SCAMPER 為創意工具，不參與收斂 |
 | Phase B = 方案交叉檢查 | 決策中心 RD 挑選後手動觸發 `startPhaseB()`，只送 adopted 解法 |
 | 同矛盾多路徑警告 | Phase B prompt 新增：同一矛盾的 TC+PC+SF 同時 adopt → major 風險 |
 | 無自動 A→B 轉換 | 移除 `useEffect` 自動偵測 — Phase B 完全由人類決定何時執行 |
@@ -150,10 +149,11 @@ flowchart TB
         direction TB
         A_START["TRIZ 步驟觸發"]
         A_BUILD["buildInitialGraph()<br/>從 Contradiction[] 建構 DAG"]
-        A_SCAN["POST /convergence/scan<br/>phase: A<br/>只送 contradictions，不送 alternatives"]
+        A_DEDUP["語意去重<br/>embedding cosine ≥ 0.92 → 標記 is_confirmatory<br/>僅保留 primary，confirmatory 不進 DAG"]
+        A_SCAN["POST /convergence/scan<br/>phase: A<br/>只送 contradictions（已去重），不送 alternatives"]
         A_RESULT["矛盾空間健康度<br/>交互衝突 / 循環依賴 / 覆蓋盲區"]
         A_DONE["converged / halted<br/>→ 停止，不自動觸發 Phase B"]
-        A_START --> A_BUILD --> A_SCAN --> A_RESULT --> A_DONE
+        A_START --> A_BUILD --> A_DEDUP --> A_SCAN --> A_RESULT --> A_DONE
     end
 
     style PHASE_A fill:#FEF3C7,stroke:#F59E0B
@@ -213,7 +213,7 @@ flowchart TB
             AA["AntiAnchorRoute[]<br/>mechanism / cross_domain_source<br/>validation_passport"]
             R_EC["Anti-Anchor 引入的矛盾"]
             R_TS["反向 TrizSolution[]<br/>TC候選 + PC候選 + SF候選<br/>全部 pending"]
-            R_SS["反向 Subsystem[]"]
+            R_SS["反向 Subsystem[]<br/>System→Module→Component"]
             R_SV["反向 ScamperVariant[]"]
             R_POOL["反向候選池"]
             AA --> R_EC -->|"1:N 求解"| R_TS
@@ -225,7 +225,7 @@ flowchart TB
         subgraph FWD_DATA["正向路徑資料"]
             F_EC["CLD Contradiction[]<br/>(from Phase 1 Explore)"]
             F_TS["正向 TrizSolution[]<br/>TC候選 + PC候選 + SF候選<br/>全部 pending"]
-            F_SS["正向 Subsystem[]"]
+            F_SS["正向 Subsystem[]<br/>System→Module→Component"]
             F_SV["正向 ScamperVariant[]"]
             F_POOL["正向候選池"]
             F_EC -->|"1:N 求解"| F_TS
@@ -270,8 +270,8 @@ flowchart TB
     style E fill:#F3E8FF,stroke:#8B5CF6
 ```
 
-**與 v6/v7 的差異**：
-| | v6/v7（舊） | v8（現在） |
+**與 v7 的差異**：
+| | v7（舊） | v8（現在） |
 |---|---|---|
 | newContradictions | fatal/major → 自動 addContradiction + Phase A re-scan | 顯示為風險標註，不觸發 re-scan |
 | 確認流程 | 有未回饋矛盾 → 警告阻擋 | 無阻擋，所有風險在決策中心統一處理 |
@@ -289,8 +289,20 @@ flowchart TB
 | 2 | 來源步驟 | `source: triz_tc \| triz_pc \| triz_sf \| scamper \| anti_anchor` | 具體產出步驟 |
 | 3 | 解的矛盾 | `contradiction_ids: string[]` | 追溯至原始矛盾 |
 | 4 | 涉及子系統 | `subsystem_ids: string[]` | 影響範圍 |
-| 5 | 基於假設 | `validation_passport.assumptions[]` | 方案成立的前提 |
+| 5 | 基於假設 | `validation_passport.assumptions[]` | 方案成立的前提。每項含 `evidence_level` (E0-E4)、`is_falsifiable`、`falsification_method` |
 | 6 | 缺少驗證 | `validation_passport.required_verifications[]` | 還需要什麼實驗 |
+
+### 假設可證偽性（P4）
+
+每個 assumption 必須攜帶以下欄位，決策中心依此篩選低品質假設：
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `evidence_level` | `E0` \| `E1` \| `E2` \| `E3` \| `E4` | E0=純猜測, E1=類比, E2=文獻, E3=模擬, E4=實測 |
+| `is_falsifiable` | `boolean` | 此假設是否可被反證 |
+| `falsification_method` | `string \| null` | 具體的反證實驗或方法。`is_falsifiable=false` 時為 null |
+
+**篩選規則**：`evidence_level ≤ E1` 且 `is_falsifiable = false` 的假設標記為 `low_quality`，決策中心顯示警告。
 
 ---
 
@@ -300,10 +312,9 @@ flowchart TB
 |------|------|------|------|----------|
 | Anti-Anchor 生成 | mission + constraints | AI 產出非典型架構 | `AntiAnchorRoute[].length ≥ 3` | 可晉升為反向路徑方案 |
 | TRIZ 產出候選 | 路徑矛盾集 | 三路徑並行生成解法 | `TrizSolution[]` 全部 `pending` | 不做 Phase B |
-| Phase A 掃描 | `startPhaseA()` | 矛盾空間健康度 | converged / halted | 不觸發 Phase B |
-| 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 + 確認 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
-| SCAMPER 展開 | 已確認子系統 | 7 行動 × N 子系統 | `ScamperVariant[adopted]` | — |
-| SCAMPER 新矛盾 | `newContradictions[]` | `addContradiction()` 注入 Phase A | fatal/major → Phase A re-scan | 路徑內閉環 |
+| Phase A 掃描 | `startPhaseA()` | 語意去重（`is_confirmatory` 過濾）→ 矛盾空間健康度 | converged / halted | 不觸發 Phase B |
+| 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 System→Module→Component 3 層 + 6 維介面契約 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
+| SCAMPER 展開 | 已確認子系統 | 7 行動 × N 子系統（創意工具，不觸發 re-scan） | `ScamperVariant[adopted]` + 風險標註 | 直接進候選池 |
 | **決策中心選擇** | 所有候選池 | **RD 挑選每矛盾一條路徑** | adopted Alternative[] | — |
 | **Phase B 掃描** | `startPhaseB()` | **跨矛盾衝突 + 同矛盾多路徑風險** | converged / halted | 人類審核 |
 | MUST 篩選 | adopted Alternative + M1-M6 | AI + RD 評分 | pass / fail / marginal | 淘汰不可行方案 |
@@ -364,13 +375,13 @@ flowchart TB
 
 ---
 
-## 11. v6 → v7 差異摘要
+## 11. v7 → v8 差異摘要
 
-| 項目 | v6 | v7 |
+| 項目 | v7 | v8 |
 |------|----|----|
-| TRIZ 步驟收斂 | 自動 Phase A → Phase B | **只做 Phase A** |
-| Phase B 觸發 | `useEffect` 自動偵測 alternatives | **決策中心手動觸發** |
-| 三路徑處理 | TC/PC/SF 全部 adopt → 同時送收斂 | **全部 pending → RD 挑選 → 只送 adopted** |
-| 無限迴圈風險 | 高（同矛盾多路徑天生衝突） | **消除**（每矛盾只送一條被選路徑） |
-| `startExploration()` | 唯一入口 | 保留向後相容，新增 `startPhaseA()` / `startPhaseB()` |
-| Phase B prompt | 4 項檢查 | **5 項**（新增同矛盾多路徑風險） |
+| SCAMPER 定位 | 分析工具（newContradictions → Phase A re-scan） | **純創意工具**（風險標註，不觸發 re-scan，與 Anti-Anchor 同級） |
+| Phase A 語意去重 | 無 | **embedding cosine ≥ 0.92 → `is_confirmatory` 過濾重複矛盾** |
+| 子系統架構 | 扁平 Subsystem[] | **System→Module→Component 3 層 + 6 維介面契約** |
+| 假設品質 | assumptions[] 無品質欄位 | **`evidence_level` E0-E4 + `is_falsifiable` + `falsification_method`** |
+| 主流程圖 SCAMPER 節點 | 僅標示「7 創意行動 × 子系統」 | **明確標示「創意工具，不觸發 re-scan」** |
+| 狀態轉換表 SCAMPER 行 | 含 `addContradiction()` 注入 Phase A | **移除 re-scan 閉環，直接進候選池** |

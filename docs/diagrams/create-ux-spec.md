@@ -9,17 +9,15 @@
 
 ## 使用者旅程（User Journey）
 
-RD 打開 Create 頁面後的完整操作流程：
-
 ```
 1. 看到核心使命（Mission）— 知道自己要解什麼問題
-2. 看到兩條對稱的分析路徑 — 理解有兩套方法可以並行
-3. 選擇一條路徑展開操作（或兩條都做）
-4. 在路徑內逐步產出候選方案
-5. 所有方案匯入決策中心 — 攤平比較
-6. 選擇要 adopt 的方案 → 觸發 Phase B 交叉檢查
-7. 通過 Phase B → MUST 快篩 → Pre-CAD 審查
-8. 通過 Phase Gate 2 → 進入 CAD
+2. 看到兩張對稱卡片 — 反向探索 / 正向分析
+3. 點任一張卡片展開操作（或兩張都做）
+4. 每條路徑產出候選方案（帶 Validation Passport）
+5. 所有方案匯入候選池 → 決策中心攤平比較
+6. RD 選擇 adopt/skip → 觸發 Phase B 交叉檢查
+7. Phase B 通過 → MUST 快篩 → Pre-CAD 審查
+8. Phase Gate 2 通過 → 進入 CAD
 ```
 
 ---
@@ -32,65 +30,43 @@ RD 打開 Create 頁面後的完整操作流程：
 │  Mission · Constraints · KPIs · 已驗證假設 · 高風險數               │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                    │
-│  ② 雙軌分析區（對稱佈局）                                           │
+│  ② 雙軌分析（兩張對稱卡片）                                         │
 │                                                                    │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐        │
-│  │  ⚡ 反向路徑              │  │  🎯 正向路徑              │        │
-│  │  打破框架                │  │  系統化解矛盾             │        │
+│  │  ⚡ 反向探索              │  │  🎯 正向分析              │        │
 │  │                          │  │                          │        │
-│  │  ┌ Anti-Anchor Sprint ──┐│  │  ┌ F1 TRIZ 解矛盾 ─────┐│        │
-│  │  │ [AI 生成非典型架構]    ││  │  │ [啟動 Phase A] [結果] ││        │
-│  │  │ [查看結果] [重新生成]  ││  │  └──────────────────────┘│        │
-│  │  └──────────────────────┘│  │          ↓               │        │
-│  │          ↓               │  │  ┌ F2 子系統定義 ───────┐│        │
-│  │  ┌ 反向候選池 ──────────┐│  │  │ [AI 建議] [手動新增]  ││        │
-│  │  │ AA 路線 1 [晉升]     ││  │  └──────────────────────┘│        │
-│  │  │ AA 路線 2 [晉升]     ││  │          ↓               │        │
-│  │  │ AA 路線 3 [晉升]     ││  │  ┌ F3 SCAMPER 變形 ────┐│        │
-│  │  │ 每條自帶              ││  │  │ [AI 生成] [採用/跳過] ││        │
-│  │  │ Validation Passport  ││  │  └──────────────────────┘│        │
-│  │  └──────────────────────┘│  │          ↓               │        │
-│  │                          │  │  ┌ 正向候選池 ──────────┐│        │
-│  │  ℹ 創意發散工具           │  │  │ TC候選 PC候選 SF候選  ││        │
-│  │  不經 TRIZ 收斂           │  │  │ SCAMPER候選          ││        │
-│  │  直接進候選池             │  │  │ 共 N 個 pending      ││        │
-│  │                          │  │  └──────────────────────┘│        │
+│  │  Anti-Anchor Sprint     │  │  TRIZ → 子系統 → SCAMPER │        │
+│  │  從約束出發，AI 產出      │  │  從矛盾出發，系統化產出    │        │
+│  │  非典型架構概念           │  │  候選方案                 │        │
 │  │                          │  │                          │        │
-│  │  routes: 3               │  │  進度：F2 進行中          │        │
-│  │  ✓ Gate 通過             │  │  收斂：Phase A 85% ●     │        │
+│  │  每條自帶                │  │  內部 tab 切換：           │        │
+│  │  Validation Passport    │  │  ① TRIZ ② 子系統 ③ SCAMPER│        │
+│  │                          │  │                          │        │
+│  │  [點擊展開操作]          │  │  [點擊展開操作]            │        │
 │  └─────────────────────────┘  └─────────────────────────┘        │
 │                                                                    │
-│          ↓                              ↓                          │
-│          └──────────── ③ ──────────────┘                          │
+│                    ▼ 候選池匯流 ▼                                   │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │  ③ 候選方案決策中心                                            │ │
 │  │                                                                │ │
-│  │  所有候選攤平 · RD 每矛盾選一條路徑 · Phase B 交叉檢查          │ │
+│  │  所有候選攤平 · RD adopt/skip · Phase B 交叉檢查               │ │
 │  │                                                                │ │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │ │
-│  │  │ AA 路線1 │ │ AA 路線2 │ │ F-TC    │ │ F-SCAM  │           │ │
-│  │  │ 反向/創意 │ │ 反向/創意 │ │ 正向/TRIZ│ │ 正向/創意│           │ │
-│  │  │ 信心:65  │ │ 信心:58  │ │ 信心:82 │ │ 信心:71 │           │ │
-│  │  │ [adopt]  │ │ [skip]  │ │ [adopt] │ │ [skip]  │           │ │
+│  │  │ AA 路線1 │ │ AA 路線2 │ │ TRIZ-TC │ │ SCAMPER │           │ │
+│  │  │ 反向/創意│ │ 反向/創意│ │ 正向/演繹│ │ 正向/創意│           │ │
+│  │  │ 信心:65 │ │ 信心:58 │ │ 信心:82 │ │ 信心:71 │           │ │
+│  │  │ [adopt] │ │ [skip]  │ │ [adopt] │ │ [skip]  │           │ │
 │  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │ │
 │  │                                                                │ │
-│  │  ⚠ C2 同時 adopt TC + PC → 同矛盾多路徑風險                    │ │
-│  │                                                                │ │
-│  │  [執行 Phase B 收斂掃描]  → 掃描中... / 通過 ✓ / 有衝突 ⚠      │ │
+│  │  [執行 Phase B 收斂掃描]  → 通過 ✓ / 有衝突 ⚠                 │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐ │
-│  │  ④ 統一評估                                                    │ │
-│  │  [ MUST 快篩 (M1-M6) ]  →  [ Pre-CAD 審查 (5D) ]             │ │
-│  └──────────────────────────────────────────────────────────────┘ │
+│  ④ 統一評估                                                        │
+│  [ MUST 快篩 (M1-M6) ]  →  [ Pre-CAD 審查 (5D) ]                 │
 │                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐ │
-│  │  ⑤ 收斂監控（摺疊面板）                                         │ │
-│  │  正向 Phase A: Score 85% ● healthy                             │ │
-│  │  Fatal: 1/2  Major: 2/3  Minor: 5  Risk Register: 8          │ │
-│  │  （反向路徑無 Phase A — 創意工具不做收斂分析）                      │ │
-│  └──────────────────────────────────────────────────────────────┘ │
+│  ⑤ 收斂監控（摺疊）                                                │
+│  正向 Phase A: Score 85% ● healthy │ Fatal:0 Major:0 Minor:5      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -102,110 +78,108 @@ RD 打開 Create 頁面後的完整操作流程：
 
 | 元素 | 互動 | 說明 |
 |------|------|------|
-| Mission 文字 | 唯讀 | 從 Brief 繼承，不可在此編輯 |
+| Mission 文字 | 唯讀 | 從 Brief 繼承 |
 | Constraints 列表 | 唯讀 | 硬約束 badge |
 | KPI 列表 | 唯讀 | 目標指標 |
 | 已驗證假設 / 高風險數 | 唯讀 | 來自 Track（假設追蹤）頁 |
 
-### ② 雙軌分析區
+### ② 雙軌分析卡片
 
-**方法獨立原則**：反向（創意發散）和正向（演繹收斂）是本質不同的方法，不強求步驟數對稱。反向只有 Anti-Anchor → 候選池，正向有 F1-F3 → 候選池。視覺上兩欄等高，反向的候選池區域更大（顯示每條 route 的 Validation Passport 摘要）。
+**設計原則**：兩張卡片等高等寬、對稱排列。點擊後展開各自的操作內容。
 
-#### 路徑卡片（共通互動）
+#### 反向探索卡片（Anti-Anchor）
 
-| 元素 | 互動 | 觸發 |
-|------|------|------|
-| 路徑標題 | 點擊展開/收合整條路徑 | toggle |
-| 進度標示 | 唯讀 | 自動計算 |
-| 收斂狀態 | 唯讀 | Phase A score + health 燈號 |
-
-#### R1 Anti-Anchor Sprint
+點擊後展開：
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
 | [AI 生成非典型架構] | 按鈕 → loading → 顯示 ≥3 張路線卡片 | POST /alternatives/anti-anchor |
-| 路線卡片 | 展開看 mechanism / Validation Passport | 展開/收合 |
-| [晉升為候選] | 按鈕 → 標記為 promoted → 進入反向候選池 | 更新 route.promoted |
-| [刪除] | 刪除此路線 | DELETE |
+| 路線卡片 | 展開看 mechanism / why_unconventional / VP | 展開/收合 |
+| Validation Passport | 每條路線自帶：assumptions + weak_points + verifications + confidence | 唯讀 |
 | [重新生成] | 清空 → 重新 AI 生成 | DELETE all + POST |
 
-#### R2 / F1 TRIZ 解矛盾
+**產出**：route-style 候選卡片，直接進入候選池。
+
+#### 正向分析卡片（TRIZ E2E）
+
+點擊後展開，內部 tab 切換三個子步驟：
+
+```
+┌─────────────────────────────────────────────────┐
+│  ① TRIZ 解矛盾  │  ② 子系統定義  │  ③ SCAMPER 變形 │
+├─────────────────────────────────────────────────┤
+│  （當前 tab 的內容）                               │
+└─────────────────────────────────────────────────┘
+```
+
+**Tab ① TRIZ 解矛盾**
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| [啟動 Phase A] | 按鈕 → 矛盾健康度分析 → dashboard 更新 | startPhaseA() |
-| [重新執行] | 重新分析 | startPhaseA() (generation bump) |
-| 矛盾列表 | 每個矛盾展開 → 顯示 TC/PC/SF 三組候選 | 唯讀 |
-| TC/PC/SF 候選 | 狀態切換：pending → adopted / skipped / edited | updateTrizSolution() |
-| 收斂 Dashboard | confidence % / health / fatal·major·minor | 唯讀 |
-| 分支探索歷程 | 每矛盾的掃描輪次和深度 | 唯讀 |
-| 人類審核面板 | converged/halted 時顯示 → 確認或重試 | setReviewConfirmed() |
+| [啟動 Phase A] | 矛盾健康度分析 | startPhaseA() |
+| [重新執行] | 重新分析 | startPhaseA() |
+| 矛盾列表 | 每矛盾展開 → TC/PC/SF 三組候選 | 唯讀 |
+| TC/PC/SF 候選 | pending → adopted / skipped / edited | updateTrizSolution() |
+| 收斂 Dashboard | confidence / health / fatal·major·minor | 唯讀 |
+| 人類審核 | converged/halted 時 → 確認或重試 | setReviewConfirmed() |
 
-#### R3 / F2 子系統定義
+**Tab ② 子系統定義**
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| [AI 建議架構分解] | 按鈕 → LLM 產出 System→Module→Component 樹 | POST /scamper/subsystem-suggestions |
-| [手動新增] | 表單：名稱 / 層級 / 理由 / 關聯矛盾 / 介面 | createSubsystem() |
+| [AI 建議架構分解] | LLM 產出 System→Module→Component 樹 | POST /scamper/subsystem-suggestions |
+| [手動新增] | 表單：名稱 / 層級 / 理由 / 關聯矛盾 | createSubsystem() |
 | 樹狀結構 | 展開 System → Module → Component | 可收合 |
-| 介面契約 | 點擊兩個耦合模組之間的連線 → 顯示 6 維介面 | 唯讀 / 可編輯 |
-| [確認] | 標記 confirmed → 解鎖 SCAMPER | updateSubsystem() |
-| [刪除] | 僅 RD 手動新增的可刪 | deleteSubsystem() |
+| 介面契約 | 耦合模組間 6 維介面 | 唯讀 / 可編輯 |
+| [確認] | confirmed → 解鎖 SCAMPER tab | updateSubsystem() |
 
-#### R4 / F3 SCAMPER 變形（創意工具）
+**Tab ③ SCAMPER 變形**
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| [AI 生成 SCAMPER] | 按鈕 → 每子系統 × 7 動作 → 卡片列表 | POST /scamper/perform |
+| [AI 生成] | 每子系統 × 7 動作 | POST /scamper/perform |
 | 變形卡片 | S/C/A/M/P/E/R badge + 描述 | 唯讀 |
-| [採用] / [跳過] | toggle → adopted / not adopted | updateScamperVariant() |
-| 潛在風險標註 | severity badge + 描述（僅顯示，不回饋收斂） | 唯讀 |
-| [確認並繼續] | 進入候選池 / 決策中心 | goNext() |
+| [採用] / [跳過] | toggle | updateScamperVariant() |
+| 潛在風險 | severity badge（僅顯示，不回饋收斂） | 唯讀 |
+| [確認完成] | 正向分析結束，候選進入候選池 | goNext() |
 
-#### 候選池（路徑底部）
-
-| 元素 | 互動 | 說明 |
-|------|------|------|
-| 候選數量 | 唯讀 | TC + PC + SF + SCAMPER + AA晉升 |
-| 候選列表 | 唯讀摘要 | 名稱 + 來源 + 狀態 |
-| 全部 pending | 提示文字 | 「在決策中心挑選要 adopt 的方案」 |
+**產出**：TRIZ 候選（TC/PC/SF）+ SCAMPER 候選，進入候選池。報告風格與 Anti-Anchor 對齊（每個候選帶 mechanism + VP）。
 
 ### ③ 候選方案決策中心
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| 方案卡片 | 橫向排列，可滾動 | — |
-| [adopt] / [skip] | 每張卡片 → 切換採用狀態 | updateAlternative() |
-| ⚠ 同矛盾多路徑警告 | 自動偵測同 contradiction_id 有多條 adopted | 即時計算 |
-| [執行 Phase B] | 按鈕 → 只送 adopted 方案做交叉檢查 | startPhaseB() |
-| Phase B 結果 | converged ✓ / halted ⚠ / 掃描中... | 即時更新 |
+| 方案卡片 | 橫向排列，統一格式 | — |
+| 來源 badge | 反向(amber) / 正向(blue) + 具體步驟 | 唯讀 |
+| [adopt] / [skip] | 切換採用狀態 | updateAlternative() |
+| ⚠ 同矛盾多路徑警告 | 自動偵測 | 即時 |
+| [執行 Phase B] | 只送 adopted 做交叉檢查 | startPhaseB() |
+| Phase B 結果 | converged ✓ / halted ⚠ | 即時更新 |
 | [確認進入 MUST] | Phase B 通過後才可按 | goNext() |
-| 方案卡片三層資訊 | 第一眼 / 第二眼 / 第三眼（見下方） | 逐層展開 |
 
 #### 方案卡片三層資訊
 
-**第一眼（快速判斷）**：名稱 · 來源路徑 · 來源步驟 · 信心 · MUST/Pre-CAD 結果
-
-**第二眼（好壞比較）**：核心機制 · 優點 · 缺點/trade-off
-
-**第三眼（追溯與驗證）**：關鍵假設（含 evidence_level E0-E4） · 驗證需求 · 弱點 · 矛盾 ID / 子系統 · Validation Passport
+| 層 | 內容 | 展示方式 |
+|----|------|----------|
+| **第一眼** | 名稱 · 來源 · 信心 · MUST/Pre-CAD | 卡片頂部，始終可見 |
+| **第二眼** | 核心機制 · 優點 · 缺點 | 展開第一層 |
+| **第三眼** | 假設(E0-E4) · 驗證需求 · 弱點 · VP | 展開第二層 |
 
 ### ④ 統一評估
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| MUST 快篩 | 每方案 × M1-M6 → pass/fail/marginal | AI 評分 + RD 覆寫 |
-| Pre-CAD 審查 | 五維雷達圖 → 滑桿評分 | RD 手動 / AI 建議 |
-| Phase Gate 2 | ≥1 方案 overallPass → 可進入 CAD | 自動判定 |
+| MUST 快篩 | 每方案 × M1-M6 → pass/fail/marginal | AI + RD |
+| Pre-CAD 審查 | 五維雷達圖 | RD / AI 建議 |
+| Phase Gate 2 | ≥1 方案 overallPass → 進入 CAD | 自動 |
 
 ### ⑤ 收斂監控（摺疊面板）
 
 | 元素 | 互動 | 說明 |
 |------|------|------|
-| 展開/收合 | toggle | 預設收合 |
-| 雙路徑 score | 唯讀 | 各路徑的 Phase A confidence |
-| Fatal/Major/Minor | 唯讀 | 分類計數 |
-| Risk Register | 展開 → 列表 | minor 項目清單 |
+| 正向 Phase A | Score / Health / Fatal·Major·Minor | 唯讀 |
+| Risk Register | minor 清單 | 展開 |
+| 反向無 Phase A | 創意工具不做收斂分析 | — |
 
 ---
 
@@ -213,27 +187,26 @@ RD 打開 Create 頁面後的完整操作流程：
 
 | 原則 | 說明 |
 |------|------|
-| **方法獨立** | 反向（創意）和正向（演繹）不強求步驟對稱，因為方法本質不同 |
-| **等高佈局** | 兩欄等高 — 反向候選池區域展開顯示 Validation Passport 摘要 |
-| **路徑色彩** | 反向 = amber 系（⚡暖色 = 創意發散）、正向 = blue 系（🎯冷色 = 演繹收斂） |
-| **候選池對齊** | 兩個候選池在視覺上底部對齊，卡片格式一致 |
-| **統一按鈕風格** | AI 按鈕、狀態切換、確認按鈕在兩條路徑中保持一致 |
+| **對稱卡片** | 兩張卡片等高等寬，點擊展開各自操作內容 |
+| **方法獨立** | 反向 = 創意（1 步），正向 = 演繹（3 sub-tab），不混用 |
+| **E2E 節點** | 正向的 TRIZ+子系統+SCAMPER 對外是 1 個節點，對內是 3 個 tab |
+| **報告格式統一** | 兩條路徑的候選卡片格式一致（mechanism + VP） |
+| **路徑色彩** | 反向 = amber（⚡暖色），正向 = blue（🎯冷色） |
+| **候選池匯流** | 所有候選進同一個池，在決策中心統一比較 |
 
 ---
 
 ## 步驟索引映射（內部 → 顯示）
 
-內部索引 0-6 保留（避免大範圍重構），UI 層定義：
-
-| 內部索引 | 顯示 | 區域 | 互動焦點 |
-|----------|------|------|----------|
-| 0 | 反向路徑 | 雙軌分析（左） | R1-R4 步驟操作 |
-| 1 | 正向: TRIZ | 雙軌分析（右） | Phase A + TRIZ 候選 |
-| 2 | 正向: 子系統 | 雙軌分析（右） | 3 層架構樹 + 介面契約 |
-| 3 | 正向: SCAMPER | 雙軌分析（右） | 創意變形 + 採用 |
-| 4 | 決策中心 | 候選方案決策中心 | adopt/skip + Phase B |
-| 5 | MUST 快篩 | 統一評估 | M1-M6 評分 |
-| 6 | Pre-CAD 審查 | 統一評估 | 五維雷達圖 |
+| 內部索引 | 顯示 | Stepper 層 | 內容層 |
+|----------|------|-----------|--------|
+| 0 | 反向探索 | 左卡片 | Anti-Anchor 操作 |
+| 1 | 正向: Tab ① TRIZ | 右卡片 | TRIZ 解矛盾 + Phase A |
+| 2 | 正向: Tab ② 子系統 | 右卡片 | 3 層架構樹 |
+| 3 | 正向: Tab ③ SCAMPER | 右卡片 | 創意變形 |
+| 4 | 決策中心 | 獨立區塊 | adopt/skip + Phase B |
+| 5 | MUST | 評估區 | M1-M6 |
+| 6 | Pre-CAD | 評估區 | 五維雷達圖 |
 
 ---
 
@@ -242,8 +215,8 @@ RD 打開 Create 頁面後的完整操作流程：
 | # | 要素 | UI 位置 | 說明 |
 |---|------|---------|------|
 | 1 | 來源路徑 | 卡片 badge | 反向(amber) / 正向(blue) |
-| 2 | 來源步驟 | 卡片 badge | TRIZ_TC / PC / SF / SCAMPER / AA promoted |
-| 3 | 解的矛盾 | 第三眼展開 | contradiction IDs + 描述 |
-| 4 | 涉及子系統 | 第三眼展開 | subsystem 名稱 + 層級 |
-| 5 | 基於假設 | 第三眼展開 | 含 evidence_level E0-E4 + is_falsifiable |
-| 6 | 缺少驗證 | 第三眼展開 | required verifications + 成本/時長 |
+| 2 | 來源步驟 | 卡片 badge | Anti-Anchor / TRIZ_TC / PC / SF / SCAMPER |
+| 3 | 解的矛盾 | 第三眼 | contradiction IDs + 描述 |
+| 4 | 涉及子系統 | 第三眼 | subsystem 名稱 + 層級 |
+| 5 | 基於假設 | 第三眼 | evidence_level E0-E4 + is_falsifiable |
+| 6 | 缺少驗證 | 第三眼 | required verifications + 成本/時長 |

@@ -4,6 +4,9 @@ Ref: AI_Agent_Architecture.md §1.1 TRIZ Solver Agent + §6.2 triz_solver_agent 
 """
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.agents.base import call_llm_json
 from app.prompts.triz_solver import (
@@ -62,7 +65,10 @@ def _solve_tc(req: TrizLookupRequest) -> TrizLookupResponse:
         worsening=worsening,
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except json.JSONDecodeError:
+        data = {}
 
     # Ensure each suggestion carries path="TC"
     suggestions = data.get("suggestions", [])
@@ -87,7 +93,10 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
         triz_context=triz_context,
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except json.JSONDecodeError:
+        data = {}
 
     # Ensure each suggestion carries path="PC"
     suggestions = data.get("suggestions", [])
@@ -135,15 +144,30 @@ def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
     """Analyse a technical system using Su-Field modelling + 76 standard solutions."""
     triz_context = build_sufield_context()
 
+    # Enrich system_description with Su-Field context from Function Model if available
+    desc = req.system_description
+    if req.substance_1 or req.substance_2:
+        desc += f"\nFunction Model: S1={req.substance_1 or '?'}, S2={req.substance_2 or '?'}, F={req.field_type or '?'}"
+
     prompt = SUFIELD_ANALYSIS.format(
-        system_description=req.system_description,
+        system_description=desc,
         current_issues="\n".join(f"- {i}" for i in req.current_issues) or "（未指定）",
         triz_context=triz_context,
     )
-    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt, max_tokens=4096)
+    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)  # no max_tokens → uses config default (16384)
+    empty_fallback = SuFieldResponse(
+        su_field={"S1": req.substance_1 or "", "S2": req.substance_2 or "", "F": req.field_type or ""},
+        system_state="unknown",
+        matched_solutions=[],
+    )
     if not raw or not raw.strip():
-        raise ValueError("LLM returned empty response for Su-Field analysis")
-    data = json.loads(raw)
+        logger.warning("Su-Field analysis: LLM returned empty response (raw=%r)", raw[:200] if raw else raw)
+        return empty_fallback
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Su-Field analysis: LLM returned non-JSON (raw=%s)", raw[:500])
+        return empty_fallback
 
     return SuFieldResponse(
         su_field=data.get("su_field", {}),

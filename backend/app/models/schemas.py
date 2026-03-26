@@ -444,14 +444,26 @@ class TrizSuggestion(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def derive_path(cls, values):
-        """Auto-derive `path` from LLM output when missing."""
-        if isinstance(values, dict) and not values.get("path"):
-            if values.get("separation_principle"):
-                values["path"] = "PC"
-            elif values.get("principle_number"):
-                values["path"] = "TC"
-            else:
-                values["path"] = "unknown"
+        """Auto-derive `path` from LLM output when missing, and coerce bad principle_number."""
+        if isinstance(values, dict):
+            # LLM sometimes returns non-integer principle_number (e.g. 'SP-Time', '76-StdSol-1.2')
+            # for PC/SF paths — move the value to principle_name and set number to None.
+            pn = values.get("principle_number")
+            if pn is not None and not isinstance(pn, int):
+                try:
+                    values["principle_number"] = int(pn)
+                except (ValueError, TypeError):
+                    # Non-numeric → treat as a name, clear the number
+                    if not values.get("principle_name"):
+                        values["principle_name"] = str(pn)
+                    values["principle_number"] = None
+            if not values.get("path"):
+                if values.get("separation_principle"):
+                    values["path"] = "PC"
+                elif values.get("principle_number"):
+                    values["path"] = "TC"
+                else:
+                    values["path"] = "unknown"
         return values
 
 

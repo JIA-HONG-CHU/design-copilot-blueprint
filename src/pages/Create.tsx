@@ -37,6 +37,7 @@ import {
   useUpdateAntiAnchorRoute,
   useDeleteAntiAnchorRoute,
   useTrizSolutions,
+  useCreateTrizSolution,
   useUpdateTrizSolution,
   useSubsystems,
   useCreateSubsystem,
@@ -53,7 +54,7 @@ import { useContradictions } from "@/hooks/api/useContradictions";
 import type { Json } from "@/integrations/supabase/types";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, suFieldAnalyze, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
 import type { MustCriterionResult } from "@/lib/api";
 import { useProject } from "@/hooks/api/useProjects";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
@@ -170,6 +171,7 @@ export default function Create() {
   const createAntiAnchorRoute = useCreateAntiAnchorRoute();
   const updateAntiAnchorRoute = useUpdateAntiAnchorRoute();
   const deleteAntiAnchorRouteMut = useDeleteAntiAnchorRoute();
+  const createTrizSolution = useCreateTrizSolution();
   const updateTrizSolution = useUpdateTrizSolution();
   const createSubsystem = useCreateSubsystem();
   const updateSubsystemMut = useUpdateSubsystem();
@@ -275,6 +277,33 @@ export default function Create() {
     return map;
   }, [contradictionsQuery.data]);
 
+  // Group TRIZ solutions by contradiction for display (used in renderTrizConvergence)
+  const trizByContradiction = useMemo(() => {
+    const map = new Map<string, TrizSolution[]>();
+    for (const ts of trizSolutions) {
+      const key = ts.contradictionId || '__unlinked';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(ts);
+    }
+    return map;
+  }, [trizSolutions]);
+
+  // Detect same-contradiction multi-path warnings for Decision Hub
+  const sameContradictionWarnings = useMemo(() => {
+    const byContradiction = new Map<string, Alternative[]>();
+    for (const alt of alternatives) {
+      for (const cid of alt.keyAssumptionIds) {
+        if (!byContradiction.has(cid)) byContradiction.set(cid, []);
+        byContradiction.get(cid)!.push(alt);
+      }
+    }
+    const warnings: { contradictionId: string; alts: Alternative[] }[] = [];
+    for (const [cid, alts] of byContradiction.entries()) {
+      if (alts.length > 1) warnings.push({ contradictionId: cid, alts });
+    }
+    return warnings;
+  }, [alternatives]);
+
   const getMustValues = (a: Alternative) => MUST_KEYS.map((k) => a.mustScores[k] ?? null);
 
   const stepStatuses: AccordionStepStatus[] = useMemo(() => {
@@ -375,6 +404,132 @@ export default function Create() {
       toast.error("AI 產出失敗，請確認後端服務是否啟動");
     } finally {
       setAiLoading((p) => ({ ...p, antiAnchor: false }));
+    }
+  };
+
+  // ── TRIZ three-path candidate generation ──
+  const handleAiGenTriz = async () => {
+    if (!id) return;
+    const contrs = contradictionsQuery.data ?? [];
+    if (contrs.length === 0) {
+      toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別");
+      return;
+    }
+    setAiLoading((p) => ({ ...p, trizGen: true }));
+    try {
+      const generated: TrizSolution[] = [];
+      // For each contradiction, generate TC + PC + SF candidates in parallel
+      const tasks = contrs.map(async (c) => {
+        const results: TrizSolution[] = [];
+        // TC + PC (via trizSolve)
+        const [tcResult, pcResult, sfResult] = await Promise.allSettled([
+          trizSolve({
+            project_id: id,
+            contradiction_id: c.id,
+            natural_description: c.naturalDescription,
+            improving_param: c.improvingParam,
+            worsening_param: c.worseningParam,
+            type: "TC",
+          }),
+          trizSolve({
+            project_id: id,
+            contradiction_id: c.id,
+            natural_description: c.naturalDescription,
+            improving_param: c.improvingParam,
+            worsening_param: c.worseningParam,
+            physical_contradiction: c.physicalContradiction,
+            type: "PC",
+          }),
+          suFieldAnalyze({
+            project_id: id,
+            system_description: `${briefMission} — 矛盾: ${c.naturalDescription}`,
+            current_issues: [c.naturalDescription, c.engineeringStatement || ""].filter(Boolean),
+          }),
+        ]);
+        // Process TC results
+        if (tcResult.status === "fulfilled") {
+          for (const s of tcResult.value.suggestions) {
+            const opt: TrizSolution = {
+              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              contradictionId: c.id,
+              path: "TC" as TrizPath,
+              principleNumber: s.principle_number,
+              principleName: s.principle_name,
+              suggestion: s.suggestion,
+              status: "pending" as TrizActionStatus,
+            };
+            results.push(opt);
+            createTrizSolution.mutate({
+              project_id: id,
+              contradiction_id: c.id,
+              path: "TC",
+              principle_number: s.principle_number,
+              principle_name: s.principle_name,
+              suggestion: s.suggestion,
+              status: "pending",
+            });
+          }
+        }
+        // Process PC results
+        if (pcResult.status === "fulfilled") {
+          for (const s of pcResult.value.suggestions) {
+            const opt: TrizSolution = {
+              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              contradictionId: c.id,
+              path: "PC" as TrizPath,
+              principleNumber: s.principle_number,
+              principleName: s.principle_name,
+              suggestion: s.suggestion,
+              status: "pending" as TrizActionStatus,
+            };
+            results.push(opt);
+            createTrizSolution.mutate({
+              project_id: id,
+              contradiction_id: c.id,
+              path: "PC",
+              principle_number: s.principle_number,
+              principle_name: s.principle_name,
+              suggestion: s.suggestion,
+              status: "pending",
+            });
+          }
+        }
+        // Process SF results
+        if (sfResult.status === "fulfilled") {
+          for (const s of sfResult.value.matched_solutions) {
+            const opt: TrizSolution = {
+              id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              contradictionId: c.id,
+              path: "SF" as TrizPath,
+              principleNumber: null,
+              principleName: `${s.standard_id} ${s.standard_name}`,
+              suggestion: s.suggestion,
+              status: "pending" as TrizActionStatus,
+            };
+            results.push(opt);
+            createTrizSolution.mutate({
+              project_id: id,
+              contradiction_id: c.id,
+              path: "SF",
+              principle_number: null,
+              principle_name: `${s.standard_id} ${s.standard_name}`,
+              suggestion: s.suggestion,
+              status: "pending",
+            });
+          }
+        }
+        return results;
+      });
+      const allResults = await Promise.all(tasks);
+      for (const r of allResults) generated.push(...r);
+      // Optimistic update
+      setLocalTrizSolutions((prev) => [...prev, ...generated]);
+      toast.success(`AI 已產出 ${generated.length} 條 TRIZ 候選（TC/PC/SF 三路徑）`);
+    } catch (err) {
+      console.error("TRIZ generation failed:", err);
+      toast.error("TRIZ 三路徑生成失敗");
+    } finally {
+      setAiLoading((p) => ({ ...p, trizGen: false }));
     }
   };
 
@@ -998,16 +1153,24 @@ export default function Create() {
     );
   }
 
-  // ── Step 2: TRIZ Convergence (AI Autonomous) ──
+  // ── Step 2: TRIZ 解矛盾 — 三路徑候選生成 + Phase A 健康度 ──
   function renderTrizConvergence() {
     const { state, startPhaseA, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
     const contradictionsList = contradictionsQuery.data ?? [];
-    const canStartConvergence = !!id && contradictionsList.length > 0;
+    const canStart = !!id && contradictionsList.length > 0;
 
-    const handleStartExploration = () => {
+    const handleStartPhaseA = () => {
       if (!id) { toast.error("缺少專案 ID"); return; }
       if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
-      startPhaseA(); // TRIZ step only runs Phase A (contradiction health), never Phase B
+      startPhaseA();
+    };
+
+    const PATH_COLORS: Record<string, string> = { TC: 'bg-blue-100 text-blue-700', PC: 'bg-violet-100 text-violet-700', SF: 'bg-teal-100 text-teal-700' };
+    const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
+      pending: { label: '待評估', cls: 'bg-muted text-muted-foreground' },
+      adopted: { label: '已採用', cls: 'bg-primary text-primary-foreground' },
+      skipped: { label: '已跳過', cls: 'bg-muted text-muted-foreground line-through' },
+      edited: { label: '已修改', cls: 'bg-amber-100 text-amber-700' },
     };
 
     return (
@@ -1021,134 +1184,144 @@ export default function Create() {
           />
         )}
 
-        {/* Idle state: show existing TRIZ results from DB, or prompt to launch */}
-        {state.status === 'idle' && trizSolutions.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="h-5 w-5 text-primary" />
-              <h3 className="text-sm font-semibold">AI 矛盾收斂完成 — {trizSolutions.length} 條 TRIZ 解法</h3>
-            </div>
-            {trizSolutions.map((ts) => (
-              <Card key={ts.id} className="border-l-[3px] border-l-primary/40">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="secondary" className="text-[10px]">{ts.path}</Badge>
-                    <Badge variant="outline" className="text-[10px]">原理 {ts.principleNumber}: {ts.principleName}</Badge>
-                    <Badge className={`text-[10px] ${ts.status === 'adopted' ? 'bg-primary' : ts.status === 'rejected' ? 'bg-destructive' : 'bg-muted text-muted-foreground'}`}>
-                      {ts.status === 'adopted' ? '已採用' : ts.status === 'rejected' ? '已排除' : '待評估'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm leading-relaxed">{ts.suggestion}</p>
-                  {ts.contradictionId && (
-                    <p className="text-xs text-muted-foreground">
-                      ⚡ {contradictionMap.get(ts.contradictionId) ?? '矛盾'}
+        {/* ── Section A: Three-path candidate generation ── */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">三路徑候選生成（TC / PC / SF）</h3>
+          <p className="text-xs text-muted-foreground">
+            對每條矛盾同時生成 TC（矛盾矩陣）、PC（分離原則）、SF（物場分析）三類候選。
+            所有候選均為 pending，在決策中心由 RD 挑選。
+          </p>
+
+          {trizSolutions.length === 0 ? (
+            <Card className="border-dashed border-2 border-blue-200">
+              <CardContent className="p-6 text-center space-y-3">
+                <div className="mx-auto w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {contradictionsList.length === 0
+                    ? '前置條件：需先在「深度探索」階段完成矛盾識別'
+                    : `已識別 ${contradictionsList.length} 條矛盾，可啟動三路徑生成`}
+                </p>
+                <AiButton
+                  loading={!!aiLoading.trizGen}
+                  onClick={handleAiGenTriz}
+                  disabled={!canStart}
+                >
+                  {aiLoading.trizGen ? '生成中...' : 'AI 生成三路徑候選'}
+                </AiButton>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Show solutions grouped by contradiction */}
+              {Array.from(trizByContradiction.entries()).map(([cId, solutions]) => (
+                <Card key={cId} className="border-l-[3px] border-l-blue-400">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {contradictionMap.get(cId) ?? cId}
                     </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            <AiButton
-              aiVariant="outline"
-              size="sm"
-              loading={state.status === 'exploring'}
-              onClick={handleStartExploration}
-              className="text-xs"
-            >
-              {state.status === 'exploring' ? '收斂分析中...' : '重新收斂分析'}
-            </AiButton>
-          </div>
-        )}
-
-        {state.status === 'idle' && trizSolutions.length === 0 && (
-          <Card className="border-dashed border-2 border-primary/30">
-            <CardContent className="p-8 text-center space-y-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">AI 矛盾空間健康度分析</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                  AI 將分析矛盾間的交互衝突、循環依賴與覆蓋盲區，
-                  確認問題空間定義完善。方案建立後（Step 5）會自動執行完整收斂掃描。
-                </p>
-              </div>
-              <AiButton
-                loading={state.status === 'exploring'}
-                onClick={handleStartExploration}
-                size="lg"
-              >
-                {state.status === 'exploring' ? '收斂分析中...' : '啟動收斂分析'}
+                    <div className="space-y-2">
+                      {solutions.map((ts) => {
+                        const statusInfo = STATUS_LABELS[ts.status] || STATUS_LABELS.pending;
+                        return (
+                          <div key={ts.id} className="flex items-start gap-2 p-2.5 rounded-md bg-muted/20 border">
+                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge className={cn("text-[10px]", PATH_COLORS[ts.path] || 'bg-muted')}>{ts.path}</Badge>
+                                <Badge variant="outline" className="text-[10px]">
+                                  {ts.principleNumber ? `原理 ${ts.principleNumber}: ` : ''}{ts.principleName}
+                                </Badge>
+                                <Badge className={cn("text-[10px]", statusInfo.cls)}>{statusInfo.label}</Badge>
+                              </div>
+                              <p className="text-xs leading-relaxed">{ts.suggestion}</p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              {ts.status !== 'adopted' && (
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => setTrizStatus(ts.id, 'adopted')}>
+                                  採用
+                                </Button>
+                              )}
+                              {ts.status !== 'skipped' && (
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2 text-muted-foreground" onClick={() => setTrizStatus(ts.id, 'skipped')}>
+                                  跳過
+                                </Button>
+                              )}
+                              {ts.status === 'adopted' && (
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2 text-muted-foreground" onClick={() => setTrizStatus(ts.id, 'pending')}>
+                                  取消
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              <AiButton aiVariant="outline" size="sm" loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} className="text-xs">
+                重新生成三路徑候選
               </AiButton>
-              {!canStartConvergence && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  前置條件：需先在「深度探索」階段完成矛盾識別
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
+        </div>
 
-        {/* Exploring: show loading banner + dashboard + graph + branches */}
-        {state.status === 'exploring' && state.iteration === 0 && (
-          <Card className="border-primary/50 bg-primary/5">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="relative">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <Sparkles className="h-4 w-4 text-primary absolute -top-1 -right-1 animate-pulse" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold">
-                  {state.phase === 'A' ? 'AI 正在分析矛盾空間健康度...' : 'AI 正在執行參數交叉分析...'}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {state.phase === 'A'
-                    ? `分析 ${contradictionsList.length} 條矛盾的交互衝突、循環依賴與覆蓋盲區`
-                    : `掃描 ${contradictionsList.length} 條矛盾 x ${alternatives.length} 個方案，檢測二次矛盾與架構衝突`}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Separator />
 
-        {state.status !== 'idle' && (
-          <>
-            <ConvergenceDashboard state={state} />
+        {/* ── Section B: Phase A — Contradiction space health check ── */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Phase A：矛盾空間健康度</h3>
+          <p className="text-xs text-muted-foreground">
+            分析矛盾間的交互衝突、循環依賴與覆蓋盲區，確認問題空間定義完善。
+          </p>
 
-            <ConvergenceGraph
-              nodes={state.graph.nodes}
-              edges={state.graph.edges}
-            />
-
-            <BranchExplorationPanel branches={state.branches} />
-
-            {/* Re-run / continue controls — always visible when loop is not idle */}
-            <div className="flex items-center gap-2 flex-wrap">
+          {state.status === 'idle' && (
+            <div className="flex gap-2">
               <AiButton
                 aiVariant="outline"
                 size="sm"
-                loading={state.status === 'exploring'}
-                onClick={handleStartExploration}
+                loading={false}
+                onClick={handleStartPhaseA}
+                disabled={!canStart}
                 className="text-xs"
               >
-                {state.status === 'exploring' ? '收斂分析中...' : '重新收斂分析'}
+                啟動 Phase A 分析
               </AiButton>
-              {state.status === 'halted' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={forceContinue}
-                  className="text-xs gap-1.5"
-                >
-                  強制繼續探索
-                </Button>
-              )}
             </div>
-          </>
-        )}
+          )}
 
-        {/* Converged or halted with unresolved issues: human review */}
-        {(state.status === 'converged' || state.status === 'halted') && (
-          <>
+          {state.status === 'exploring' && state.iteration === 0 && (
+            <Card className="border-primary/50 bg-primary/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Loader2 className="h-6 w-6 text-primary animate-spin shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">AI 正在分析矛盾空間健康度...</p>
+                  <p className="text-xs text-muted-foreground">分析 {contradictionsList.length} 條矛盾的交互衝突、循環依賴與覆蓋盲區</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {state.status !== 'idle' && (
+            <>
+              <ConvergenceDashboard state={state} />
+              <ConvergenceGraph nodes={state.graph.nodes} edges={state.graph.edges} />
+              <BranchExplorationPanel branches={state.branches} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <AiButton aiVariant="outline" size="sm" loading={state.status === 'exploring'} onClick={handleStartPhaseA} className="text-xs">
+                  {state.status === 'exploring' ? '分析中...' : '重新 Phase A 分析'}
+                </AiButton>
+                {state.status === 'halted' && (
+                  <Button variant="outline" size="sm" onClick={forceContinue} className="text-xs gap-1.5">
+                    強制繼續探索
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+
+          {(state.status === 'converged' || state.status === 'halted') && (
             <HumanReviewPanel
               branches={state.branches}
               riskRegister={state.riskRegister}
@@ -1156,18 +1329,8 @@ export default function Create() {
               onRetry={retryBranch}
               onConfirmSeverity={confirmSeverity}
             />
-
-            {reviewConfirmed && (
-              <MultiSolutionAdoptionPanel
-                adoptionState={adoptionState}
-                onConfirm={(routes) => {
-                  setConceptRoutes(routes);
-                  goNext();
-                }}
-              />
-            )}
-          </>
-        )}
+          )}
+        </div>
 
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[1] ?? []} />
       </div>
@@ -1427,94 +1590,164 @@ export default function Create() {
 
   // ── Step 5: Alternatives ──
   function renderAlternatives() {
-    return (
-      <div className="space-y-4">
-        {alternatives.length === 0 ? (
-          <div className="text-center py-16 space-y-3 bg-muted/30 rounded-xl border border-dashed">
-            <p className="text-muted-foreground font-medium">尚無方案</p>
-            <p className="text-sm text-muted-foreground">整合前四步成果，建立概念方案</p>
-          </div>
-        ) : (
-          alternatives.map((alt, i) => (
-            <Card key={alt.id}>
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs font-mono">方案 {i + 1}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{alt.source}</Badge>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteAlternative(alt.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <Input
-                  className="text-sm font-medium"
-                  placeholder="方案名稱 *"
-                  value={alt.name}
-                  onChange={(e) => {
-                    setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, name: e.target.value } : a)));
-                  }}
-                  onBlur={(e) => {
-                    updateAlternativeMut.mutate({ id: alt.id, name: e.target.value });
-                  }}
-                />
-                <Textarea
-                  placeholder="機制說明 * (至少 20 字元)"
-                  value={alt.mechanism}
-                  rows={3}
-                  className="text-sm leading-relaxed"
-                  onChange={(e) => {
-                    setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, mechanism: e.target.value } : a)));
-                  }}
-                  onBlur={(e) => {
-                    updateAlternativeMut.mutate({ id: alt.id, mechanism: e.target.value });
-                  }}
-                />
-                {alt.keyAssumptionIds.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-muted-foreground">關聯假設:</span>
-                    {alt.keyAssumptionIds.map((aid) => {
-                      const assumption = assumptionMap.get(aid);
-                      return (
-                        <div key={aid} className="flex items-start gap-2 text-xs bg-muted/30 rounded-md p-2">
-                          <Badge variant="outline" className="text-[10px] font-mono shrink-0">
-                            {assumption?.code ?? aid}
-                          </Badge>
-                          <span className="text-muted-foreground line-clamp-1">
-                            {assumption?.description ?? "（假設未找到）"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
+    // ── Candidate pool: aggregate from all sources ──
+    const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+      anti_anchor: { label: '反向/Anti-Anchor', cls: 'bg-amber-100 text-amber-700' },
+      triz_tc: { label: '正向/TRIZ-TC', cls: 'bg-blue-100 text-blue-700' },
+      triz_pc: { label: '正向/TRIZ-PC', cls: 'bg-blue-100 text-blue-700' },
+      triz_sf: { label: '正向/TRIZ-SF', cls: 'bg-blue-100 text-blue-700' },
+      scamper: { label: '正向/SCAMPER', cls: 'bg-blue-100 text-blue-700' },
+      manual: { label: '手動', cls: 'bg-muted text-muted-foreground' },
+      ai_integrated: { label: 'AI 整合', cls: 'bg-violet-100 text-violet-700' },
+    };
+    const getSourceBadge = (src: string) => SOURCE_BADGE[src] || { label: src, cls: 'bg-muted text-muted-foreground' };
 
-        <div className="flex gap-3">
-          <Button size="sm" variant="secondary" onClick={addManualAlternative}>
-            <Plus className="h-4 w-4 mr-1.5" /> 手動新增
-          </Button>
-          <AiButton size="sm" loading={aiLoading.alts} onClick={handleAiGenAlts}>
-            整合方案
-          </AiButton>
+    const adoptedCount = alternatives.length;
+
+    return (
+      <div className="space-y-5">
+        {/* ── Candidate pool header ── */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">候選方案池</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              匯集反向（Anti-Anchor）與正向（TRIZ/SCAMPER）所有候選。RD 確認後執行 Phase B 交叉檢查。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <AiButton size="sm" loading={!!aiLoading.alts} onClick={handleAiGenAlts}>
+              <Sparkles className="h-3.5 w-3.5 mr-1" /> 自動匯入候選
+            </AiButton>
+            <Button size="sm" variant="secondary" onClick={addManualAlternative}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> 手動新增
+            </Button>
+          </div>
         </div>
 
-        {/* Phase B: cross-check adopted solutions before proceeding */}
-        {alternatives.length > 0 && (
+        {/* ── Same-contradiction multi-path warnings ── */}
+        {sameContradictionWarnings.length > 0 && (
+          <Card className="border-amber-300 bg-amber-50/30">
+            <CardContent className="p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                <p className="text-xs font-medium text-amber-700">同矛盾多路徑警告</p>
+              </div>
+              {sameContradictionWarnings.map((w) => (
+                <p key={w.contradictionId} className="text-[10px] text-amber-600">
+                  矛盾 {contradictionMap.get(w.contradictionId) ?? w.contradictionId.slice(0, 8)} 被 {w.alts.length} 個方案同時解決 — TC/PC/SF 是不同問題表述，同時 adopt 可能衝突
+                </p>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Candidate cards ── */}
+        {alternatives.length === 0 ? (
+          <div className="text-center py-12 space-y-3 bg-muted/30 rounded-xl border border-dashed">
+            <LayoutGrid className="h-8 w-8 text-muted-foreground mx-auto" />
+            <p className="text-muted-foreground font-medium">候選池為空</p>
+            <p className="text-xs text-muted-foreground">
+              點擊「自動匯入候選」從已採用的 TRIZ 解法和 SCAMPER 變形中自動匯入，<br />
+              或從 Anti-Anchor 步驟晉升方案，或手動新增。
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {alternatives.map((alt, i) => {
+              const srcBadge = getSourceBadge(alt.source);
+              const isReverse = alt.source === 'anti_anchor';
+              return (
+                <Card key={alt.id} className={cn("border-l-[3px] transition-all", isReverse ? "border-l-amber-400" : "border-l-blue-400")}>
+                  <CardContent className="p-4 space-y-2">
+                    {/* First eye: name + source + badges */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <Badge variant="outline" className="text-[10px] font-mono shrink-0">#{i + 1}</Badge>
+                        <Badge className={cn("text-[10px]", srcBadge.cls)}>{srcBadge.label}</Badge>
+                        <span className="text-sm font-medium truncate">{alt.name || "(未命名)"}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => deleteAlternative(alt.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Second eye: mechanism */}
+                    {alt.source === 'manual' ? (
+                      <>
+                        <Input
+                          className="text-sm font-medium"
+                          placeholder="方案名稱 *"
+                          value={alt.name}
+                          onChange={(e) => setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, name: e.target.value } : a)))}
+                          onBlur={(e) => updateAlternativeMut.mutate({ id: alt.id, name: e.target.value })}
+                        />
+                        <Textarea
+                          placeholder="機制說明 *"
+                          value={alt.mechanism}
+                          rows={2}
+                          className="text-xs"
+                          onChange={(e) => setLocalAlternatives((prev) => prev.map((a) => (a.id === alt.id ? { ...a, mechanism: e.target.value } : a)))}
+                          onBlur={(e) => updateAlternativeMut.mutate({ id: alt.id, mechanism: e.target.value })}
+                        />
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{alt.mechanism}</p>
+                    )}
+
+                    {/* Third eye: assumptions + VP (collapsed) */}
+                    {alt.validationPassport && (
+                      <details className="text-xs">
+                        <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
+                          假設 ({alt.validationPassport.assumptions.length}) · 驗證需求 ({alt.validationPassport.requiredVerifications.length}) · 信心 {Math.round(alt.validationPassport.confidenceLevel * 100)}%
+                        </summary>
+                        <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-muted">
+                          {alt.validationPassport.assumptions.map((a, ai) => (
+                            <p key={ai} className="text-[10px] text-muted-foreground">
+                              <Badge variant="outline" className="text-[8px] mr-1">{a.evidenceLevel}</Badge>
+                              {a.content}
+                            </p>
+                          ))}
+                          {alt.validationPassport.weakPoints.length > 0 && (
+                            <div className="mt-1">
+                              <p className="text-[9px] text-muted-foreground font-medium">弱點：</p>
+                              {alt.validationPassport.weakPoints.map((wp, wi) => (
+                                <p key={wi} className="text-[10px] text-muted-foreground">- {wp}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
+                    {alt.keyAssumptionIds.length > 0 && !alt.validationPassport && (
+                      <div className="flex flex-wrap gap-1">
+                        {alt.keyAssumptionIds.map((aid) => (
+                          <Badge key={aid} variant="outline" className="text-[9px]">
+                            {assumptionMap.get(aid)?.code ?? aid.slice(0, 8)}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Phase B: cross-check adopted solutions ── */}
+        {adoptedCount > 0 && (
           <Card className="border-violet-300 bg-violet-50/30">
             <CardContent className="p-4 space-y-3">
               <div>
-                <p className="text-sm font-semibold">方案交叉檢查（Phase B 收斂掃描）</p>
+                <p className="text-sm font-semibold">Phase B 收斂掃描 — 方案交叉檢查</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  檢查已選方案之間是否存在跨矛盾衝突或二次矛盾。
+                  檢查 {adoptedCount} 個方案之間是否存在跨矛盾衝突、參數干涉或同矛盾多路徑風險。
                   {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'converged'
                     ? ' ✓ 掃描完成，可進入 MUST 快篩。'
                     : convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'exploring'
                     ? ' 掃描進行中...'
-                    : ' 請先執行掃描。'}
+                    : ''}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1526,7 +1759,7 @@ export default function Create() {
                 >
                   {convergenceLoop.state.status === 'exploring'
                     ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> 掃描中...</>
-                    : <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> 執行收斂掃描</>}
+                    : <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> 執行 Phase B 掃描</>}
                 </Button>
                 {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'converged' && (
                   <Button onClick={() => { toast.success('方案規格已確認'); goNext(); }} className="shrink-0">
@@ -1534,14 +1767,18 @@ export default function Create() {
                   </Button>
                 )}
               </div>
+              {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status !== 'idle' && (
+                <ConvergenceDashboard state={convergenceLoop.state} />
+              )}
               {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'halted' && (
                 <p className="text-xs text-destructive">
-                  ⚠ 收斂掃描發現問題（可能有跨方案衝突）。請檢查後重新掃描或調整方案。
+                  ⚠ 收斂掃描發現問題（可能有跨方案衝突）。請調整方案後重新掃描。
                 </p>
               )}
             </CardContent>
           </Card>
         )}
+
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[4] ?? []} />
       </div>
     );
@@ -1919,7 +2156,7 @@ export default function Create() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           方案創造
-          <HelpTooltip text="雙軌獨立分析 → 候選方案決策中心 → 統一評估。反向路徑（Anti-Anchor → TRIZ → SCAMPER）與正向路徑（CLD 矛盾 → TRIZ → SCAMPER）各自獨立分析，最終在決策中心攤平比較所有方案。" className="ml-2 align-middle" />
+          <HelpTooltip text="雙軌分析 → 候選方案決策中心 → 統一評估。反向路徑（Anti-Anchor 創意發散，直接帶 Validation Passport 進候選池）與正向路徑（TRIZ 解矛盾 → 子系統定義 → SCAMPER 變形），所有方案在決策中心攤平比較、Phase B 交叉檢查後進入 MUST 快篩。" className="ml-2 align-middle" />
         </h1>
         <p className="text-sm text-muted-foreground mt-1">雙軌分析 · 方案匯流 · 統一評估</p>
       </div>

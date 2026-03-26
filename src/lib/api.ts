@@ -541,6 +541,33 @@ export function trizSolve(body: TrizSolveRequest) {
   return request<TrizSolveResponse>("/triz/solve", body, { timeoutMs: 300_000 });
 }
 
+// ─── Su-Field (76 Standard Solutions) ───────────────────────────────────────
+
+export interface SuFieldRequest {
+  project_id: string;
+  system_description: string;
+  current_issues: string[];
+}
+
+export interface MatchedStandardSolution {
+  standard_id: string;
+  standard_name: string;
+  class_name: string;
+  suggestion: string;
+  affected_modules: string[];
+  secondary_contradictions: string[];
+}
+
+export interface SuFieldResponse {
+  su_field: { S1: string; S2: string; F: string };
+  system_state: string;
+  matched_solutions: MatchedStandardSolution[];
+}
+
+export function suFieldAnalyze(body: SuFieldRequest) {
+  return request<SuFieldResponse>("/triz/sufield", body, { timeoutMs: 300_000 });
+}
+
 // ─── SCAMPER ────────────────────────────────────────────────────────────────
 
 export interface ScamperTransformRequest {

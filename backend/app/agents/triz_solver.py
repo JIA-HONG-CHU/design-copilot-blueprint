@@ -140,9 +140,23 @@ def _solve_sf(req: TrizLookupRequest) -> TrizLookupResponse:
     return TrizLookupResponse(suggestions=suggestions)
 
 
+def _infer_sufield_state(req: SuFieldRequest) -> str | None:
+    """Infer Su-Field system state from request metadata for KB filtering."""
+    comp = (getattr(req, 'sf_completeness', None) or '').lower()
+    inter = (getattr(req, 'sf_interaction', None) or '').lower()
+    if 'incomplete' in comp or not (req.substance_1 and req.substance_2 and req.field_type):
+        return 'incomplete'
+    if 'harmful' in inter or 'harmful' in comp:
+        return 'harmful'
+    if 'insufficient' in inter:
+        return 'insufficient'
+    return None  # unknown → full inject
+
+
 def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
     """Analyse a technical system using Su-Field modelling + 76 standard solutions."""
-    triz_context = build_sufield_context()
+    state_hint = _infer_sufield_state(req)
+    triz_context = build_sufield_context(system_state=state_hint)
 
     # Enrich system_description with Su-Field context from Function Model if available
     desc = req.system_description

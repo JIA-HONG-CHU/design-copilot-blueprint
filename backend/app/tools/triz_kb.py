@@ -167,20 +167,90 @@ def build_triz_tc_context(improving: int, worsening: int) -> str:
     )
 
 
-def build_sufield_context() -> str:
+def _extract_class_sections(full_text: str, class_numbers: list[int]) -> str:
+    """Extract specific Class sections from 76 standard solutions by class number.
+
+    E.g., class_numbers=[1,2] extracts "## Class 1: ..." and "## Class 2: ..."
+    """
+    sections = []
+    for cn in class_numbers:
+        # Match "## Class N" header until next "## Class" or "## 三" (reference section)
+        pattern = rf"(## Class {cn}[：:].+?)(?=## Class \d|## 三|$)"
+        match = re.search(pattern, full_text, re.DOTALL)
+        if match:
+            sections.append(match.group(1).strip())
+    return "\n\n---\n\n".join(sections) if sections else full_text
+
+
+# Su-Field state → relevant Classes mapping
+_SUFIELD_STATE_TO_CLASSES: dict[str, list[int]] = {
+    "incomplete":   [1],      # Class 1.1: build Su-Field
+    "harmful":      [1],      # Class 1.2: destroy harmful effect
+    "insufficient": [1, 2],   # Class 1.3 enhance + Class 2 transform
+    "effective":    [2, 3],   # already working → transform or scale
+    "measurement":  [4],      # detection & measurement
+    "simplify":     [5],      # simplification strategies
+}
+
+
+def build_sufield_context(system_state: str | None = None) -> str:
     """Build prompt context for Su-Field analysis (76 standard solutions).
 
-    Injection strategy: full inject of 76 standard solutions (~5,000 tokens).
+    Level 1 optimization: if system_state is provided, only inject the
+    relevant Class sections (~500-1500 tokens) instead of all 76 (~6000 tokens).
     """
-    return (
-        f"## Su-Field 76 標準解\n\n{load_76_standard_solutions()}"
-    )
+    full_text = load_76_standard_solutions()
+    if system_state and system_state in _SUFIELD_STATE_TO_CLASSES:
+        classes = _SUFIELD_STATE_TO_CLASSES[system_state]
+        filtered = _extract_class_sections(full_text, classes)
+        # Always include the intro and matching flow
+        intro_match = re.search(r"(# TRIZ 76.+?)(?=## Class)", full_text, re.DOTALL)
+        intro = intro_match.group(1).strip() if intro_match else ""
+        flow_match = re.search(r"(## 三、標準解匹配流程.+)", full_text, re.DOTALL)
+        flow = flow_match.group(1).strip() if flow_match else ""
+        return f"{intro}\n\n---\n\n{filtered}\n\n---\n\n{flow}"
+    return f"## Su-Field 76 標準解\n\n{full_text}"
 
 
-def build_triz_pc_context() -> str:
-    """Build prompt context for Physical Contradiction resolution."""
+def _extract_principles_by_ids(principle_ids: list[int]) -> str:
+    """Extract specific principles from 40 principles by their IDs."""
+    full_text = load_40_principles()
+    sections = []
+    for pid in principle_ids:
+        pattern = rf"(### #{pid}\s.+?)(?=### #\d+\s|## LLM|$)"
+        match = re.search(pattern, full_text, re.DOTALL)
+        if match:
+            sections.append(match.group(1).strip())
+    return "\n\n".join(sections) if sections else full_text
+
+
+# Separation strategy → most relevant 40 principles mapping
+_SEPARATION_RELEVANT_PRINCIPLES: dict[str, list[int]] = {
+    "time":      [9, 10, 11, 15, 19, 20, 21],   # pre-action, dynamics, periodic, rushing
+    "space":     [1, 2, 3, 4, 7, 17],             # segmentation, extraction, local quality, nesting, dimension
+    "condition":  [15, 35, 36, 37, 38, 39],        # dynamics, parameter change, phase transition, thermal expansion
+    "whole_part": [1, 5, 6, 7, 31, 40],            # segmentation, merging, universality, nesting, porous, composite
+}
+
+
+def build_triz_pc_context(separation_type: str | None = None) -> str:
+    """Build prompt context for Physical Contradiction resolution.
+
+    Level 1 optimization: if separation_type is provided, only inject
+    the relevant subset of 40 principles (~500-800 tokens) instead of all 40 (~4000 tokens).
+    """
+    sep_text = load_separation_principles()
+
+    if separation_type and separation_type in _SEPARATION_RELEVANT_PRINCIPLES:
+        principle_ids = _SEPARATION_RELEVANT_PRINCIPLES[separation_type]
+        principles_context = _extract_principles_by_ids(principle_ids)
+        label = separation_type
+    else:
+        principles_context = load_40_principles()
+        label = "all"
+
     return (
-        f"## 物理矛盾分離原則\n\n{load_separation_principles()}\n\n"
+        f"## 物理矛盾分離原則\n\n{sep_text}\n\n"
         f"---\n\n"
-        f"## 40 發明原理（完整）\n\n{load_40_principles()}"
+        f"## 候選發明原理（{label} 分離相關）\n\n{principles_context}"
     )

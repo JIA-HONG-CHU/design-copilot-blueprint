@@ -1,21 +1,43 @@
 # 雙軌分析 → 候選方案決策中心：設計概念與流程圖
 
-> **v6 (2026-03-25)**：雙軌獨立分析 + 候選方案決策中心。
-> - **核心修正**：反向/正向不是「兩個入口進同一管線」，而是「兩條獨立分析鏈，結果匯流到同一張決策桌」
-> - **反向路徑**各自有 Anti-Anchor → TRIZ → 子系統 → SCAMPER → 路徑方案池
-> - **正向路徑**各自有 TRIZ → 子系統 → SCAMPER → 路徑方案池
-> - **候選方案決策中心**：攤平所有方案做橫向比較（來源、機制、假設、驗證需求、信心）
-> - Validation Passport / 收斂掃描雙階段 / SCAMPER 閉環迴饋維持不變
+> **v7 (2026-03-26)**：產出與選擇分離 — TRIZ 三路徑不再同時收斂。
+> - **根因修正**：v6 的收斂迴圈無限迴圈，因 TC/PC/SF 是三種不同的問題表述方式，對同一矛盾天生互斥。同時送進 Phase B 收斂掃描 = 永遠衝突。
+> - **核心原則**：TRIZ 步驟只負責「產出候選」（Phase A），路徑選擇與交叉檢查（Phase B）延後到「候選方案決策中心」由 RD 挑選後才執行。
+> - **Phase A**：矛盾空間健康度（不涉及解法）→ TRIZ / 子系統 / SCAMPER 步驟使用
+> - **Phase B**：方案交叉檢查（只檢查被 RD 採用的解法）→ 決策中心使用
+> - 新增 Phase B 檢查項：同一矛盾多路徑風險（TC+PC+SF 同時 adopt → major 風險）
+
+---
+
+## 0. 第一性原理：為什麼三路徑不能同時收斂
+
+### TRIZ 三路徑的本質
+
+| 路徑 | 問題表述 | 解法方向 |
+|------|----------|----------|
+| **TC** | 改善 A 會惡化 B | 40 原理打破 trade-off |
+| **PC** | 同一參數需要同時是 X 和 ¬X | 時間/空間/條件分離 |
+| **SF** | 物場交互不完整或有害 | 修改物質-場模型 |
+
+**這三者不是「三個工人做同一件事」，而是「三個醫生對同一個病人提出完全不同的治療方案」。**
+
+```
+❌ 之前（v6）：
+矛盾 C1 → TC解 + PC解 + SF解 → 全部送進 Phase B
+→ TC解和PC解衝突 → 二次矛盾 → re-scan → 又衝突 → ∞
+
+✅ 現在（v7）：
+矛盾 C1 → TC解 + PC解 + SF解 → 全部 pending（不做 Phase B）
+→ 決策中心：RD 選 C1 用 TC解
+→ Phase B 只收 [C1-TC, C2-PC, C3-SF]（每矛盾一條）
+→ 檢查跨矛盾衝突（合理的檢查）→ 正常收斂
+```
 
 ---
 
 ## 1. 主流程總覽
 
-**設計哲學**：Phase 2 是 **雙軌分析 → 方案匯流 → 統一評估**。
-- 兩條路徑**各自獨立**完成分析鏈
-- 路徑內部各自有 TRIZ / 子系統 / SCAMPER / 收斂迴圈
-- 最後在**候選方案決策中心**攤平比較
-- 再進入統一評估（MUST / Pre-CAD）
+**設計哲學**：Phase 2 是 **雙軌產出 → 人類選擇 → 交叉檢查 → 統一評估**。
 
 ```mermaid
 flowchart TB
@@ -25,31 +47,36 @@ flowchart TB
         subgraph REVERSE["反向路徑 — 打破框架"]
             direction TB
             R1["R1: Anti-Anchor Sprint<br/>AI 非典型架構探索<br/>Output: AntiAnchorRoute[] ≥3<br/>+ Validation Passport"]
-            R2["R2: TRIZ 解矛盾<br/>針對 Anti-Anchor 引入的新矛盾<br/>三路徑並行 + 收斂迴圈"]
-            R3["R3: 子系統定義<br/>受 Anti-Anchor 矛盾影響的子系統"]
+            R2["R2: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
+            R3["R3: 子系統定義<br/>受矛盾影響的子系統"]
             R4["R4: SCAMPER 變形<br/>7 創意行動 × 子系統"]
-            RP["反向路徑方案池<br/>adopted TRIZ + SCAMPER<br/>+ AA promoted"]
+            RP["反向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選 + AA晉升"]
             R1 --> R2 --> R3 --> R4 --> RP
-            R4 -.->|"newContradictions<br/>fatal/major → re-scan"| R2
         end
 
         subgraph FORWARD["正向路徑 — 系統化解矛盾"]
             direction TB
-            F1["F1: TRIZ 解矛盾<br/>針對 CLD 矛盾 (Phase 1 Explore)<br/>三路徑並行 + 收斂迴圈"]
-            F2["F2: 子系統定義<br/>受 CLD 矛盾影響的子系統"]
+            F1["F1: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
+            F2["F2: 子系統定義<br/>受矛盾影響的子系統"]
             F3["F3: SCAMPER 變形<br/>7 創意行動 × 子系統"]
-            FP["正向路徑方案池<br/>adopted TRIZ + SCAMPER"]
+            FP["正向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選"]
             F1 --> F2 --> F3 --> FP
-            F3 -.->|"newContradictions<br/>fatal/major → re-scan"| F1
         end
 
-        HUB["候選方案決策中心<br/>攤平所有方案 · 橫向比較<br/>來源 / 機制 / 假設 / 驗證需求 / 信心"]
-        RP --> HUB
-        FP --> HUB
+        subgraph HUB["候選方案決策中心"]
+            direction TB
+            SELECT["RD 挑選：每矛盾選一條路徑<br/>⚠ 同矛盾 adopt 多條 → 警告"]
+            PHASE_B["Phase B 收斂掃描<br/>只檢查被選方案之間的跨矛盾衝突<br/>+ 同矛盾多路徑風險檢查"]
+            COMPARE["橫向比較<br/>來源 / 機制 / 假設 / 驗證需求 / 信心"]
+            SELECT --> PHASE_B --> COMPARE
+        end
+
+        RP --> SELECT
+        FP --> SELECT
 
         MUST["MUST 快篩 (M1-M6)<br/>pass | fail | marginal"]
         PRECAD["Pre-CAD 審查 (5維)<br/>must / decoupling / testability /<br/>failureMech / mvpCadEffort"]
-        HUB --> MUST --> PRECAD
+        COMPARE --> MUST --> PRECAD
     end
 
     GATE["Phase Gate 2<br/>≥1 alternative overallPass"]
@@ -65,11 +92,11 @@ flowchart TB
 
 | 決策 | 說明 |
 |------|------|
-| 雙軌獨立 | 反向/正向各自有完整的 TRIZ → 子系統 → SCAMPER 鏈，互不干擾 |
-| 路徑方案池 | 每條路徑先在內部整合自己的方案（path-local alternatives），再匯入決策中心 |
-| 決策中心是主角 | 不是一個普通 step，是整個頁面的核心區塊 — 方案橫向比較 + 假設追蹤 |
-| 收斂迴圈各自獨立 | 每條路徑有自己的 convergence loop 實例，各自監控各自的矛盾空間健康度 |
-| SCAMPER 閉環不變 | 各路徑的 SCAMPER newContradictions 回饋至同路徑的 TRIZ 收斂迴圈 |
+| **產出與選擇分離** | TRIZ 步驟只產出候選（Phase A），路徑選擇在決策中心（Phase B） |
+| Phase A = 矛盾健康度 | TRIZ/子系統/SCAMPER 步驟呼叫 `startPhaseA()`，不涉及解法交叉 |
+| Phase B = 方案交叉檢查 | 決策中心 RD 挑選後手動觸發 `startPhaseB()`，只送 adopted 解法 |
+| 同矛盾多路徑警告 | Phase B prompt 新增：同一矛盾的 TC+PC+SF 同時 adopt → major 風險 |
+| 無自動 A→B 轉換 | 移除 `useEffect` 自動偵測 — Phase B 完全由人類決定何時執行 |
 
 ---
 
@@ -113,67 +140,53 @@ stateDiagram-v2
 
 ---
 
-## 3. AI 收斂迴圈詳圖（每條路徑各一實例）
+## 3. 收斂迴圈：Phase A / Phase B 分離
 
-**設計意圖**：每條路徑有自己的 convergence loop，各自獨立運作。Phase A/B 邏輯不變。
+### Phase A：矛盾空間健康度（TRIZ 步驟使用）
 
 ```mermaid
 flowchart TB
-    subgraph DRIVER["useConvergenceLoop (每條路徑各一)"]
+    subgraph PHASE_A["Phase A — startPhaseA()"]
         direction TB
-        START["startExploration()"]
-        DETECT{"alternatives.length > 0?"}
-        PHASE_A["phaseRef = 'A'<br/>矛盾空間健康度"]
-        PHASE_B["phaseRef = 'B'<br/>方案交叉檢查"]
-        BUILD["buildInitialGraph()<br/>從 Contradiction[] 建構初始 DAG"]
-        SCHEDULE["setTimeout(runScanRound, 1500ms)"]
-        START --> DETECT
-        DETECT -->|"否"| PHASE_A --> BUILD
-        DETECT -->|"是"| PHASE_B --> BUILD
-        BUILD --> SCHEDULE
+        A_START["TRIZ 步驟觸發"]
+        A_BUILD["buildInitialGraph()<br/>從 Contradiction[] 建構 DAG"]
+        A_SCAN["POST /convergence/scan<br/>phase: A<br/>只送 contradictions，不送 alternatives"]
+        A_RESULT["矛盾空間健康度<br/>交互衝突 / 循環依賴 / 覆蓋盲區"]
+        A_DONE["converged / halted<br/>→ 停止，不自動觸發 Phase B"]
+        A_START --> A_BUILD --> A_SCAN --> A_RESULT --> A_DONE
     end
 
-    subgraph API_CALL["runScanRound — 每輪迭代"]
+    style PHASE_A fill:#FEF3C7,stroke:#F59E0B
+```
+
+### Phase B：方案交叉檢查（決策中心使用）
+
+```mermaid
+flowchart TB
+    subgraph PHASE_B["Phase B — startPhaseB()"]
         direction TB
-        REQ["POST /convergence/scan<br/>payload: contradictions[]<br/>+ alternatives[] (Phase B only)<br/>+ mission + constraints + kpis<br/>+ phase: A|B"]
-        RES["ConvergenceScanResponse<br/>+ phase echo"]
-        PROCESS["處理回傳"]
-        REQ --> RES --> PROCESS
+        B_START["決策中心：RD 按「執行收斂掃描」"]
+        B_COLLECT["收集 adopted alternatives<br/>（RD 已挑選的解法）"]
+        B_SCAN["POST /convergence/scan<br/>phase: B<br/>送 contradictions + adopted alternatives"]
+        B_CHECK["檢查項：<br/>1. 跨矛盾解法衝突<br/>2. 參數影響分析<br/>3. PC 狀態衝突<br/>4. 跨方案干涉<br/>5. ⚠ 同矛盾多路徑風險"]
+        B_RESULT["converged → 進入 MUST<br/>halted → 人類審核調整方案"]
+        B_START --> B_COLLECT --> B_SCAN --> B_CHECK --> B_RESULT
     end
 
-    subgraph PROCESS_DETAIL["回傳處理邏輯"]
-        direction TB
-        P1["分類: fatal / major / minor"]
-        P2["minor → riskRegister (非阻斷)"]
-        P3["appendToGraph()<br/>新矛盾節點 + 邊"]
-        P4["mapArchitectureHealth()<br/>← API 回傳的 health 字串"]
-        P5["confidence ← convergence_score"]
-        P1 --> P2
-        P1 --> P3
-        P3 --> P4 --> P5
-    end
+    style PHASE_B fill:#F3E8FF,stroke:#8B5CF6
+```
 
-    subgraph DECIDE["收斂判定"]
-        direction TB
-        D1{"isConverged?<br/>score ≥ 80 ||<br/>(no new fatal/major<br/>&& iteration > 0)"}
-        D2{"isHalted?<br/>force_pause ||<br/>critical || circular"}
-        D3["status = converged<br/>→ 停止迴圈"]
-        D4["status = halted<br/>→ ArchitectureHaltOverlay"]
-        D5["status = exploring<br/>→ setTimeout 下一輪"]
-        D1 -->|"是"| D3
-        D1 -->|"否"| D2
-        D2 -->|"是"| D4
-        D2 -->|"否"| D5
-        D5 -->|"1500ms"| REQ
-    end
+### 收斂判定邏輯
 
-    SCHEDULE --> REQ
-    PROCESS --> PROCESS_DETAIL --> DECIDE
+```
+converged = iteration > 0
+    AND allResolved (fatal + major 全部 resolved)
+    AND (confidence >= 80 OR noNewBlocking)
 
-    style DRIVER fill:#FEF3C7,stroke:#F59E0B
-    style API_CALL fill:#FEE2E2,stroke:#EF4444
-    style PROCESS_DETAIL fill:#DBEAFE,stroke:#3B82F6
-    style DECIDE fill:#D1FAE5,stroke:#10B981
+halted = forcePause
+    OR health = critical / circular
+    OR (noNewInfo AND hasUnresolvedBlocking)
+    → 觸發人類審核
 ```
 
 ### 人為介入點
@@ -185,6 +198,7 @@ flowchart TB
 | 重試分支 | `retryBranch(id)` | 該分支 status → exploring，排程下一輪 |
 | 注入新矛盾 | `addContradiction()` | 加入 graph，若 fatal/major 自動觸發 re-scan |
 | 覆寫 severity | `confirmSeverity()` | 手動修正 AI 判定的 severity |
+| 重新執行 | `startPhaseA()` / `startPhaseB()` | generation counter 防舊回呼污染 |
 
 ---
 
@@ -198,33 +212,38 @@ flowchart TB
         subgraph REV_DATA["反向路徑資料"]
             AA["AntiAnchorRoute[]<br/>mechanism / cross_domain_source<br/>validation_passport"]
             R_EC["Anti-Anchor 引入的矛盾"]
-            R_TS["反向 TrizSolution[]"]
+            R_TS["反向 TrizSolution[]<br/>TC候選 + PC候選 + SF候選<br/>全部 pending"]
             R_SS["反向 Subsystem[]"]
             R_SV["反向 ScamperVariant[]"]
-            R_ALT["反向路徑方案池"]
+            R_POOL["反向候選池"]
             AA --> R_EC -->|"1:N 求解"| R_TS
             R_TS -->|"矛盾親和性"| R_SS
-            R_SS -->|"FK"| R_SV -->|"整合"| R_ALT
-            AA -.->|"晉升為方案"| R_ALT
+            R_SS -->|"FK"| R_SV -->|"整合"| R_POOL
+            AA -.->|"晉升為方案"| R_POOL
         end
 
         subgraph FWD_DATA["正向路徑資料"]
             F_EC["CLD Contradiction[]<br/>(from Phase 1 Explore)"]
-            F_TS["正向 TrizSolution[]"]
+            F_TS["正向 TrizSolution[]<br/>TC候選 + PC候選 + SF候選<br/>全部 pending"]
             F_SS["正向 Subsystem[]"]
             F_SV["正向 ScamperVariant[]"]
-            F_ALT["正向路徑方案池"]
+            F_POOL["正向候選池"]
             F_EC -->|"1:N 求解"| F_TS
             F_TS -->|"矛盾親和性"| F_SS
-            F_SS -->|"FK"| F_SV -->|"整合"| F_ALT
+            F_SS -->|"FK"| F_SV -->|"整合"| F_POOL
         end
 
-        HUB_DATA["候選方案決策中心<br/>Alternative[]<br/>source: reverse_triz | reverse_scamper |<br/>reverse_aa | forward_triz |<br/>forward_scamper | manual"]
-        R_ALT --> HUB_DATA
-        F_ALT --> HUB_DATA
+        subgraph HUB_DATA["候選方案決策中心"]
+            SELECT_DATA["RD 挑選<br/>每矛盾選一條路徑"]
+            PHASE_B_DATA["Phase B 收斂掃描<br/>只送 adopted alternatives"]
+            ADOPTED["被選方案集<br/>Alternative[]"]
+            SELECT_DATA --> PHASE_B_DATA --> ADOPTED
+        end
+        R_POOL --> SELECT_DATA
+        F_POOL --> SELECT_DATA
 
         EVAL["統一評估<br/>mustScores: Record M1-M6<br/>preCadScores: 5維<br/>overallPass: boolean"]
-        HUB_DATA --> EVAL
+        ADOPTED --> EVAL
     end
 
     style REV_DATA fill:#FEF3C7,stroke:#F59E0B
@@ -234,20 +253,20 @@ flowchart TB
 
 ---
 
-## 5. SCAMPER → 收斂迴圈回饋（每條路徑各自閉環）
+## 5. SCAMPER → 收斂迴圈回饋（Phase A 閉環）
 
-**設計意圖**：SCAMPER 變形可能引入新矛盾。回饋至**同一路徑**的收斂迴圈，不跨路徑。
+**設計意圖**：SCAMPER 變形可能引入新矛盾。回饋至**同一路徑的 Phase A** 收斂迴圈。
 
 ```mermaid
 flowchart TB
     A["SCAMPER Variant 採用<br/>(路徑內)"] --> B{"產生 newContradictions?"}
-    B -->|"否"| C["進入路徑方案池"]
+    B -->|"否"| C["進入路徑候選池"]
     B -->|"是"| D["addContradiction()"]
     D --> E{"severity?"}
     E -->|"minor"| F["加入 riskRegister<br/>不阻斷流程"]
     F --> C
-    E -->|"fatal / major"| G["加入同路徑 graph +<br/>自動排程 runScanRound"]
-    G --> H["POST /convergence/scan<br/>(同路徑 convergence loop)"]
+    E -->|"fatal / major"| G["加入同路徑 graph +<br/>自動排程 Phase A re-scan"]
+    G --> H["POST /convergence/scan<br/>phase: A（矛盾健康度）"]
     H --> I{"收斂判定"}
     I -->|"converged"| C
     I -->|"exploring"| H
@@ -282,14 +301,14 @@ flowchart TB
 | 階段 | 輸入 | 處理 | 輸出 | 連鎖效果 |
 |------|------|------|------|----------|
 | Anti-Anchor 生成 | mission + constraints | AI 產出非典型架構 | `AntiAnchorRoute[].length ≥ 3` | 可晉升為反向路徑方案 |
-| 路徑內 TRIZ 載入 | 路徑矛盾集 | 按矛盾 ID 分組，三路徑並行生成解法 | `TrizSolution[].status = 'pending'` | — |
-| 路徑內收斂迴圈 | `startExploration()` | 自動偵測 phase + 建構 graph + 排程 scan | `status = exploring` | 各路徑獨立 |
-| 路徑內子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 + 確認 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
-| 路徑內 SCAMPER | 已確認子系統 | 7 行動 × N 子系統 | `ScamperVariant[adopted]` | — |
-| SCAMPER 新矛盾 | `newContradictions[]` | `addContradiction()` 注入同路徑收斂迴圈 | fatal/major → 自動 re-scan | 路徑內閉環 |
-| 路徑方案池整合 | adopted TRIZ + SCAMPER (+ AA promoted) | 路徑內部整合 | 路徑 Alternative[] | — |
-| 決策中心匯流 | 兩路徑方案池 | 攤平 + 橫向比較 | 全局 Alternative[] | 進入統一評估 |
-| MUST 篩選 | Alternative + M1-M6 | AI + RD 評分 | pass / fail / marginal | 淘汰不可行方案 |
+| TRIZ 產出候選 | 路徑矛盾集 | 三路徑並行生成解法 | `TrizSolution[]` 全部 `pending` | 不做 Phase B |
+| Phase A 掃描 | `startPhaseA()` | 矛盾空間健康度 | converged / halted | 不觸發 Phase B |
+| 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 + 確認 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
+| SCAMPER 展開 | 已確認子系統 | 7 行動 × N 子系統 | `ScamperVariant[adopted]` | — |
+| SCAMPER 新矛盾 | `newContradictions[]` | `addContradiction()` 注入 Phase A | fatal/major → Phase A re-scan | 路徑內閉環 |
+| **決策中心選擇** | 所有候選池 | **RD 挑選每矛盾一條路徑** | adopted Alternative[] | — |
+| **Phase B 掃描** | `startPhaseB()` | **跨矛盾衝突 + 同矛盾多路徑風險** | converged / halted | 人類審核 |
+| MUST 篩選 | adopted Alternative + M1-M6 | AI + RD 評分 | pass / fail / marginal | 淘汰不可行方案 |
 | Pre-CAD 審查 | 通過 MUST 的方案 | 五維評分 | overallPass | Phase Gate 2 判定 |
 
 ---
@@ -312,10 +331,10 @@ flowchart TB
 | Gate | 條件 |
 |------|------|
 | 反向: R1 | routes.length ≥ 3 |
-| 反向: R2 | converged 或 trizSolutions.length > 0 |
+| 反向: R2 | Phase A converged 或 trizSolutions.length > 0 |
 | 反向: R3 | confirmed subsystems > 0 |
 | 反向: R4 | SCAMPER adopted > 0 |
-| 正向: F1 | converged 或 trizSolutions.length > 0 |
+| 正向: F1 | Phase A converged 或 trizSolutions.length > 0 |
 | 正向: F2 | confirmed subsystems > 0 |
 | 正向: F3 | SCAMPER adopted > 0 |
 
@@ -323,8 +342,9 @@ flowchart TB
 
 | Gate | 條件 |
 |------|------|
-| 進入決策中心 | 任一路徑方案池 > 0 |
-| MUST | 所有候選方案 M1-M6 已評分 |
+| 進入決策中心 | 任一路徑候選池 > 0 |
+| Phase B 可執行 | ≥1 alternative adopted |
+| MUST | Phase B converged + 所有候選方案 M1-M6 已評分 |
 | Pre-CAD | 通過 MUST 者 5 維全評分 |
 | Phase Gate 2 | ≥1 alternative overallPass |
 
@@ -334,12 +354,25 @@ flowchart TB
 
 | 元件 | 職責 | 性質 |
 |------|------|------|
-| `useConvergenceLoop` | 收斂迴圈 driver（每條路徑各一實例） | 狀態 hook |
-| `/convergence/scan` API | Phase A/B 矛盾分析。由 `phase` 參數切換 prompt | 後端 AI |
+| `useConvergenceLoop` | 收斂迴圈 driver。`startPhaseA()` / `startPhaseB()` 分離觸發 | 狀態 hook |
+| `/convergence/scan` API | Phase A: 矛盾空間分析；Phase B: 方案交叉 + 同矛盾多路徑風險 | 後端 AI |
 | `ConvergenceDashboard` | 顯示 confidence %、fatal/major/minor 計數 | 純展示 |
 | `BranchExplorationPanel` | 顯示各矛盾分支的探索輪次 | 純展示 |
-| `HumanReviewPanel` | 收斂完成後的人類審查介面 | 純展示 |
-| `ArchitectureHaltOverlay` | halted 時的 overlay：強制繼續 or 回退 | 互動 |
+| `HumanReviewPanel` | converged / halted 時的人類審查介面 | 純展示 |
+| `ArchitectureHaltOverlay` | health critical/circular 時的 overlay | 互動 |
 | `HealthMonitor` | 渲染 health 燈號 | 純展示 |
-| `ConvergenceGraph` | 渲染矛盾 DAG（可拖曳節點、severity 色彩） | 純展示 |
-| **Alternative Decision Hub** | 攤平所有方案、橫向比較、假設追蹤 | **核心互動區** |
+| `ConvergenceGraph` | 渲染矛盾 DAG | 純展示 |
+| **Decision Hub** | 攤平所有候選、RD 路徑選擇、Phase B 觸發、橫向比較 | **核心互動區** |
+
+---
+
+## 11. v6 → v7 差異摘要
+
+| 項目 | v6 | v7 |
+|------|----|----|
+| TRIZ 步驟收斂 | 自動 Phase A → Phase B | **只做 Phase A** |
+| Phase B 觸發 | `useEffect` 自動偵測 alternatives | **決策中心手動觸發** |
+| 三路徑處理 | TC/PC/SF 全部 adopt → 同時送收斂 | **全部 pending → RD 挑選 → 只送 adopted** |
+| 無限迴圈風險 | 高（同矛盾多路徑天生衝突） | **消除**（每矛盾只送一條被選路徑） |
+| `startExploration()` | 唯一入口 | 保留向後相容，新增 `startPhaseA()` / `startPhaseB()` |
+| Phase B prompt | 4 項檢查 | **5 項**（新增同矛盾多路徑風險） |

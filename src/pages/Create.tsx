@@ -845,11 +845,11 @@ export default function Create() {
                   )}
                   {r.validationPassport && (
                     <div className="text-xs space-y-1 border-t pt-2 mt-2">
-                      <p className="font-medium text-muted-foreground">Validation Passport (信心: {Math.round(r.validationPassport.confidenceLevel * 100)}%)</p>
-                      {r.validationPassport.weakPoints.length > 0 && (
+                      <p className="font-medium text-muted-foreground">Validation Passport (信心: {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%)</p>
+                      {(r.validationPassport.weakPoints?.length ?? 0) > 0 && (
                         <p className="text-muted-foreground">弱點: {r.validationPassport.weakPoints.join('; ')}</p>
                       )}
-                      <p className="text-muted-foreground">假設 {r.validationPassport.assumptions.length} 項 / 待驗證 {r.validationPassport.requiredVerifications.length} 項</p>
+                      <p className="text-muted-foreground">假設 {r.validationPassport.assumptions?.length ?? 0} 項 / 待驗證 {r.validationPassport.requiredVerifications?.length ?? 0} 項</p>
                     </div>
                   )}
                   <Button

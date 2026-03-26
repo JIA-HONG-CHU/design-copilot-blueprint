@@ -57,17 +57,9 @@ function deriveKpiStatus(
   const target = parseFloat(targetValue);
 
   if (isNaN(measured) || isNaN(target) || target === 0) {
-    // Non-numeric → exact match
     return measuredValue.trim() === targetValue.trim() ? 'on_track' : 'unknown';
   }
 
-  // For targets that are upper bounds (e.g. cost ≤ $12), lower is better
-  // For targets that are lower bounds (e.g. efficiency ≥ 95%), higher is better
-  // We use ratio = measured/target; if ratio ≥ 1 → on_track
-  // This works for "higher is better" targets.
-  // For "lower is better" (cost, weight), target is the max, so ratio = target/measured
-  // Heuristic: if target < measured and target description suggests max, flip
-  // Simple approach: use absolute ratio
   const ratio = measured / target;
 
   if (ratio >= 1.0) return 'on_track';
@@ -90,7 +82,6 @@ const EVIDENCE_LEVEL_RANK: Record<string, number> = {
 async function propagateEvidence(entry: EvidenceEntryRow) {
   const promises: Promise<unknown>[] = [];
 
-  // ① Update KPI current_value + current_status
   if (entry.kpi_id) {
     const propagateKpi = async () => {
       const { data: kpi } = await supabase
@@ -113,11 +104,9 @@ async function propagateEvidence(entry: EvidenceEntryRow) {
     promises.push(propagateKpi());
   }
 
-  // ② Update evidence_matrix.current_level for linked assumptions
   if (entry.linked_assumption_codes.length > 0) {
     const propagateMatrix = async () => {
       for (const code of entry.linked_assumption_codes) {
-        // Get all evidence entries for this assumption to find the highest level
         const { data: entries } = await supabase
           .from('evidence_entries')
           .select('evidence_level')
@@ -130,14 +119,12 @@ async function propagateEvidence(entry: EvidenceEntryRow) {
             return rank > (EVIDENCE_LEVEL_RANK[max] ?? 0) ? e.evidence_level : max;
           }, 'E0');
 
-          // Update evidence_matrix row
           await supabase
             .from('evidence_matrix')
             .update({ current_level: maxLevel })
             .eq('project_id', entry.project_id)
             .eq('assumption_code', code);
 
-          // ③ If evidence_level ≥ E3, mark assumption verification as completed
           if ((EVIDENCE_LEVEL_RANK[maxLevel] ?? 0) >= 3) {
             await supabase
               .from('assumptions')
@@ -153,6 +140,12 @@ async function propagateEvidence(entry: EvidenceEntryRow) {
 
   await Promise.all(promises);
 }
+
+// ---------------------------------------------------------------------------
+// Propagation result type — carries a flag so onSuccess can decide which toast
+// ---------------------------------------------------------------------------
+
+type WithPropagationFlag<T> = T & { _propagationFailed?: boolean };
 
 // ---------------------------------------------------------------------------
 // useEvidenceEntries — SELECT by project
@@ -222,7 +215,7 @@ export interface CreateEvidenceEntryInput {
 export function useCreateEvidenceEntry() {
   const queryClient = useQueryClient();
 
-  return useMutation<EvidenceEntry, Error, CreateEvidenceEntryInput>({
+  return useMutation<WithPropagationFlag<EvidenceEntry>, Error, CreateEvidenceEntryInput>({
     mutationFn: async (input) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('使用者未登入');
@@ -251,8 +244,7 @@ export function useCreateEvidenceEntry() {
 
       if (error) throw error;
 
-      // Auto-propagation — best-effort; entry is already persisted so we
-      // never let a propagation failure bubble up as a mutation error.
+      let propagationFailed = false;
       try {
         await propagateEvidence(data as EvidenceEntryRow);
       } catch (propagationError) {
@@ -260,13 +252,12 @@ export function useCreateEvidenceEntry() {
           '[useCreateEvidenceEntry] propagation failed (entry saved, related data may be stale):',
           propagationError,
         );
-        toast.warning('證據已儲存，但相關 KPI / 矩陣同步失敗，請手動重新整理');
+        propagationFailed = true;
       }
 
-      return mapRow(data as EvidenceEntryRow);
+      return { ...mapRow(data as EvidenceEntryRow), _propagationFailed: propagationFailed };
     },
     onSuccess: (data) => {
-      // ④ Invalidate all affected caches
       queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byProject(data.projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.kpis.byProject(data.projectId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.evidence_matrix.byProject(data.projectId) });
@@ -274,7 +265,11 @@ export function useCreateEvidenceEntry() {
       if (data.kpiId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byKpi(data.kpiId) });
       }
-      toast.success('證據已登錄');
+      if (data._propagationFailed) {
+        toast.warning('證據已儲存，但相關 KPI / 矩陣同步失敗，請手動重新整理');
+      } else {
+        toast.success('證據已登錄');
+      }
     },
     onError: (error) => {
       toast.error(`登錄證據失敗：${error.message}`);
@@ -295,7 +290,8 @@ export function useDeleteEvidenceEntry() {
       const { error } = await supabase
         .from('evidence_entries')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('project_id', projectId);
 
       if (error) throw error;
       return { projectId };
@@ -308,6 +304,84 @@ export function useDeleteEvidenceEntry() {
     },
     onError: (error) => {
       toast.error(`刪除證據失敗：${error.message}`);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useUpdateEvidenceEntry — UPDATE + auto-propagation
+// ---------------------------------------------------------------------------
+
+export interface UpdateEvidenceEntryInput {
+  id: string;
+  projectId: string;
+  title?: string;
+  measuredValue?: string;
+  unit?: string;
+  evidenceLevel?: string;
+  method?: string;
+  notes?: string;
+  measuredAt?: string;
+  kpiId?: string | null;
+  experimentId?: string | null;
+  linkedAssumptionCodes?: string[];
+  linkedMustIds?: string[];
+}
+
+export function useUpdateEvidenceEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation<WithPropagationFlag<EvidenceEntry>, Error, UpdateEvidenceEntryInput>({
+    mutationFn: async (input) => {
+      const updateData: Record<string, unknown> = {};
+      if (input.title !== undefined) updateData.title = input.title;
+      if (input.measuredValue !== undefined) updateData.measured_value = input.measuredValue;
+      if (input.unit !== undefined) updateData.unit = input.unit;
+      if (input.evidenceLevel !== undefined) updateData.evidence_level = input.evidenceLevel;
+      if (input.method !== undefined) updateData.method = input.method;
+      if (input.notes !== undefined) updateData.notes = input.notes;
+      if (input.measuredAt !== undefined) updateData.measured_at = input.measuredAt;
+      if (input.kpiId !== undefined) updateData.kpi_id = input.kpiId;
+      if (input.experimentId !== undefined) updateData.experiment_id = input.experimentId;
+      if (input.linkedAssumptionCodes !== undefined) updateData.linked_assumption_codes = input.linkedAssumptionCodes;
+      if (input.linkedMustIds !== undefined) updateData.linked_must_ids = input.linkedMustIds;
+
+      const { data, error } = await supabase
+        .from('evidence_entries')
+        .update(updateData)
+        .eq('id', input.id)
+        .eq('project_id', input.projectId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      let propagationFailed = false;
+      try {
+        await propagateEvidence(data as EvidenceEntryRow);
+      } catch (propagationError) {
+        console.error('[useUpdateEvidenceEntry] propagation failed:', propagationError);
+        propagationFailed = true;
+      }
+
+      return { ...mapRow(data as EvidenceEntryRow), _propagationFailed: propagationFailed };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byProject(data.projectId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kpis.byProject(data.projectId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.evidence_matrix.byProject(data.projectId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(data.projectId) });
+      if (data.kpiId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.evidence_entries.byKpi(data.kpiId) });
+      }
+      if (data._propagationFailed) {
+        toast.warning('證據已更新，但相關 KPI / 矩陣同步失敗');
+      } else {
+        toast.success('證據已更新');
+      }
+    },
+    onError: (error) => {
+      toast.error(`更新證據失敗：${error.message}`);
     },
   });
 }

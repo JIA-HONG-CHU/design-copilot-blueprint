@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, DragEvent } from "react";
+import { useState, useEffect, useMemo, DragEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,15 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, GripVertical, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit, Trash2, Pencil } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
 import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
 import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
-import { useTrackExperiments } from "@/hooks/api/useTrack";
+import { useTrackExperiments, useDeleteTrackExperiment } from "@/hooks/api/useTrack";
+import { useEvidenceEntries, useDeleteEvidenceEntry, useUpdateEvidenceEntry } from "@/hooks/api/useEvidenceEntries";
 
 interface KanbanBoardProps {
   assumptions: TrackAssumption[];
@@ -34,8 +34,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
 
-  // Experiment state (local cache, keyed by assumption id)
-  // Seeded from Supabase via useTrackExperiments when a card is selected
+  // Experiment state
   const [experiments, setExperiments] = useState<Record<string, Experiment[]>>({});
   const [newExpName, setNewExpName] = useState('');
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
@@ -50,14 +49,44 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
   const [evidenceDefaultCodes, setEvidenceDefaultCodes] = useState<string[]>([]);
 
+  // Evidence editing state — single nullable object to prevent stale state on card switch
+  const [editingEvidence, setEditingEvidence] = useState<{
+    id: string; title: string; measuredValue: string; notes: string;
+  } | null>(null);
+
   // Mobile column selector
   const [mobileColumn, setMobileColumn] = useState<VerificationStatus>('unverified');
 
   // Fetch experiments from Supabase for the selected card
   const selectedAssumptionCode = selectedCard?.assumptionCode;
   const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
+  const deleteExperiment = useDeleteTrackExperiment();
 
-  // Seed local experiment cache when DB data arrives for a selected card
+  // Fetch evidence entries for this project
+  const { data: allEvidence } = useEvidenceEntries(projectId);
+  const deleteEvidence = useDeleteEvidenceEntry();
+  const updateEvidence = useUpdateEvidenceEntry();
+
+  // Pre-computed evidence count map — O(1) lookup per card instead of O(n×m)
+  const evidenceCountByCode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of allEvidence ?? []) {
+      for (const code of e.linkedAssumptionCodes) {
+        map.set(code, (map.get(code) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [allEvidence]);
+
+  // Filter evidence linked to the selected assumption
+  const selectedEvidence = useMemo(() => {
+    if (!selectedCard || !allEvidence) return [];
+    return allEvidence.filter((e) =>
+      e.linkedAssumptionCodes.includes(selectedCard.assumptionCode)
+    );
+  }, [selectedCard, allEvidence]);
+
+  // Seed local experiment cache when DB data arrives
   useEffect(() => {
     if (selectedCard && experimentsQuery.data && experimentsQuery.data.length > 0) {
       setExperiments((prev) => ({
@@ -66,6 +95,14 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       }));
     }
   }, [selectedCard?.id, experimentsQuery.data]);
+
+  // Reset all edit states when switching cards
+  useEffect(() => {
+    setEditingEvidence(null);
+    setEditingExpId(null);
+    setEditExpResult('');
+    setEditExpStatus('Plan');
+  }, [selectedCard?.id]);
 
   const filteredAssumptions = assumptions.filter((a) => {
     if (riskFilter !== 'all' && a.riskLevel !== riskFilter) return false;
@@ -167,6 +204,43 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
     });
   };
 
+  // --- Evidence CRUD handlers ---
+  const handleDeleteEvidence = (evidenceId: string) => {
+    deleteEvidence.mutate({ id: evidenceId, projectId });
+  };
+
+  const handleStartEditEvidence = (ev: typeof selectedEvidence[number]) => {
+    setEditingEvidence({
+      id: ev.id,
+      title: ev.title,
+      measuredValue: ev.measuredValue,
+      notes: ev.notes,
+    });
+  };
+
+  const handleSaveEditEvidence = () => {
+    if (!editingEvidence || !editingEvidence.title.trim() || !editingEvidence.measuredValue.trim()) {
+      toast.error('標題與量測值不可為空');
+      return;
+    }
+    updateEvidence.mutate({
+      id: editingEvidence.id,
+      projectId,
+      title: editingEvidence.title.trim(),
+      measuredValue: editingEvidence.measuredValue.trim(),
+      notes: editingEvidence.notes.trim(),
+    }, {
+      onSuccess: () => {
+        setEditingEvidence(null);
+      },
+    });
+  };
+
+  const handleCancelEditEvidence = () => {
+    setEditingEvidence(null);
+  };
+
+  // --- Drag handlers ---
   const handleDragStart = (e: DragEvent, id: string) => {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -207,6 +281,9 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
     const highRiskNoExp = (a.riskLevel === 'H' || a.riskLevel === 'H*') && a.experimentCount === 0;
     const isDragging = draggedId === a.id;
 
+    // O(1) lookup from pre-computed map
+    const evidenceCount = evidenceCountByCode.get(a.assumptionCode) ?? 0;
+
     return (
       <Card
         key={a.id}
@@ -245,6 +322,12 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
               <FlaskConical className="h-3 w-3 mr-0.5" />
               {a.experimentCount} exps
             </Badge>
+            {evidenceCount > 0 && (
+              <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">
+                <ClipboardEdit className="h-3 w-3 mr-0.5" />
+                {evidenceCount} 證據
+              </Badge>
+            )}
           </div>
 
           {/* AI challenge sub-card */}
@@ -271,7 +354,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
             </div>
           )}
 
-          {/* Move to column (mobile-friendly) */}
+          {/* Move to column */}
           <div className="pt-1" onClick={(e) => e.stopPropagation()}>
             <Select
               value={a.verificationStatus}
@@ -347,7 +430,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 items-center">
-        {/* Risk filter pills */}
         {(['all', 'H*', 'H', 'M', 'L'] as const).map((level) => {
           const isActive = riskFilter === level;
           const config = level === 'all' ? null : RISK_LEVEL_CONFIG[level as RiskLevel];
@@ -467,7 +549,12 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       </Dialog>
 
       {/* Detail panel */}
-      <Sheet open={!!selectedCard} onOpenChange={(open) => !open && setSelectedCard(null)}>
+      <Sheet open={!!selectedCard} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedCard(null);
+          setEditingEvidence(null);
+        }
+      }}>
         <SheetContent className="w-[400px] sm:w-[420px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>假設詳情</SheetTitle>
@@ -496,7 +583,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                 <p className="text-sm mt-1">{selectedCard.source === 'explore_tag' ? 'Explore 頁面標記' : selectedCard.source === 'manual' ? '手動新增' : selectedCard.source === 'ai_suggest' ? 'AI 建議' : '未知因素轉化'}</p>
               </div>
 
-              {/* Extended Assumption Ledger fields (WBS 4.6.3) */}
               {selectedCard.worstConsequence && (
                 <div>
                   <span className="text-xs text-muted-foreground">最壞後果</span>
@@ -524,6 +610,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                 </div>
               )}
 
+              {/* Experiments section */}
               <div>
                 <span className="text-xs text-muted-foreground">實驗詳情</span>
                 {(() => {
@@ -534,7 +621,10 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                         <p className="text-sm text-muted-foreground italic">尚無實驗記錄</p>
                       )}
                       {exps.map((exp) => {
-                        const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status];
+                        const statusCfg = EXPERIMENT_STATUS_CONFIG[exp.status] ?? {
+                          label: exp.status,
+                          color: '#6b7280'
+                        };
                         const isEditing = editingExpId === exp.id;
                         return (
                           <div key={exp.id} className="border rounded-lg p-2.5 space-y-2">
@@ -589,13 +679,44 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                   <p className="text-[10px] text-muted-foreground/60">
                                     {new Date(exp.createdAt).toLocaleDateString('zh-TW')}
                                   </p>
-                                  <Button size="sm" variant="ghost" className="h-5 text-[10px] text-muted-foreground" onClick={() => {
-                                    setEditingExpId(exp.id);
-                                    setEditExpStatus(exp.status);
-                                    setEditExpResult(exp.result || '');
-                                  }}>
-                                    編輯
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button size="sm" variant="ghost" className="h-5 text-[10px] text-muted-foreground" onClick={() => {
+                                      setEditingExpId(exp.id);
+                                      setEditExpStatus(exp.status);
+                                      setEditExpResult(exp.result || '');
+                                    }}>
+                                      編輯
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-5 text-[10px] text-destructive hover:text-destructive"
+                                      disabled={deleteExperiment.isPending}
+                                      onClick={() => {
+                                        deleteExperiment.mutate(
+                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode },
+                                          {
+                                            onSuccess: () => {
+                                              const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
+                                              setExperiments((prev) => ({
+                                                ...prev,
+                                                [selectedCard.id]: updated,
+                                              }));
+                                              onUpdateAssumptions(
+                                                assumptions.map((a) =>
+                                                  a.id === selectedCard.id
+                                                    ? { ...a, experimentCount: updated.length }
+                                                    : a
+                                                )
+                                              );
+                                            },
+                                          }
+                                        );
+                                      }}
+                                    >
+                                      刪除
+                                    </Button>
+                                  </div>
                                 </div>
                               </>
                             )}
@@ -603,7 +724,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                         );
                       })}
 
-                      {/* Add new experiment */}
                       <div className="border border-dashed rounded-lg p-2.5 space-y-2">
                         <div className="flex gap-2">
                           <Input
@@ -616,7 +736,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                             const newExp: Experiment = {
                               id: `exp-${Date.now()}`,
                               name: newExpName.trim(),
-                              status: 'planned',
+                              status: 'Plan',
                               result: null,
                               createdAt: new Date().toISOString(),
                             };
@@ -624,7 +744,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                               ...prev,
                               [selectedCard.id]: [...(prev[selectedCard.id] ?? []), newExp],
                             }));
-                            // Update experiment count on assumption
                             onUpdateAssumptions(
                               assumptions.map((a) =>
                                 a.id === selectedCard.id ? { ...a, experimentCount: (experiments[selectedCard.id]?.length ?? 0) + 1 } : a
@@ -648,6 +767,138 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                   <p className="text-sm text-muted-foreground">{selectedCard.aiChallenge}</p>
                 </div>
               )}
+
+              {/* ====== Evidence entries section ====== */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">
+                    已登錄證據（{selectedEvidence.length}）
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {selectedEvidence.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      尚無證據記錄，請點擊下方按鈕登錄
+                    </p>
+                  ) : (
+                    selectedEvidence.map((ev) => {
+                      const isEditingThis = editingEvidence?.id === ev.id;
+
+                      if (isEditingThis && editingEvidence) {
+                        return (
+                          <div key={ev.id} className="border-2 border-primary/30 rounded-lg p-2.5 space-y-2">
+                            <div className="space-y-1.5">
+                              <Input
+                                value={editingEvidence.title}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, title: e.target.value } : prev)}
+                                placeholder="標題"
+                                className="h-7 text-xs"
+                              />
+                              <Input
+                                value={editingEvidence.measuredValue}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, measuredValue: e.target.value } : prev)}
+                                placeholder="量測值"
+                                className="h-7 text-xs"
+                              />
+                              <Textarea
+                                value={editingEvidence.notes}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, notes: e.target.value } : prev)}
+                                placeholder="備註"
+                                rows={2}
+                                className="text-xs"
+                              />
+                            </div>
+                            <div className="flex gap-1.5">
+                              <Button
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                disabled={updateEvidence.isPending}
+                                onClick={handleSaveEditEvidence}
+                              >
+                                {updateEvidence.isPending ? '儲存中...' : '儲存'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[10px]"
+                                onClick={handleCancelEditEvidence}
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={ev.id} className="border rounded-lg p-2.5 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <ClipboardEdit className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm font-medium flex-1 truncate">
+                              {ev.title}
+                            </span>
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              {ev.evidenceLevel}
+                            </Badge>
+                          </div>
+                          <div className="pl-5 space-y-0.5">
+                            <p className="text-xs">
+                              <span className="text-muted-foreground">量測值：</span>
+                              <span className="font-medium">
+                                {ev.measuredValue}
+                                {ev.unit ? ` ${ev.unit}` : ''}
+                              </span>
+                            </p>
+                            {ev.method && (
+                              <p className="text-xs">
+                                <span className="text-muted-foreground">方式：</span>
+                                {ev.method}
+                              </p>
+                            )}
+                            {ev.notes && (
+                              <p className="text-xs text-muted-foreground italic">
+                                {ev.notes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between pl-5">
+                            <p className="text-[10px] text-muted-foreground/60">
+                              {ev.measuredAt
+                                ? new Date(ev.measuredAt).toLocaleDateString('zh-TW')
+                                : ''}
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartEditEvidence(ev);
+                                }}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                disabled={deleteEvidence.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteEvidence(ev.id);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
               {/* Log evidence button */}
               <Button

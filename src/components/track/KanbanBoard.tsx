@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, DragEvent } from "react";
+import { useState, useEffect, useMemo, DragEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,15 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, GripVertical, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit, Trash2, Pencil } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, FlaskConical, ClipboardEdit, Trash2, Pencil } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
 import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
 import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
-import { useTrackExperiments } from "@/hooks/api/useTrack";
+import { useTrackExperiments, useDeleteTrackExperiment } from "@/hooks/api/useTrack";
 import { useEvidenceEntries, useDeleteEvidenceEntry, useUpdateEvidenceEntry } from "@/hooks/api/useEvidenceEntries";
 
 interface KanbanBoardProps {
@@ -50,11 +49,10 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
   const [evidenceDefaultCodes, setEvidenceDefaultCodes] = useState<string[]>([]);
 
-  // Evidence editing state
-  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
-  const [editEvidenceTitle, setEditEvidenceTitle] = useState('');
-  const [editEvidenceValue, setEditEvidenceValue] = useState('');
-  const [editEvidenceNotes, setEditEvidenceNotes] = useState('');
+  // Evidence editing state — single nullable object to prevent stale state on card switch
+  const [editingEvidence, setEditingEvidence] = useState<{
+    id: string; title: string; measuredValue: string; notes: string;
+  } | null>(null);
 
   // Mobile column selector
   const [mobileColumn, setMobileColumn] = useState<VerificationStatus>('unverified');
@@ -62,11 +60,23 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   // Fetch experiments from Supabase for the selected card
   const selectedAssumptionCode = selectedCard?.assumptionCode;
   const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
+  const deleteExperiment = useDeleteTrackExperiment();
 
   // Fetch evidence entries for this project
   const { data: allEvidence } = useEvidenceEntries(projectId);
   const deleteEvidence = useDeleteEvidenceEntry();
   const updateEvidence = useUpdateEvidenceEntry();
+
+  // Pre-computed evidence count map — O(1) lookup per card instead of O(n×m)
+  const evidenceCountByCode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of allEvidence ?? []) {
+      for (const code of e.linkedAssumptionCodes) {
+        map.set(code, (map.get(code) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [allEvidence]);
 
   // Filter evidence linked to the selected assumption
   const selectedEvidence = useMemo(() => {
@@ -85,6 +95,14 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       }));
     }
   }, [selectedCard?.id, experimentsQuery.data]);
+
+  // Reset all edit states when switching cards
+  useEffect(() => {
+    setEditingEvidence(null);
+    setEditingExpId(null);
+    setEditExpResult('');
+    setEditExpStatus('Plan');
+  }, [selectedCard?.id]);
 
   const filteredAssumptions = assumptions.filter((a) => {
     if (riskFilter !== 'all' && a.riskLevel !== riskFilter) return false;
@@ -192,35 +210,34 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   };
 
   const handleStartEditEvidence = (ev: typeof selectedEvidence[number]) => {
-    setEditingEvidenceId(ev.id);
-    setEditEvidenceTitle(ev.title);
-    setEditEvidenceValue(ev.measuredValue);
-    setEditEvidenceNotes(ev.notes);
+    setEditingEvidence({
+      id: ev.id,
+      title: ev.title,
+      measuredValue: ev.measuredValue,
+      notes: ev.notes,
+    });
   };
 
   const handleSaveEditEvidence = () => {
-    if (!editingEvidenceId || !editEvidenceTitle.trim() || !editEvidenceValue.trim()) {
+    if (!editingEvidence || !editingEvidence.title.trim() || !editingEvidence.measuredValue.trim()) {
       toast.error('標題與量測值不可為空');
       return;
     }
     updateEvidence.mutate({
-      id: editingEvidenceId,
+      id: editingEvidence.id,
       projectId,
-      title: editEvidenceTitle.trim(),
-      measuredValue: editEvidenceValue.trim(),
-      notes: editEvidenceNotes.trim(),
+      title: editingEvidence.title.trim(),
+      measuredValue: editingEvidence.measuredValue.trim(),
+      notes: editingEvidence.notes.trim(),
     }, {
       onSuccess: () => {
-        setEditingEvidenceId(null);
+        setEditingEvidence(null);
       },
     });
   };
 
   const handleCancelEditEvidence = () => {
-    setEditingEvidenceId(null);
-    setEditEvidenceTitle('');
-    setEditEvidenceValue('');
-    setEditEvidenceNotes('');
+    setEditingEvidence(null);
   };
 
   // --- Drag handlers ---
@@ -264,10 +281,8 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
     const highRiskNoExp = (a.riskLevel === 'H' || a.riskLevel === 'H*') && a.experimentCount === 0;
     const isDragging = draggedId === a.id;
 
-    // Count evidence for this specific assumption
-    const evidenceCount = allEvidence?.filter((e) =>
-      e.linkedAssumptionCodes.includes(a.assumptionCode)
-    ).length ?? 0;
+    // O(1) lookup from pre-computed map
+    const evidenceCount = evidenceCountByCode.get(a.assumptionCode) ?? 0;
 
     return (
       <Card
@@ -537,7 +552,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       <Sheet open={!!selectedCard} onOpenChange={(open) => {
         if (!open) {
           setSelectedCard(null);
-          setEditingEvidenceId(null);
+          setEditingEvidence(null);
         }
       }}>
         <SheetContent className="w-[400px] sm:w-[420px] overflow-y-auto">
@@ -676,20 +691,27 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                       size="sm"
                                       variant="ghost"
                                       className="h-5 text-[10px] text-destructive hover:text-destructive"
+                                      disabled={deleteExperiment.isPending}
                                       onClick={() => {
-                                        const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
-                                        setExperiments((prev) => ({
-                                          ...prev,
-                                          [selectedCard.id]: updated,
-                                        }));
-                                        onUpdateAssumptions(
-                                          assumptions.map((a) =>
-                                            a.id === selectedCard.id
-                                              ? { ...a, experimentCount: updated.length }
-                                              : a
-                                          )
+                                        deleteExperiment.mutate(
+                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode },
+                                          {
+                                            onSuccess: () => {
+                                              const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
+                                              setExperiments((prev) => ({
+                                                ...prev,
+                                                [selectedCard.id]: updated,
+                                              }));
+                                              onUpdateAssumptions(
+                                                assumptions.map((a) =>
+                                                  a.id === selectedCard.id
+                                                    ? { ...a, experimentCount: updated.length }
+                                                    : a
+                                                )
+                                              );
+                                            },
+                                          }
                                         );
-                                        toast.success('實驗已刪除');
                                       }}
                                     >
                                       刪除
@@ -760,27 +782,27 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                     </p>
                   ) : (
                     selectedEvidence.map((ev) => {
-                      const isEditing = editingEvidenceId === ev.id;
+                      const isEditingThis = editingEvidence?.id === ev.id;
 
-                      if (isEditing) {
+                      if (isEditingThis && editingEvidence) {
                         return (
                           <div key={ev.id} className="border-2 border-primary/30 rounded-lg p-2.5 space-y-2">
                             <div className="space-y-1.5">
                               <Input
-                                value={editEvidenceTitle}
-                                onChange={(e) => setEditEvidenceTitle(e.target.value)}
+                                value={editingEvidence.title}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, title: e.target.value } : prev)}
                                 placeholder="標題"
                                 className="h-7 text-xs"
                               />
                               <Input
-                                value={editEvidenceValue}
-                                onChange={(e) => setEditEvidenceValue(e.target.value)}
+                                value={editingEvidence.measuredValue}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, measuredValue: e.target.value } : prev)}
                                 placeholder="量測值"
                                 className="h-7 text-xs"
                               />
                               <Textarea
-                                value={editEvidenceNotes}
-                                onChange={(e) => setEditEvidenceNotes(e.target.value)}
+                                value={editingEvidence.notes}
+                                onChange={(e) => setEditingEvidence((prev) => prev ? { ...prev, notes: e.target.value } : prev)}
                                 placeholder="備註"
                                 rows={2}
                                 className="text-xs"

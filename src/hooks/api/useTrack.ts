@@ -336,3 +336,33 @@ export function useTrackExperiments(assumptionCode: string | undefined) {
     data: query.data?.map(mapExperimentRow) ?? [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// useDeleteTrackExperiment — DELETE experiment by id
+// ---------------------------------------------------------------------------
+
+import { useMutation } from '@tanstack/react-query';
+
+export function useDeleteTrackExperiment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, { id: string; assumptionCode: string }>({
+    mutationFn: async ({ id }) => {
+      const { error } = await supabase
+        .from('experiments')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+      });
+      toast.success('實驗已刪除');
+    },
+    onError: (error) => {
+      toast.error(`刪除實驗失敗：${error.message}`);
+    },
+  });
+}

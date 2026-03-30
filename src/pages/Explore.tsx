@@ -128,6 +128,39 @@ export default function Explore() {
           aiSuggestedTag: q.aiSuggestedTag,
         });
 
+        // When a question's assumption tag is REMOVED → delete from assumptions table
+        if (!q.taggedAsAssumption && original.taggedAsAssumption && id) {
+          supabase
+            .from('assumptions')
+            .delete()
+            .eq('project_id', id)
+            .eq('source', q.id)
+            .then(({ error }) => {
+              if (error) {
+                console.error('Failed to delete assumption:', error);
+              } else {
+                queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
+              }
+            });
+        }
+        
+        // When a question's contradiction tag is REMOVED → delete from contradictions table
+        if (!q.taggedAsContradiction && original.taggedAsContradiction && id) {
+          supabase
+            .from('contradictions')
+            .delete()
+            .eq('project_id', id)
+            .eq('source_question_id', q.id)
+            .then(({ error }) => {
+              if (error) {
+                console.error('Failed to delete contradiction:', error);
+              } else {
+                queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+              }
+            });
+        }
+
         // When a question is newly tagged as contradiction → create entry + auto-formalize
         // Guard: 'counter' category questions are challenges/rebuttals, not engineering contradictions
         // Guard: check DB for existing contradiction with same source to prevent duplicates
@@ -248,19 +281,49 @@ export default function Explore() {
 
   // Delete a single Socratic question (Gmail-style: immediate delete + undo re-insert)
   const handleDeleteQuestion = useCallback((qId: string) => {
-    const removed = questions.find((q) => q.id === qId);
-    if (!removed || !id) return;
-    deleteQuestionMut.mutate({ id: qId, projectId: id });
-    toast(`已刪除問題`, {
-      duration: 5000,
-      action: {
-        label: "復原",
-        onClick: () => {
-          createQuestion.mutate({ projectId: id, category: removed.category, text: removed.text });
+      const removed = questions.find((q) => q.id === qId);
+      if (!removed || !id) return;
+      
+      // 1. 刪除問題本身
+      deleteQuestionMut.mutate({ id: qId, projectId: id });
+      
+      // 2. 同步刪除關聯的 assumption 記錄
+      supabase
+        .from('assumptions')
+        .delete()
+        .eq('project_id', id)
+        .eq('source', qId)
+        .then(({ error }) => {
+          if (!error) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
+          }
+        });
+
+      // 3. 同步刪除關聯的 contradiction 記錄
+      supabase
+        .from('contradictions')
+        .delete()
+        .eq('project_id', id)
+        .eq('source_question_id', qId)
+        .then(({ error }) => {
+          if (!error) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+          }
+        });
+
+      toast(`已刪除問題`, {
+        duration: 5000,
+        action: {
+          label: "復原",
+          onClick: () => {
+            createQuestion.mutate({ projectId: id, category: removed.category, text: removed.text });
+            // 注意：復原只恢復問題本身，assumption/contradiction 不會自動恢復
+            // 用戶需要重新確認 AI 標記
+          },
         },
-      },
-    });
-  }, [questions, id, deleteQuestionMut, createQuestion]);
+      });
+  }, [questions, id, deleteQuestionMut, createQuestion, queryClient]);
 
   // Brief staleness detection: brief updated after latest question was created
   const isBriefStale = useMemo(() => {

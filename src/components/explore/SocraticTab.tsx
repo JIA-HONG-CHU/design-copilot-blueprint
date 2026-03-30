@@ -111,7 +111,7 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
 
   const handleDismissTag = (qId: string) => {
     onUpdateQuestions(
-      questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: true, aiTagConfirmed: false } : q))
+      questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: true, aiTagConfirmed: false, taggedAsAssumption: false, taggedAsContradiction: false, } : q))
     );
     toast.info('已忽略 AI 建議');
   };

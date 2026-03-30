@@ -166,7 +166,7 @@ export default function Create() {
     [briefKpis],
   );
   const contradictionDescs = useMemo(
-    () => (contradictionsQuery.data || []).map((c) => c.naturalDescription || c.engineeringStatement || '').filter(Boolean),
+    () => (contradictionsQuery.data || []).map((c) => c.engineeringStatement || c.naturalDescription || '').filter(Boolean),
     [contradictionsQuery.data],
   );
 
@@ -278,7 +278,7 @@ export default function Create() {
   const contradictionMap = useMemo(() => {
     const map = new Map<string, string>();
     (contradictionsQuery.data ?? []).forEach((c) => {
-      map.set(c.id, c.naturalDescription || c.engineeringStatement?.slice(0, 40) || c.id.slice(0, 8));
+      map.set(c.id, c.engineeringStatement || c.naturalDescription || c.id.slice(0, 8));
     });
     return map;
   }, [contradictionsQuery.data]);
@@ -416,9 +416,16 @@ export default function Create() {
   // ── TRIZ three-path candidate generation ──
   const handleAiGenTriz = async () => {
     if (!id) return;
-    const contrs = contradictionsQuery.data ?? [];
+    const allContrs = contradictionsQuery.data ?? [];
+    // Only process contradictions with a valid TRIZ type (TC/PC/SF)
+    const contrs = allContrs.filter(c => c.type === 'TC' || c.type === 'PC' || c.type === 'SF');
     if (contrs.length === 0) {
-      toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別");
+      const unclassified = allContrs.length - contrs.length;
+      toast.warning(
+        unclassified > 0
+          ? `${unclassified} 條矛盾尚未分類（TC/PC/SF），請先在「深度探索」的矛盾識別中完成 AI 識別`
+          : "尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"
+      );
       return;
     }
     setAiLoading((p) => ({ ...p, trizGen: true }));
@@ -439,7 +446,7 @@ export default function Create() {
       // Each contradiction walks its own path — NOT all three.
       const tasks = contrs.map(async (c) => {
         const results: TrizSolution[] = [];
-        const cType = (c.type || "TC") as "TC" | "PC" | "SF";
+        const cType = c.type as "TC" | "PC" | "SF";
 
         const solveResult = await trizSolve({
           project_id: id,
@@ -455,7 +462,7 @@ export default function Create() {
         });
 
         for (const s of solveResult.suggestions) {
-          const path = (s.path === "SuField" ? "SF" : s.path || cType) as TrizPath;
+          const path = (s.path === "SuField" ? "SF" : s.path) as TrizPath;
           const opt: TrizSolution = {
             id: `triz-opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             contradictionId: c.id,
@@ -479,8 +486,18 @@ export default function Create() {
         return results;
       });
       const allResults = await Promise.allSettled(tasks);
-      for (const r of allResults) {
-        if (r.status === "fulfilled") generated.push(...r.value);
+      const failed: string[] = [];
+      for (let i = 0; i < allResults.length; i++) {
+        const r = allResults[i];
+        if (r.status === "fulfilled") {
+          generated.push(...r.value);
+        } else {
+          const desc = (contrs[i].engineeringStatement || contrs[i].naturalDescription || '').slice(0, 40);
+          failed.push(`${contrs[i].type}: ${desc}`);
+        }
+      }
+      if (failed.length > 0) {
+        toast.warning(`${failed.length} 條矛盾求解失敗（可能缺少形式化參數）：\n${failed.join('\n')}`);
       }
       // Replace with freshly generated solutions (old ones were deleted)
       setLocalTrizSolutions(generated);
@@ -671,7 +688,7 @@ export default function Create() {
     if (!id) return;
     setAiSubsystemLoading(true);
     try {
-      const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.naturalDescription || c.engineeringStatement || '').filter(Boolean);
+      const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.engineeringStatement || c.naturalDescription || '').filter(Boolean);
       const existingNames = subsystems.map(s => s.name);
       const resp = await scamperSubsystemSuggest({
         project_id: id,
@@ -1278,7 +1295,7 @@ export default function Create() {
               {Array.from(trizByContradiction.entries()).map(([cId, solutions]) => (
                 <Card key={cId} className="border-l-[3px] border-l-blue-400">
                   <CardContent className="p-4 space-y-3">
-                    <p className="text-xs font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground truncate" title={contradictionMap.get(cId) ?? cId}>
                       {contradictionMap.get(cId) ?? cId}
                     </p>
                     <div className="space-y-2">
@@ -1524,7 +1541,7 @@ export default function Create() {
                         setSsFormContradictions(prev => checked ? [...prev, cId] : prev.filter(x => x !== cId));
                       }}
                     />
-                    <span>{(c.naturalDescription ?? '').slice(0, 40)}…</span>
+                    <span>{(c.engineeringStatement || c.naturalDescription || '').slice(0, 40)}…</span>
                   </label>
                 );
               })}

@@ -520,8 +520,9 @@ Classify it into one of three types: TC (Technical Contradiction), PC (Physical 
      Use SF when the problem is about a system interaction that is missing, too weak, or produces
      undesirable effects — rather than a parameter trade-off.
 3. For TC:
-   - Map improving and worsening parameters to TRIZ 39 engineering parameters (1–39).
-   - Use null if no confident mapping exists.
+   - Map BOTH improving and worsening parameters to TRIZ 39 engineering parameters (1–39).
+   - Both improving_param AND worsening_param MUST be non-null integers (1–39).
+   - If you cannot confidently map to two distinct parameters, do NOT classify as TC — reclassify as PC or SF instead.
 4. For PC:
    - Extract the required attribute (pc_attribute_a): the property the system needs.
    - Extract the opposing attribute (pc_attribute_not_a): the contradictory property the system also needs.

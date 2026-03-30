@@ -4,6 +4,9 @@ Ref: AI_Agent_Architecture.md §1.1 Analyst Agent
 """
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.agents.base import call_llm_json
 from app.prompts.analyst import (
@@ -285,6 +288,25 @@ def formalize_contradiction(req: ContradictionFormalizeRequest) -> Contradiction
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
+
+    # Enforce invariant: TC MUST have both params. If LLM returned TC
+    # with null params, downgrade to PC (parameter trade-off that couldn't
+    # be mapped = physical contradiction).
+    if data.get("type") == "TC":
+        ip = data.get("improving_param")
+        wp = data.get("worsening_param")
+        if not isinstance(ip, int) or not isinstance(wp, int) or ip < 1 or wp < 1:
+            logger.warning(
+                "Formalize returned TC with invalid params (ip=%s, wp=%s) — downgrading to PC",
+                ip, wp,
+            )
+            data["type"] = "PC"
+            data["improving_param"] = None
+            data["worsening_param"] = None
+            # Ensure PC fields are populated
+            if not data.get("physical_contradiction"):
+                data["physical_contradiction"] = data.get("engineering_statement", "")
+
     return ContradictionFormalizeResponse(**data)
 
 

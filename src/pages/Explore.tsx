@@ -129,8 +129,9 @@ export default function Explore() {
         });
 
         // When a question is newly tagged as contradiction → create entry + auto-formalize
+        // Guard: 'counter' category questions are challenges/rebuttals, not engineering contradictions
         // Guard: check DB for existing contradiction with same source to prevent duplicates
-        if (q.taggedAsContradiction && !original.taggedAsContradiction && id) {
+        if (q.taggedAsContradiction && !original.taggedAsContradiction && id && q.category !== 'counter') {
           const desc = `[${q.category}] ${q.text}${q.answer ? ` — ${q.answer}` : ''}`;
           const now = new Date().toISOString();
           startOp();

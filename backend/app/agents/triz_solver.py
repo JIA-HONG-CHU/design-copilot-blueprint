@@ -36,20 +36,29 @@ from app.models.schemas import (
 
 
 def solve_triz(req: TrizLookupRequest) -> TrizLookupResponse:
-    """Resolve a TRIZ contradiction — route by type (TC / PC / SF).
+    """Resolve a TRIZ contradiction — route strictly by declared type.
 
     Step 3 classifies each contradiction/problem into a type; Step 5a
     dispatches to the corresponding solver path:
-      TC → contradiction matrix → 40 principles
-      PC → separation principles
-      SF → Su-Field 76 standard solutions
+      TC → contradiction matrix → 40 principles (requires improving/worsening params)
+      PC → separation principles (requires physical_contradiction)
+      SF → Su-Field 76 standard solutions (requires sf_* fields)
     """
     if req.type == "SF":
         return _solve_sf(req)
-    elif req.type == "TC" and req.improving_param and req.worsening_param:
+    elif req.type == "TC":
+        if not req.improving_param or not req.worsening_param:
+            # Should not happen if formalize ran correctly — return empty with warning
+            return TrizLookupResponse(
+                mapped_improving=req.improving_param,
+                mapped_worsening=req.worsening_param,
+                suggestions=[],
+            )
         return _solve_tc(req)
-    else:
+    elif req.type == "PC":
         return _solve_pc(req)
+    else:
+        raise ValueError(f"Unknown contradiction type '{req.type}'. Expected TC, PC, or SF.")
 
 
 def _solve_tc(req: TrizLookupRequest) -> TrizLookupResponse:

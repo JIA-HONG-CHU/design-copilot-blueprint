@@ -11,7 +11,7 @@ import type { SocraticQuestion, QuestionCategory } from "@/types/explore";
 import { CATEGORY_CONFIG } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
-import { socraticGenerate, socraticFollowUp, socraticBriefImpact } from "@/lib/api";
+import { socraticGenerate, socraticFollowUp } from "@/lib/api";
 
 const QUESTION_CAP = 28; // 7 categories × 4 rounds max (including follow-ups)
 
@@ -157,45 +157,46 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
     }
   };
 
-  // Brief impact: AI evaluates affected questions and replaces them
+  // Brief impact: delete all old questions and fully regenerate from new brief
   const handleBriefImpact = async () => {
     setIsGenerating(true);
     try {
-      const result = await socraticBriefImpact({
-        project_id: projectId,
-        new_mission: mission,
-        new_constraints: constraints,
-        existing_questions: questions.map((q) => ({
-          id: q.id,
-          category: q.category,
-          text: q.text,
-          answer: q.answer ?? '',
-        })),
-      });
-      if (result.affected.length === 0) {
-        toast.success('所有問題仍然有效，無需替換');
-      } else {
-        const replacementMap = new Map(result.affected.map((a) => [a.id, a]));
-        const updated = questions.map((q) => {
-          const replacement = replacementMap.get(q.id);
-          if (!replacement) return q;
-          return {
-            ...q,
-            text: replacement.replacement.text,
-            category: (replacement.replacement.category || q.category) as QuestionCategory,
-            answer: null,
-            aiSuggestedTag: (replacement.replacement.suggested_tag as 'assumption' | 'contradiction' | null) ?? null,
-            aiTagConfirmed: false,
-            aiTagDismissed: false,
-            replacedAt: new Date().toISOString(),
-          };
-        });
-        onUpdateQuestions(updated);
-        toast.success(`已替換 ${result.affected.length} 題，保留 ${result.unaffected_ids.length} 題`);
+      // Delete all existing questions from DB
+      if (onDeleteQuestion) {
+        for (const q of questions) {
+          onDeleteQuestion(q.id);
+        }
       }
+
+      // Clear locally cached answers
+      setLocalAnswers({});
+
+      // Regenerate from scratch with no existing questions
+      const result = await socraticGenerate({
+        project_id: projectId,
+        mission,
+        constraints,
+        existing_questions: [],
+      });
+
+      const newQuestions: SocraticQuestion[] = result.questions.map((q, i) => ({
+        id: `q-${Date.now()}-${i}`,
+        category: q.category as QuestionCategory,
+        text: q.text,
+        answer: null,
+        taggedAsAssumption: false,
+        taggedAsContradiction: false,
+        aiSuggestedTag: q.suggested_tag as 'assumption' | 'contradiction' | null,
+        aiTagConfirmed: false,
+        aiTagDismissed: false,
+      }));
+
+      // Full replacement — no old questions kept
+      onUpdateQuestions(newQuestions);
+      toast.success(`已重新生成 ${newQuestions.length} 個問題`);
     } catch (err) {
-      console.error("Brief impact evaluation failed:", err);
-      toast.error("AI 評估失敗，請確認後端服務是否啟動");
+      console.error("Brief impact regeneration failed:", err);
+      toast.error("AI 重新生成問題失敗，請確認後端服務是否啟動");
     } finally {
       setIsGenerating(false);
     }
@@ -218,16 +219,16 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
       {/* Purpose intro */}
       <SectionIntro text="AI 會根據您的 Brief 自動生成 7 類蘇格拉底式問題（含重構），引導您深入思考設計背後的假設與盲點。回答後 AI 會自動偵測是否包含假設或矛盾，並以建議標籤提示您確認。" />
 
-      {/* Brief stale warning — replace affected, preserve unaffected */}
+      {/* Brief stale warning — full regeneration */}
       {isBriefStale && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium">Brief 已更新</p>
-            <p className="text-xs text-muted-foreground">AI 將評估哪些問題受影響並建議替換，已回答的有效內容會保留。</p>
+            <p className="text-xs text-muted-foreground">Brief 內容已變更，現有問題可能不再適用。點擊將清空所有問題並根據新 Brief 重新生成。</p>
           </div>
           <AiButton size="sm" loading={isGenerating} onClick={handleBriefImpact}>
-            評估影響
+            重新生成問題
           </AiButton>
         </div>
       )}

@@ -65,7 +65,7 @@ import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
-import { SubsystemBlockDiagram } from "@/components/create/SubsystemBlockDiagram";
+import { SubsystemHierarchyView } from "@/components/create/SubsystemHierarchyView";
 import { LayoutGrid, List } from "lucide-react";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
 import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
@@ -700,7 +700,15 @@ export default function Create() {
     setAiSubsystemLoading(true);
     try {
       const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.engineeringStatement || c.naturalDescription || '').filter(Boolean);
-      const existingNames = subsystems.map(s => s.name);
+      // ↓ 新增：先清空 DB 和 local state
+      const { error: delErr } = await supabase
+        .from("subsystems")
+        .delete()
+        .eq("project_id", id);
+      if (delErr) console.warn("Failed to clear subsystems:", delErr.message);
+      setLocalSubsystems([]);
+      
+      const existingNames: string[] = [];
       const resp = await scamperSubsystemSuggest({
         project_id: id,
         mission: briefMission || "",
@@ -1620,13 +1628,13 @@ export default function Create() {
         {editingSubsystemId && renderSsInlineForm(true)}
 
         {subsystemView === "diagram" ? (
-          <SubsystemBlockDiagram
-            systemName={briefMission || MOCK_MISSION.problemStatement}
-            subsystems={subsystems}
-            onToggle={toggleSubsystem}
-            onEdit={startEditSubsystem}
-            onDelete={deleteSubsystem}
-          />
+          <SubsystemHierarchyView
+              subsystems={subsystems}
+              contradictionMap={contradictionMap}
+              onToggle={toggleSubsystem}
+              onEdit={startEditSubsystem}
+              onDelete={deleteSubsystem}
+            />
         ) : (
           subsystems.map((ss) => {
             const srcCfg: Record<string, { label: string; cls: string }> = {

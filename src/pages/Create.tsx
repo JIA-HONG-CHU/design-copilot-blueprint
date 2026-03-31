@@ -294,6 +294,17 @@ export default function Create() {
     return map;
   }, [trizSolutions]);
 
+  // Added: Entries sorted by TC > PC > SF
+  const PATH_ORDER: Record<string, number> = { TC: 0, PC: 1, SF: 2 };
+
+  const sortedTrizEntries = useMemo(() => {
+    return Array.from(trizByContradiction.entries()).sort(([, aSols], [, bSols]) => {
+      const aPath = aSols[0]?.path ?? 'SF';
+      const bPath = bSols[0]?.path ?? 'SF';
+      return (PATH_ORDER[aPath] ?? 99) - (PATH_ORDER[bPath] ?? 99);
+    });
+  }, [trizByContradiction]);
+
   // Detect same-contradiction multi-path warnings for Decision Hub
   const sameContradictionWarnings = useMemo(() => {
     const byContradiction = new Map<string, Alternative[]>();
@@ -1292,7 +1303,7 @@ export default function Create() {
           ) : (
             <div className="space-y-4">
               {/* Show solutions grouped by contradiction */}
-              {Array.from(trizByContradiction.entries()).map(([cId, solutions]) => (
+              {sortedTrizEntries.map(([cId, solutions]) => (
                 <Card key={cId} className="border-l-[3px] border-l-blue-400">
                   <CardContent className="p-4 space-y-3">
                     <p className="text-xs font-medium text-muted-foreground truncate" title={contradictionMap.get(cId) ?? cId}>
@@ -1393,10 +1404,10 @@ export default function Create() {
           {/* Result: compact summary card */}
           {state.status !== 'idle' && state.iteration > 0 && (() => {
             const healthMap = {
-              healthy: { icon: '✅', cls: 'border-emerald-300 bg-emerald-50/50', text: '健康' },
-              warning: { icon: '⚠️', cls: 'border-amber-300 bg-amber-50/50', text: '警告' },
-              critical: { icon: '🔴', cls: 'border-red-300 bg-red-50/50', text: '危險' },
-              circular: { icon: '🔄', cls: 'border-red-300 bg-red-50/50', text: '循環依賴' },
+              healthy: { icon: '✅', cls: 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40 dark:border-emerald-700', text: '健康' },
+              warning: { icon: '⚠️', cls: 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/40 dark:border-amber-700', text: '警告' },
+              critical: { icon: '🔴', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '危險' },
+              circular: { icon: '🔄', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '循環依賴' },
             };
             const h = healthMap[state.health] || healthMap.healthy;
             const showDetail = state.health !== 'healthy';
@@ -1416,10 +1427,10 @@ export default function Create() {
                     </div>
                     <div className="flex items-center gap-3 text-[10px]">
                       {state.fatalCount.total > 0 && (
-                        <span className="text-red-600 font-medium">Fatal: {state.fatalCount.resolved}/{state.fatalCount.total}</span>
+                        <span className="text-red-600 dark:text-red-400 font-medium">Fatal: {state.fatalCount.resolved}/{state.fatalCount.total}</span>
                       )}
                       {state.majorCount.total > 0 && (
-                        <span className="text-orange-600 font-medium">Major: {state.majorCount.resolved}/{state.majorCount.total}</span>
+                        <span className="text-orange-600 dark:text-orange-400 font-medium">Major: {state.majorCount.resolved}/{state.majorCount.total}</span>
                       )}
                       {state.minorCount > 0 && (
                         <span className="text-muted-foreground">Minor: {state.minorCount}</span>

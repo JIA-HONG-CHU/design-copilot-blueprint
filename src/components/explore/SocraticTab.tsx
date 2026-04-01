@@ -30,7 +30,6 @@ const CATEGORY_FILTERS: (QuestionCategory | 'all')[] = ['all', 'clarification', 
 
 const AI_TAG_LABELS = {
   assumption: { label: '假設', color: '#8B5CF6', description: 'AI 偵測到此回答包含未驗證的假設，建議納入假設追蹤。' },
-  contradiction: { label: '矛盾', color: '#EC4899', description: 'AI 偵測到此回答涉及設計矛盾，建議納入矛盾識別。' },
 };
 
 export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, isBriefStale = false, briefUpdatedAt, projectId, mission = '', constraints = [] }: SocraticTabProps) {
@@ -69,12 +68,11 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         return {
           ...q,
           aiTagConfirmed: true,
-          taggedAsAssumption: q.aiSuggestedTag === 'assumption',
-          taggedAsContradiction: q.aiSuggestedTag === 'contradiction',
+          taggedAsAssumption: true,
         };
       })
     );
-    toast.success('已確認 AI 標記');
+    toast.success('已確認為假設，已同步至假設追蹤');
   };
 
   const handleRevertTag = (qId: string) => {
@@ -85,33 +83,20 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
           ...q,
           aiTagConfirmed: false,
           taggedAsAssumption: false,
-          taggedAsContradiction: false,
         };
       })
     );
-    toast.info('已撤回標記，AI 建議已恢復');
-  };
-
-  const handleSwitchTag = (qId: string) => {
-    onUpdateQuestions(
-      questions.map((q) => {
-        if (q.id !== qId || !q.aiSuggestedTag) return q;
-        const newTag = q.aiSuggestedTag === 'assumption' ? 'contradiction' : 'assumption';
-        return {
-          ...q,
-          aiSuggestedTag: newTag,
-          aiTagConfirmed: true,
-          taggedAsAssumption: newTag === 'assumption',
-          taggedAsContradiction: newTag === 'contradiction',
-        };
-      })
-    );
-    toast.success('已變更標記類型');
+    toast.info('已撤回假設標記，假設追蹤中的對應項目已移除');
   };
 
   const handleDismissTag = (qId: string) => {
     onUpdateQuestions(
-      questions.map((q) => (q.id === qId ? { ...q, aiTagDismissed: true, aiTagConfirmed: false, taggedAsAssumption: false, taggedAsContradiction: false, } : q))
+      questions.map((q) => (q.id === qId ? {
+        ...q,
+        aiTagDismissed: true,
+        aiTagConfirmed: false,
+        taggedAsAssumption: false,
+      } : q))
     );
     toast.info('已忽略 AI 建議');
   };
@@ -138,7 +123,6 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         text: q.text,
         answer: null,
         taggedAsAssumption: false,
-        taggedAsContradiction: false,
         aiSuggestedTag: q.suggested_tag as 'assumption' | 'contradiction' | null,
         aiTagConfirmed: false,
         aiTagDismissed: false,
@@ -185,7 +169,6 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
         text: q.text,
         answer: null,
         taggedAsAssumption: false,
-        taggedAsContradiction: false,
         aiSuggestedTag: q.suggested_tag as 'assumption' | 'contradiction' | null,
         aiTagConfirmed: false,
         aiTagDismissed: false,
@@ -388,27 +371,19 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                 {hasConfirmedTag && tagConfig && (
                   <div className="flex items-center gap-2">
                     <Badge className="text-[10px] text-white" style={{ backgroundColor: tagConfig.color }}>
-                      已標記為{tagConfig.label}
+                      已標記為假設
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">已自動同步至{q.aiSuggestedTag === 'assumption' ? '假設追蹤' : '矛盾識別'}</span>
-                    <div className="flex gap-1 ml-auto shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
-                        onClick={() => handleSwitchTag(q.id)}
-                      >
-                        變更為{q.aiSuggestedTag === 'assumption' ? '矛盾' : '假設'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-[10px] text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRevertTag(q.id)}
-                      >
-                        撤回
-                      </Button>
-                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      已自動同步至假設追蹤
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-muted-foreground hover:text-destructive ml-auto"
+                      onClick={() => handleRevertTag(q.id)}
+                    >
+                      撤回假設
+                    </Button>
                   </div>
                 )}
 
@@ -449,16 +424,12 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                 toast.success(`已確認 ${answeredCount} 題回答，AI 正在分析...`);
 
                 // Step 1: Heuristic tagging
-                const tagByHeuristic = (q: SocraticQuestion): 'assumption' | 'contradiction' | null => {
+                const tagByHeuristic = (q: SocraticQuestion): 'assumption' | null => {
                   const a = q.answer ?? '';
                   const isAssumption = q.category === 'assumption'
                     || a.includes('假設') || a.includes('基於') || a.includes('認為')
                     || a.includes('預期') || a.includes('如果');
                   if (isAssumption) return 'assumption';
-                  const isContradiction = q.category === 'counter'
-                    || a.includes('矛盾') || a.includes('不足') || a.includes('衝突')
-                    || a.includes('但是') || a.includes('卻');
-                  if (isContradiction) return 'contradiction';
                   return null;
                 };
 
@@ -494,7 +465,6 @@ export function SocraticTab({ questions, onUpdateQuestions, onDeleteQuestion, is
                       text: f.text,
                       answer: null,
                       taggedAsAssumption: false,
-                      taggedAsContradiction: false,
                       aiSuggestedTag: null,
                       aiTagConfirmed: false,
                       aiTagDismissed: false,

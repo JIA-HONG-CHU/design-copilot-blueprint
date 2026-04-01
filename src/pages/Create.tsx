@@ -295,13 +295,15 @@ export default function Create() {
   }, [trizSolutions]);
 
   // Added: Entries sorted by TC > PC > SF
-  const PATH_ORDER: Record<string, number> = { TC: 0, PC: 1, SF: 2 };
+  const PATH_ORDER = { TC: 0, PC: 1, SF: 2 } as const;
 
   const sortedTrizEntries = useMemo(() => {
     return Array.from(trizByContradiction.entries()).sort(([, aSols], [, bSols]) => {
       const aPath = aSols[0]?.path ?? 'SF';
       const bPath = bSols[0]?.path ?? 'SF';
-      return (PATH_ORDER[aPath] ?? 99) - (PATH_ORDER[bPath] ?? 99);
+      const aOrder = PATH_ORDER[aPath as keyof typeof PATH_ORDER] ?? 99;
+      const bOrder = PATH_ORDER[bPath as keyof typeof PATH_ORDER] ?? 99;
+      return aOrder - bOrder;
     });
   }, [trizByContradiction]);
 
@@ -704,9 +706,11 @@ export default function Create() {
       const { error: delErr } = await supabase
         .from("subsystems")
         .delete()
-        .eq("project_id", id);
+        .eq("project_id", id)
+        .eq("source", "ai");  // 只刪除 AI 產生的
       if (delErr) console.warn("Failed to clear subsystems:", delErr.message);
-      setLocalSubsystems([]);
+      // 保留手動建立的子系統
+      setLocalSubsystems(prev => prev.filter(s => s.source !== "ai"));
       
       const existingNames: string[] = [];
       const resp = await scamperSubsystemSuggest({
@@ -1629,12 +1633,12 @@ export default function Create() {
 
         {subsystemView === "diagram" ? (
           <SubsystemHierarchyView
-              subsystems={subsystems}
-              contradictionMap={contradictionMap}
-              onToggle={toggleSubsystem}
-              onEdit={startEditSubsystem}
-              onDelete={deleteSubsystem}
-            />
+            subsystems={subsystems}
+            contradictionMap={contradictionMap}
+            onToggle={toggleSubsystem}
+            onEdit={startEditSubsystem}
+            onDelete={deleteSubsystem}
+          />
         ) : (
           subsystems.map((ss) => {
             const srcCfg: Record<string, { label: string; cls: string }> = {

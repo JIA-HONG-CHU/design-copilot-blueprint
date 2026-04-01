@@ -28,6 +28,11 @@ interface SubsystemHierarchyViewProps {
   onDelete: (id: string) => void;
 }
 
+/** 遞迴樹節點：繼承 Subsystem 所有欄位 + 遞迴 children */
+type SubsystemTreeNode = Subsystem & {
+  children: SubsystemTreeNode[];
+};
+
 // Level badge config
 const LEVEL_CONFIG = {
   system: {
@@ -61,9 +66,9 @@ const SOURCE_CONFIG: Record<string, { label: string; cls: string }> = {
 };
 
 /** Build a tree from flat subsystem list */
-function buildTree(subsystems: Subsystem[]) {
-  const byId = new Map<string, Subsystem & { children: Subsystem[] }>();
-  const roots: (Subsystem & { children: Subsystem[] })[] = [];
+function buildTree(subsystems: Subsystem[]): SubsystemTreeNode[] {
+  const byId = new Map<string, SubsystemTreeNode>();
+  const roots: SubsystemTreeNode[] = [];
 
   // First pass: create nodes with children array
   for (const ss of subsystems) {
@@ -87,7 +92,7 @@ function buildTree(subsystems: Subsystem[]) {
 function ComponentList({
   components,
 }: {
-  components: Subsystem[];
+  components: SubsystemTreeNode[];
 }) {
   if (components.length === 0) return null;
 
@@ -182,8 +187,8 @@ function ModuleCard({
   onEdit,
   onDelete,
 }: {
-  module: Subsystem & { children: Subsystem[] };
-  components: Subsystem[];
+  module: SubsystemTreeNode;
+  components: SubsystemTreeNode[];
   contradictionMap: Map<string, string>;
   onToggle: (id: string) => void;
   onEdit: (id: string) => void;
@@ -226,7 +231,7 @@ function ModuleCard({
             </p>
           )}
 
-          {/* Contradiction badges — inline, no red lines */}
+          {/* Contradiction badges */}
           {module.relatedContradictions.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {module.relatedContradictions.map((cId) => (
@@ -289,7 +294,7 @@ function SystemCard({
   onEdit,
   onDelete,
 }: {
-  system: Subsystem & { children: (Subsystem & { children: Subsystem[] })[] };
+  system: SubsystemTreeNode;
   contradictionMap: Map<string, string>;
   onToggle: (id: string) => void;
   onEdit: (id: string) => void;
@@ -340,7 +345,7 @@ function SystemCard({
                     <Badge
                       key={cId}
                       variant="outline"
-                      className="text-[9px] bg-amber-50 text-amber-700 border-amber-200"
+                      className="text-[9px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
                     >
                       ⚡ {(contradictionMap.get(cId) ?? cId).slice(0, 40)}…
                     </Badge>
@@ -354,7 +359,6 @@ function SystemCard({
         <CollapsibleContent>
           <div className="px-4 pb-4 pt-1 space-y-3 ml-7">
             {modules.map((mod) => {
-              // Find components that belong to this module
               const modComponents = mod.children.filter(
                 (c) => c.level === "component"
               );
@@ -423,7 +427,7 @@ export function SubsystemHierarchyView({
       {tree.map((system) => (
         <SystemCard
           key={system.id}
-          system={system as any}
+          system={system}
           contradictionMap={contradictionMap}
           onToggle={onToggle}
           onEdit={onEdit}

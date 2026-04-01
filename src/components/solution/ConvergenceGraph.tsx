@@ -5,6 +5,7 @@
  * pan/zoom/drag and @dagrejs/dagre for automatic DAG positioning.
  */
 import { useMemo, useState } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,8 +66,7 @@ const SEVERITY_COLOR: Record<ContradictionSeverity, string> = {
 };
 
 // Dark-aware background colors for severity nodes
-function getSeverityBg(severity: ContradictionSeverity): string {
-  const isDark = document.documentElement.classList.contains("dark");
+function getSeverityBg(severity: ContradictionSeverity, isDark: boolean): string {
   if (isDark) {
     return {
       fatal: "rgba(153, 27, 27, 0.45)",
@@ -82,14 +82,12 @@ function getSeverityBg(severity: ContradictionSeverity): string {
 }
 
 // Dark-aware background for solution nodes
-function getSolutionBg(): string {
-  const isDark = document.documentElement.classList.contains("dark");
+function getSolutionBg(isDark: boolean): string {
   return isDark ? "rgba(99, 102, 241, 0.15)" : "hsl(var(--primary) / 0.08)";
 }
 
 // Dark-aware foreground text color
-function getForegroundColor(): string {
-  const isDark = document.documentElement.classList.contains("dark");
+function getForegroundColor(isDark: boolean): string {
   return isDark ? "#E5E7EB" : "hsl(var(--foreground))";
 }
 
@@ -127,16 +125,15 @@ function layoutWithDagre(nodes: Node[], edges: Edge[]): Node[] {
 
 // ── Map domain types → React Flow types ──────────────────────────────────────
 
-function toFlowNodes(nodes: ConvergenceNode[]): Node[] {
-  const isDark = document.documentElement.classList.contains("dark");
+function toFlowNodes(nodes: ConvergenceNode[], isDark: boolean): Node[] {
 
   return nodes.map((n) => {
     const isContradiction = n.type === "contradiction";
     const severity = n.severity ?? "minor";
     const borderColor = isContradiction ? SEVERITY_COLOR[severity] : "hsl(var(--primary))";
     // Use dark-aware background helpers
-    const bgColor = isContradiction ? getSeverityBg(severity) : getSolutionBg();
-    const fgColor = getForegroundColor();
+    const bgColor = isContradiction ? getSeverityBg(severity, isDark) : getSolutionBg(isDark);
+    const fgColor = getForegroundColor(isDark);
     const opacity = n.resolved ? 0.45 : 1;
 
     const label = n.label.length > 60 ? n.label.slice(0, 57) + "..." : n.label;
@@ -234,12 +231,15 @@ interface ConvergenceGraphProps {
 }
 
 const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const flowEdges = useMemo(() => toFlowEdges(edges), [edges]);
 
   const initialNodes = useMemo(() => {
-    const raw = toFlowNodes(nodes);
+    const raw = toFlowNodes(nodes, isDark);
     return layoutWithDagre(raw, flowEdges);
-  }, [nodes, flowEdges]);
+  }, [nodes, flowEdges, isDark]);
 
   const [localNodes, setLocalNodes] = useState<Node[]>(initialNodes);
 

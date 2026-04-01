@@ -294,7 +294,9 @@ export default function Explore() {
         .eq('project_id', id)
         .eq('source', qId)
         .then(({ error }) => {
-          if (!error) {
+          if (error) {
+            console.error('Failed to delete assumption for question:', error);
+          } else {
             queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
           }
@@ -307,7 +309,9 @@ export default function Explore() {
         .eq('project_id', id)
         .eq('source_question_id', qId)
         .then(({ error }) => {
-          if (!error) {
+          if (error) {
+            console.error('Failed to delete contradiction for question:', error);
+          } else {
             queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
           }
         });
@@ -317,9 +321,80 @@ export default function Explore() {
         action: {
           label: "復原",
           onClick: () => {
-            createQuestion.mutate({ projectId: id, category: removed.category, text: removed.text });
-            // 注意：復原只恢復問題本身，assumption/contradiction 不會自動恢復
-            // 用戶需要重新確認 AI 標記
+            // 用原始 id 重新插入，確保關聯資料的 source 外鍵一致
+            supabase
+              .from('socratic_questions')
+              .insert({
+                id: qId,  // ← 關鍵：保留原始 id
+                project_id: id,
+                category: removed.category,
+                text: removed.text,
+                answer: removed.answer ?? null,
+                tagged_as_assumption: removed.taggedAsAssumption ?? false,
+                tagged_as_contradiction: removed.taggedAsContradiction ?? false,
+                ai_suggested_tag: removed.aiSuggestedTag ?? null,
+              })
+              .then(({ error }) => {
+                if (error) {
+                  console.error('Failed to restore question:', error);
+                  toast.error('復原失敗');
+                  return;
+                }
+
+                // 問題恢復成功 → invalidate 讓 UI 更新
+                queryClient.invalidateQueries({ queryKey: queryKeys.socratic.byProject(id) });
+
+                // 如果原本有 assumption 標記 → 重新建立 assumption
+                if (removed.taggedAsAssumption) {
+                  const content = `${removed.text}${removed.answer ? ` — ${removed.answer}` : ''}`;
+                  const now = new Date().toISOString();
+                  supabase
+                    .from('assumptions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('project_id', id)
+                    .then(({ count }) => {
+                      const code = `A-${String((count ?? 0) + 1).padStart(3, '0')}`;
+                      supabase
+                        .from('assumptions')
+                        .insert({
+                          project_id: id,
+                          code,
+                          content,
+                          source_type: 'socratic',
+                          source: qId,  // ← 用原始 id
+                          worst_severity: 'medium',
+                          status: 'unverified',
+                          verification_stage: 'unplanned',
+                          created_at: now,
+                          updated_at: now,
+                        })
+                        .then(() => {
+                          queryClient.invalidateQueries({ queryKey: queryKeys.track.assumptions(id) });
+                          queryClient.invalidateQueries({ queryKey: queryKeys.assumptions.byProject(id) });
+                        });
+                    });
+                }
+
+                // 如果原本有 contradiction 標記 → 重新建立 contradiction
+                if (removed.taggedAsContradiction) {
+                  const desc = `[${removed.category}] ${removed.text}${removed.answer ? ` — ${removed.answer}` : ''}`;
+                  const now = new Date().toISOString();
+                  supabase
+                    .from('contradictions')
+                    .insert({
+                      project_id: id,
+                      natural_description: desc,
+                      source_question_id: qId,  // ← 用原始 id
+                      source_type: 'socratic',
+                      severity: DEFAULT_SEVERITY,
+                      created_at: now,
+                      updated_at: now,
+                    })
+                    .then(() => {
+                      queryClient.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(id) });
+                    });
+                }
+              });
           },
         },
       });

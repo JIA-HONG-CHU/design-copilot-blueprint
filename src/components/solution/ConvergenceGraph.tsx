@@ -5,6 +5,7 @@
  * pan/zoom/drag and @dagrejs/dagre for automatic DAG positioning.
  */
 import { useMemo, useState } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,9 +31,13 @@ const graphStyles = `
     background: hsl(var(--muted) / 0.2) !important;
     border-radius: 8px;
   }
+  .dark .convergence-flow .react-flow {
+    background: hsl(var(--card)) !important;
+  }
   .convergence-flow .react-flow__controls-button {
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground));
   }
   .convergence-flow .react-flow__controls-button svg {
     fill: hsl(var(--foreground));
@@ -40,6 +45,12 @@ const graphStyles = `
   .convergence-flow .react-flow__minimap {
     border: 1px solid hsl(var(--border));
     border-radius: 4px;
+  }
+  .dark .convergence-flow .react-flow__minimap {
+    background: hsl(var(--card));
+  }
+  .dark .react-flow__node {
+    color: #E5E7EB;
   }
 `;
 
@@ -54,11 +65,31 @@ const SEVERITY_COLOR: Record<ContradictionSeverity, string> = {
   minor: "#9CA3AF",   // gray-400
 };
 
-const SEVERITY_BG: Record<ContradictionSeverity, string> = {
-  fatal: "#FEF2F2",   // red-50
-  major: "#FFF7ED",   // orange-50
-  minor: "#F9FAFB",   // gray-50
-};
+// Dark-aware background colors for severity nodes
+function getSeverityBg(severity: ContradictionSeverity, isDark: boolean): string {
+  if (isDark) {
+    return {
+      fatal: "rgba(153, 27, 27, 0.45)",
+      major: "rgba(154, 52, 18, 0.45)",
+      minor: "rgba(55, 65, 81, 0.45)",
+    }[severity];
+  }
+  return {
+    fatal: "#FEF2F2",
+    major: "#FFF7ED",
+    minor: "#F9FAFB",
+  }[severity];
+}
+
+// Dark-aware background for solution nodes
+function getSolutionBg(isDark: boolean): string {
+  return isDark ? "rgba(99, 102, 241, 0.15)" : "hsl(var(--primary) / 0.08)";
+}
+
+// Dark-aware foreground text color
+function getForegroundColor(isDark: boolean): string {
+  return isDark ? "#E5E7EB" : "hsl(var(--foreground))";
+}
 
 const SEVERITY_LABEL: Record<ContradictionSeverity, string> = {
   fatal: "Fatal",
@@ -94,12 +125,15 @@ function layoutWithDagre(nodes: Node[], edges: Edge[]): Node[] {
 
 // ── Map domain types → React Flow types ──────────────────────────────────────
 
-function toFlowNodes(nodes: ConvergenceNode[]): Node[] {
+function toFlowNodes(nodes: ConvergenceNode[], isDark: boolean): Node[] {
+
   return nodes.map((n) => {
     const isContradiction = n.type === "contradiction";
     const severity = n.severity ?? "minor";
     const borderColor = isContradiction ? SEVERITY_COLOR[severity] : "hsl(var(--primary))";
-    const bgColor = isContradiction ? SEVERITY_BG[severity] : "hsl(var(--primary) / 0.08)";
+    // Use dark-aware background helpers
+    const bgColor = isContradiction ? getSeverityBg(severity, isDark) : getSolutionBg(isDark);
+    const fgColor = getForegroundColor(isDark);
     const opacity = n.resolved ? 0.45 : 1;
 
     const label = n.label.length > 60 ? n.label.slice(0, 57) + "..." : n.label;
@@ -128,18 +162,20 @@ function toFlowNodes(nodes: ConvergenceNode[]): Node[] {
                 <span style={{
                   fontSize: 9,
                   fontWeight: 600,
-                  color: "hsl(var(--primary))",
+                  // Brighter in dark mode for readability
+                  color: isDark ? "#A5B4FC" : "hsl(var(--primary))",
                 }}>
                   方案
                 </span>
               )}
               {n.resolved && (
-                <span style={{ fontSize: 9, color: "#16A34A" }}>
+                <span style={{ fontSize: 9, color: isDark ? "#4ADE80" : "#16A34A" }}>
                   ✓ 已解決
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 10, fontWeight: 500, color: "hsl(var(--foreground))" }}>
+            {/* Use dark-aware foreground color */}
+            <div style={{ fontSize: 10, fontWeight: 500, color: fgColor }}>
               {label}
             </div>
           </div>
@@ -195,12 +231,15 @@ interface ConvergenceGraphProps {
 }
 
 const ConvergenceGraph = ({ nodes, edges }: ConvergenceGraphProps) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const flowEdges = useMemo(() => toFlowEdges(edges), [edges]);
 
   const initialNodes = useMemo(() => {
-    const raw = toFlowNodes(nodes);
+    const raw = toFlowNodes(nodes, isDark);
     return layoutWithDagre(raw, flowEdges);
-  }, [nodes, flowEdges]);
+  }, [nodes, flowEdges, isDark]);
 
   const [localNodes, setLocalNodes] = useState<Node[]>(initialNodes);
 

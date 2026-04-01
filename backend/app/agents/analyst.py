@@ -326,6 +326,14 @@ def extract_assumptions(req: AssumptionExtractRequest) -> AssumptionExtractRespo
     data = json.loads(raw)
     return AssumptionExtractResponse(**data)
 
+def _flatten_to_str(value) -> str:
+    """When LLM returns a dict, it merges them into a string."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " | ".join(f"{k.replace('_', ' ').capitalize()}: {v}" 
+                          for k, v in value.items())
+    return str(value)
 
 def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
     prompt = ANTI_ANCHOR_GENERATION.format(
@@ -335,6 +343,12 @@ def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
+    # Even if the prompt requires a string, the LLM may still return a dict.
+    for alt in data.get("alternatives", []):
+        for key in ("mechanism", "why_unconventional", 
+                     "potential_advantage", "cross_domain_source"):
+            if key in alt and not isinstance(alt[key], str):
+                alt[key] = _flatten_to_str(alt[key])
     return AntiAnchorResponse(**data)
 
 

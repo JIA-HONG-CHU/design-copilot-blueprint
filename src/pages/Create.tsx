@@ -65,7 +65,7 @@ import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
-import { SubsystemBlockDiagram } from "@/components/create/SubsystemBlockDiagram";
+import { SubsystemHierarchyView } from "@/components/create/SubsystemHierarchyView";
 import { LayoutGrid, List } from "lucide-react";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
 import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
@@ -293,6 +293,19 @@ export default function Create() {
     }
     return map;
   }, [trizSolutions]);
+
+  // Added: Entries sorted by TC > PC > SF
+  const PATH_ORDER = { TC: 0, PC: 1, SF: 2 } as const;
+
+  const sortedTrizEntries = useMemo(() => {
+    return Array.from(trizByContradiction.entries()).sort(([, aSols], [, bSols]) => {
+      const aPath = aSols[0]?.path ?? 'SF';
+      const bPath = bSols[0]?.path ?? 'SF';
+      const aOrder = PATH_ORDER[aPath as keyof typeof PATH_ORDER] ?? 99;
+      const bOrder = PATH_ORDER[bPath as keyof typeof PATH_ORDER] ?? 99;
+      return aOrder - bOrder;
+    });
+  }, [trizByContradiction]);
 
   // Detect same-contradiction multi-path warnings for Decision Hub
   const sameContradictionWarnings = useMemo(() => {
@@ -689,7 +702,17 @@ export default function Create() {
     setAiSubsystemLoading(true);
     try {
       const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.engineeringStatement || c.naturalDescription || '').filter(Boolean);
-      const existingNames = subsystems.map(s => s.name);
+      // ↓ 新增：先清空 DB 和 local state
+      const { error: delErr } = await supabase
+        .from("subsystems")
+        .delete()
+        .eq("project_id", id)
+        .eq("source", "ai");  // 只刪除 AI 產生的
+      if (delErr) console.warn("Failed to clear subsystems:", delErr.message);
+      // 保留手動建立的子系統
+      setLocalSubsystems(prev => prev.filter(s => s.source !== "ai"));
+      
+      const existingNames: string[] = [];
       const resp = await scamperSubsystemSuggest({
         project_id: id,
         mission: briefMission || "",
@@ -1292,7 +1315,7 @@ export default function Create() {
           ) : (
             <div className="space-y-4">
               {/* Show solutions grouped by contradiction */}
-              {Array.from(trizByContradiction.entries()).map(([cId, solutions]) => (
+              {sortedTrizEntries.map(([cId, solutions]) => (
                 <Card key={cId} className="border-l-[3px] border-l-blue-400">
                   <CardContent className="p-4 space-y-3">
                     <p className="text-xs font-medium text-muted-foreground truncate" title={contradictionMap.get(cId) ?? cId}>
@@ -1393,10 +1416,10 @@ export default function Create() {
           {/* Result: compact summary card */}
           {state.status !== 'idle' && state.iteration > 0 && (() => {
             const healthMap = {
-              healthy: { icon: '✅', cls: 'border-emerald-300 bg-emerald-50/50', text: '健康' },
-              warning: { icon: '⚠️', cls: 'border-amber-300 bg-amber-50/50', text: '警告' },
-              critical: { icon: '🔴', cls: 'border-red-300 bg-red-50/50', text: '危險' },
-              circular: { icon: '🔄', cls: 'border-red-300 bg-red-50/50', text: '循環依賴' },
+              healthy: { icon: '✅', cls: 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40 dark:border-emerald-700', text: '健康' },
+              warning: { icon: '⚠️', cls: 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/40 dark:border-amber-700', text: '警告' },
+              critical: { icon: '🔴', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '危險' },
+              circular: { icon: '🔄', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '循環依賴' },
             };
             const h = healthMap[state.health] || healthMap.healthy;
             const showDetail = state.health !== 'healthy';
@@ -1416,10 +1439,10 @@ export default function Create() {
                     </div>
                     <div className="flex items-center gap-3 text-[10px]">
                       {state.fatalCount.total > 0 && (
-                        <span className="text-red-600 font-medium">Fatal: {state.fatalCount.resolved}/{state.fatalCount.total}</span>
+                        <span className="text-red-600 dark:text-red-400 font-medium">Fatal: {state.fatalCount.resolved}/{state.fatalCount.total}</span>
                       )}
                       {state.majorCount.total > 0 && (
-                        <span className="text-orange-600 font-medium">Major: {state.majorCount.resolved}/{state.majorCount.total}</span>
+                        <span className="text-orange-600 dark:text-orange-400 font-medium">Major: {state.majorCount.resolved}/{state.majorCount.total}</span>
                       )}
                       {state.minorCount > 0 && (
                         <span className="text-muted-foreground">Minor: {state.minorCount}</span>
@@ -1609,9 +1632,9 @@ export default function Create() {
         {editingSubsystemId && renderSsInlineForm(true)}
 
         {subsystemView === "diagram" ? (
-          <SubsystemBlockDiagram
-            systemName={briefMission || MOCK_MISSION.problemStatement}
+          <SubsystemHierarchyView
             subsystems={subsystems}
+            contradictionMap={contradictionMap}
             onToggle={toggleSubsystem}
             onEdit={startEditSubsystem}
             onDelete={deleteSubsystem}

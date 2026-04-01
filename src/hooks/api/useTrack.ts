@@ -184,6 +184,52 @@ export function useUpdateTrackAssumptionStatus(projectId: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
+// useCreateTrackAssumption — INSERT new assumption (manual add from Kanban)
+// ---------------------------------------------------------------------------
+
+export function useCreateTrackAssumption(projectId: string | undefined) {
+  return useSupabaseMutation<AssumptionRow, AssumptionInsert>({
+    table: 'assumptions',
+    type: 'insert',
+    invalidateKeys: [
+      queryKeys.track.assumptions(projectId),
+      queryKeys.assumptions.byProject(projectId),
+    ],
+    successMessage: '假設已新增',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useDeleteTrackAssumption — DELETE assumption by id
+// ---------------------------------------------------------------------------
+
+export function useDeleteTrackAssumption(projectId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, { id: string }>({
+    mutationFn: async ({ id }) => {
+      const { error } = await supabase
+        .from('assumptions')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.track.assumptions(projectId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.assumptions.byProject(projectId),
+      });
+      toast.success('假設已刪除');
+    },
+    onError: (error) => {
+      toast.error(`刪除假設失敗：${error.message}`);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Unknown Factors — localStorage-based (no DB table yet)
 // ---------------------------------------------------------------------------
 

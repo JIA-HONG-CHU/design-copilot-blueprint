@@ -14,7 +14,7 @@ import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
 import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
-import { useTrackExperiments, useDeleteTrackExperiment, useCreateTrackAssumption, useDeleteTrackAssumption } from "@/hooks/api/useTrack";
+import { useTrackExperiments, useCreateTrackExperiment, useUpdateTrackExperiment, useDeleteTrackExperiment, useCreateTrackAssumption, useDeleteTrackAssumption } from "@/hooks/api/useTrack";
 import { useEvidenceEntries, useDeleteEvidenceEntry, useUpdateEvidenceEntry } from "@/hooks/api/useEvidenceEntries";
 
 interface KanbanBoardProps {
@@ -35,7 +35,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
 
   // Experiment state
-  const [experiments, setExperiments] = useState<Record<string, Experiment[]>>({});
   const [newExpName, setNewExpName] = useState('');
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
   const [editExpResult, setEditExpResult] = useState('');
@@ -68,6 +67,8 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const selectedAssumptionCode = selectedCard?.assumptionCode;
   const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
   const deleteExperiment = useDeleteTrackExperiment();
+  const createExperiment = useCreateTrackExperiment();
+  const updateExperiment = useUpdateTrackExperiment();
 
   // Fetch evidence entries for this project
   const { data: allEvidence } = useEvidenceEntries(projectId);
@@ -92,16 +93,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       e.linkedAssumptionCodes.includes(selectedCard.assumptionCode)
     );
   }, [selectedCard, allEvidence]);
-
-  // Seed local experiment cache when DB data arrives
-  useEffect(() => {
-    if (selectedCard && experimentsQuery.data && experimentsQuery.data.length > 0) {
-      setExperiments((prev) => ({
-        ...prev,
-        [selectedCard.id]: experimentsQuery.data,
-      }));
-    }
-  }, [selectedCard?.id, experimentsQuery.data]);
 
   // Reset all edit states when switching cards
   useEffect(() => {
@@ -684,7 +675,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
               <div>
                 <span className="text-xs text-muted-foreground">實驗詳情</span>
                 {(() => {
-                  const exps = experiments[selectedCard.id] ?? [];
+                  const exps = experimentsQuery.data ?? [];
                   return (
                     <div className="mt-2 space-y-2">
                       {exps.length === 0 && (
@@ -727,16 +718,23 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                   className="text-xs"
                                 />
                                 <div className="flex gap-1.5">
-                                  <Button size="sm" className="h-6 text-[10px]" onClick={() => {
-                                    setExperiments((prev) => ({
-                                      ...prev,
-                                      [selectedCard.id]: (prev[selectedCard.id] ?? []).map((e) =>
-                                        e.id === exp.id ? { ...e, status: editExpStatus, result: editExpResult.trim() || null } : e
-                                      ),
-                                    }));
-                                    setEditingExpId(null);
-                                    toast.success('實驗已更新');
-                                  }}>儲存</Button>
+                                  <Button size="sm" className="h-6 text-[10px]" disabled={updateExperiment.isPending} onClick={() => {
+                                      updateExperiment.mutate(
+                                        {
+                                          id: exp.id,
+                                          assumptionCode: selectedCard.assumptionCode,
+                                          projectId,
+                                          status: editExpStatus,
+                                          result: editExpResult.trim() || null,
+                                        },
+                                        {
+                                          onSuccess: () => {
+                                            setEditingExpId(null);
+                                            toast.success('實驗已更新');
+                                          },
+                                        }
+                                      );
+                                    }}>{updateExperiment.isPending ? '儲存中...' : '儲存'}</Button>
                                   <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingExpId(null)}>取消</Button>
                                 </div>
                               </div>
@@ -764,23 +762,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                       disabled={deleteExperiment.isPending}
                                       onClick={() => {
                                         deleteExperiment.mutate(
-                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode },
-                                          {
-                                            onSuccess: () => {
-                                              const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
-                                              setExperiments((prev) => ({
-                                                ...prev,
-                                                [selectedCard.id]: updated,
-                                              }));
-                                              onUpdateAssumptions(
-                                                assumptions.map((a) =>
-                                                  a.id === selectedCard.id
-                                                    ? { ...a, experimentCount: updated.length }
-                                                    : a
-                                                )
-                                              );
-                                            },
-                                          }
+                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode, projectId },
                                         );
                                       }}
                                     >
@@ -802,26 +784,22 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                             placeholder="新增實驗名稱..."
                             className="h-7 text-xs flex-1"
                           />
-                          <Button size="sm" className="h-7 text-xs" disabled={newExpName.trim().length < 2} onClick={() => {
-                            const newExp: Experiment = {
-                              id: `exp-${Date.now()}`,
-                              name: newExpName.trim(),
-                              status: 'Plan',
-                              result: null,
-                              createdAt: new Date().toISOString(),
-                            };
-                            setExperiments((prev) => ({
-                              ...prev,
-                              [selectedCard.id]: [...(prev[selectedCard.id] ?? []), newExp],
-                            }));
-                            onUpdateAssumptions(
-                              assumptions.map((a) =>
-                                a.id === selectedCard.id ? { ...a, experimentCount: (experiments[selectedCard.id]?.length ?? 0) + 1 } : a
-                              )
-                            );
-                            setNewExpName('');
-                            toast.success('實驗已新增');
-                          }}>
+                          <Button size="sm" className="h-7 text-xs" disabled={newExpName.trim().length < 2 || createExperiment.isPending} onClick={() => {
+                              createExperiment.mutate(
+                                {
+                                  projectId,
+                                  assumptionCode: selectedCard.assumptionCode,
+                                  name: newExpName.trim(),
+                                  status: 'Plan',
+                                },
+                                {
+                                  onSuccess: () => {
+                                    setNewExpName('');
+                                    toast.success('實驗已新增');
+                                  },
+                                }
+                              );
+                            }}>
                             <Plus className="h-3 w-3 mr-0.5" /> 新增
                           </Button>
                         </div>

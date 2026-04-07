@@ -86,6 +86,12 @@ export default function Explore() {
     }),
     [trackAssumptions],
   );
+  const socraticQaStrings = useMemo(
+    () => questions
+      .filter((q) => q.answer && q.answer.trim().length > 0)
+      .map((q) => `[${q.category}] Q: ${q.text} → A: ${q.answer}`),
+    [questions],
+  );
 
   const isLoading = isLoadingQuestions || isLoadingContradictions || isLoadingNodes || isLoadingEdges;
 
@@ -197,6 +203,7 @@ export default function Explore() {
                   mission: brief?.mission,
                   constraints: constraintStrings,
                   kpis: kpiStrings,
+                  socraticAnswers: socraticQaStrings,
                 })
                   .then((result) => {
                     supabase
@@ -277,7 +284,7 @@ export default function Explore() {
         }
       }
     }
-  }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings, startOp, endOp]);
+  }, [questions, updateQuestion, createQuestion, id, queryClient, brief?.mission, constraintStrings, kpiStrings, socraticQaStrings, startOp, endOp]);
 
   // Delete a single Socratic question (Gmail-style: immediate delete + undo re-insert)
   const handleDeleteQuestion = useCallback((qId: string) => {
@@ -548,6 +555,7 @@ export default function Explore() {
             mission={brief?.mission}
             constraints={constraintStrings}
             kpis={kpiStrings}
+            socraticAnswers={socraticQaStrings}
           />
         </TabsContent>
 
@@ -561,6 +569,7 @@ export default function Explore() {
             mission={brief?.mission}
             constraints={constraintStrings}
             kpis={kpiStrings}
+            socraticAnswers={socraticQaStrings}
           />
         </TabsContent>
       </Tabs>

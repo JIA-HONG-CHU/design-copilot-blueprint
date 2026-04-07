@@ -62,6 +62,8 @@ export {
 export {
   useTrackAssumptions,
   useUpdateTrackAssumptionStatus,
+  useCreateTrackAssumption,
+  useDeleteTrackAssumption,
   useUnknownFactors,
   useCreateUnknownFactor,
   useUpdateUnknownFactor,

@@ -14,7 +14,7 @@ import { EvidenceEntryDialog } from "@/components/evidence/EvidenceEntryDialog";
 import { socraticGenerate } from "@/lib/api";
 import type { TrackAssumption, VerificationStatus, RiskLevel, Experiment, ExperimentStatus } from "@/types/track";
 import { VERIFICATION_STATUS_CONFIG, RISK_LEVEL_CONFIG, KANBAN_COLUMNS, EXPERIMENT_STATUS_CONFIG } from "@/types/track";
-import { useTrackExperiments, useDeleteTrackExperiment } from "@/hooks/api/useTrack";
+import { useTrackExperiments, useCreateTrackExperiment, useUpdateTrackExperiment, useDeleteTrackExperiment, useCreateTrackAssumption, useDeleteTrackAssumption } from "@/hooks/api/useTrack";
 import { useEvidenceEntries, useDeleteEvidenceEntry, useUpdateEvidenceEntry } from "@/hooks/api/useEvidenceEntries";
 
 interface KanbanBoardProps {
@@ -35,7 +35,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   const [dragOverColumn, setDragOverColumn] = useState<VerificationStatus | null>(null);
 
   // Experiment state
-  const [experiments, setExperiments] = useState<Record<string, Experiment[]>>({});
   const [newExpName, setNewExpName] = useState('');
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
   const [editExpResult, setEditExpResult] = useState('');
@@ -57,10 +56,19 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
   // Mobile column selector
   const [mobileColumn, setMobileColumn] = useState<VerificationStatus>('unverified');
 
+  // Delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // DB mutation hooks
+  const createAssumption = useCreateTrackAssumption(projectId);
+  const deleteAssumption = useDeleteTrackAssumption(projectId);
+
   // Fetch experiments from Supabase for the selected card
   const selectedAssumptionCode = selectedCard?.assumptionCode;
   const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
   const deleteExperiment = useDeleteTrackExperiment();
+  const createExperiment = useCreateTrackExperiment();
+  const updateExperiment = useUpdateTrackExperiment();
 
   // Fetch evidence entries for this project
   const { data: allEvidence } = useEvidenceEntries(projectId);
@@ -85,16 +93,6 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       e.linkedAssumptionCodes.includes(selectedCard.assumptionCode)
     );
   }, [selectedCard, allEvidence]);
-
-  // Seed local experiment cache when DB data arrives
-  useEffect(() => {
-    if (selectedCard && experimentsQuery.data && experimentsQuery.data.length > 0) {
-      setExperiments((prev) => ({
-        ...prev,
-        [selectedCard.id]: experimentsQuery.data,
-      }));
-    }
-  }, [selectedCard?.id, experimentsQuery.data]);
 
   // Reset all edit states when switching cards
   useEffect(() => {
@@ -131,30 +129,43 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
       toast.error('請選擇風險等級');
       return;
     }
+
     const code = `A-${String(assumptions.length + 1).padStart(3, '0')}`;
-    const now = new Date().toISOString();
-    const newA: TrackAssumption = {
-      id: `ta-${Date.now()}`,
-      assumptionCode: code,
-      description: newDesc,
-      riskLevel: newRisk,
-      verificationStatus: 'unverified',
-      experimentCount: 0,
-      source: 'manual',
-      linkedContradictionId: null,
-      aiChallenge: null,
-      worstConsequence: '',
-      verificationCost: '',
-      verificationDuration: '',
-      sourceArtifactId: null,
-      createdAt: now,
-      updatedAt: now,
+    const riskToSeverity: Record<RiskLevel, string> = {
+      'L': 'low',
+      'M': 'medium',
+      'H': 'high',
+      'H*': 'critical',
     };
-    onUpdateAssumptions([...assumptions, newA]);
-    setAddModalOpen(false);
-    setNewDesc('');
-    setNewRisk('');
-    toast.success('假設已新增至「未驗證」欄');
+
+    createAssumption.mutate(
+      {
+        project_id: projectId,
+        code,
+        content: newDesc.trim(),
+        source_type: 'manual',
+        worst_severity: riskToSeverity[newRisk],
+        status: 'unverified',
+        verification_stage: 'unplanned',
+      },
+      {
+        onSuccess: () => {
+          setAddModalOpen(false);
+          setNewDesc('');
+          setNewRisk('');
+          toast.success('假設已新增至「未驗證」欄');
+        },
+      }
+    );
+  };
+
+  const handleDeleteAssumption = (id: string) => {
+    onUpdateAssumptions(assumptions.filter((a) => a.id !== id));
+    if (selectedCard?.id === id) {
+      setSelectedCard(null);
+    }
+    deleteAssumption.mutate({ id });
+    setDeleteConfirmId(null);
   };
 
   const handleAiChallenge = async () => {
@@ -306,10 +317,22 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
             )}
             {a.source === 'ai_suggest' && (
               <Badge variant="secondary" className="text-[10px]">AI</Badge>
-            )}
+            )}     
             {a.source === 'unknown_convert' && (
               <Badge variant="secondary" className="text-[10px] bg-amber-500/15 text-amber-600">來自 U</Badge>
             )}
+
+            {/* 刪除按鈕 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteConfirmId(a.id);
+              }}
+              className="ml-auto p-1 rounded hover:bg-destructive/10 transition-colors"
+              title="刪除此假設"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+            </button>
           </div>
 
           <p className="text-sm line-clamp-2">{a.description}</p>
@@ -497,6 +520,34 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
         </div>
       </div>
 
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>確認刪除假設</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            刪除後無法復原。確定要刪除假設
+            <span className="font-mono font-semibold">
+              {" "}{assumptions.find((a) => a.id === deleteConfirmId)?.assumptionCode}
+            </span>
+            {" "}嗎？
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteConfirmId(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteAssumption.isPending}
+              onClick={() => {
+                if (deleteConfirmId) handleDeleteAssumption(deleteConfirmId);
+              }}
+            >
+              {deleteAssumption.isPending ? '刪除中...' : '確認刪除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add assumption modal */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
         <DialogContent>
@@ -543,7 +594,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddModalOpen(false)}>取消</Button>
-            <Button onClick={handleAddAssumption}>建立</Button>
+            <Button onClick={handleAddAssumption} disabled={createAssumption.isPending}>{createAssumption.isPending ? '建立中...' : '建立'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -571,6 +622,16 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                 <Badge className="text-white" style={{ backgroundColor: VERIFICATION_STATUS_CONFIG[selectedCard.verificationStatus].color }}>
                   {VERIFICATION_STATUS_CONFIG[selectedCard.verificationStatus].label}
                 </Badge>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto h-7 text-xs text-destructive hover:text-destructive"
+                  onClick={() => setDeleteConfirmId(selectedCard.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  刪除
+                </Button>
               </div>
 
               <div>
@@ -614,7 +675,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
               <div>
                 <span className="text-xs text-muted-foreground">實驗詳情</span>
                 {(() => {
-                  const exps = experiments[selectedCard.id] ?? [];
+                  const exps = experimentsQuery.data ?? [];
                   return (
                     <div className="mt-2 space-y-2">
                       {exps.length === 0 && (
@@ -657,16 +718,23 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                   className="text-xs"
                                 />
                                 <div className="flex gap-1.5">
-                                  <Button size="sm" className="h-6 text-[10px]" onClick={() => {
-                                    setExperiments((prev) => ({
-                                      ...prev,
-                                      [selectedCard.id]: (prev[selectedCard.id] ?? []).map((e) =>
-                                        e.id === exp.id ? { ...e, status: editExpStatus, result: editExpResult.trim() || null } : e
-                                      ),
-                                    }));
-                                    setEditingExpId(null);
-                                    toast.success('實驗已更新');
-                                  }}>儲存</Button>
+                                  <Button size="sm" className="h-6 text-[10px]" disabled={updateExperiment.isPending} onClick={() => {
+                                      updateExperiment.mutate(
+                                        {
+                                          id: exp.id,
+                                          assumptionCode: selectedCard.assumptionCode,
+                                          projectId,
+                                          status: editExpStatus,
+                                          result: editExpResult.trim() || null,
+                                        },
+                                        {
+                                          onSuccess: () => {
+                                            setEditingExpId(null);
+                                            toast.success('實驗已更新');
+                                          },
+                                        }
+                                      );
+                                    }}>{updateExperiment.isPending ? '儲存中...' : '儲存'}</Button>
                                   <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingExpId(null)}>取消</Button>
                                 </div>
                               </div>
@@ -694,23 +762,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                                       disabled={deleteExperiment.isPending}
                                       onClick={() => {
                                         deleteExperiment.mutate(
-                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode },
-                                          {
-                                            onSuccess: () => {
-                                              const updated = (experiments[selectedCard.id] ?? []).filter((e) => e.id !== exp.id);
-                                              setExperiments((prev) => ({
-                                                ...prev,
-                                                [selectedCard.id]: updated,
-                                              }));
-                                              onUpdateAssumptions(
-                                                assumptions.map((a) =>
-                                                  a.id === selectedCard.id
-                                                    ? { ...a, experimentCount: updated.length }
-                                                    : a
-                                                )
-                                              );
-                                            },
-                                          }
+                                          { id: exp.id, assumptionCode: selectedCard.assumptionCode, projectId },
                                         );
                                       }}
                                     >
@@ -732,26 +784,22 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
                             placeholder="新增實驗名稱..."
                             className="h-7 text-xs flex-1"
                           />
-                          <Button size="sm" className="h-7 text-xs" disabled={newExpName.trim().length < 2} onClick={() => {
-                            const newExp: Experiment = {
-                              id: `exp-${Date.now()}`,
-                              name: newExpName.trim(),
-                              status: 'Plan',
-                              result: null,
-                              createdAt: new Date().toISOString(),
-                            };
-                            setExperiments((prev) => ({
-                              ...prev,
-                              [selectedCard.id]: [...(prev[selectedCard.id] ?? []), newExp],
-                            }));
-                            onUpdateAssumptions(
-                              assumptions.map((a) =>
-                                a.id === selectedCard.id ? { ...a, experimentCount: (experiments[selectedCard.id]?.length ?? 0) + 1 } : a
-                              )
-                            );
-                            setNewExpName('');
-                            toast.success('實驗已新增');
-                          }}>
+                          <Button size="sm" className="h-7 text-xs" disabled={newExpName.trim().length < 2 || createExperiment.isPending} onClick={() => {
+                              createExperiment.mutate(
+                                {
+                                  projectId,
+                                  assumptionCode: selectedCard.assumptionCode,
+                                  name: newExpName.trim(),
+                                  status: 'Plan',
+                                },
+                                {
+                                  onSuccess: () => {
+                                    setNewExpName('');
+                                    toast.success('實驗已新增');
+                                  },
+                                }
+                              );
+                            }}>
                             <Plus className="h-3 w-3 mr-0.5" /> 新增
                           </Button>
                         </div>

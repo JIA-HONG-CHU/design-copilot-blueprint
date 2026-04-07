@@ -7,8 +7,7 @@ export interface SocraticQuestion {
   text: string;
   answer: string | null;
   taggedAsAssumption: boolean;
-  taggedAsContradiction: boolean;
-  aiSuggestedTag: 'assumption' | 'contradiction' | null; // AI auto-detected tag
+  aiSuggestedTag: 'assumption' | null; // AI auto-detected tag
   aiTagConfirmed: boolean; // user confirmed
   aiTagDismissed: boolean; // user dismissed the suggestion
   createdAt?: string;

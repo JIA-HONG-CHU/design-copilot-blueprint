@@ -10,7 +10,7 @@
  * Unknown Factors: Persisted to Supabase `unknown_factors` table.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { queryKeys } from './useQueryConfig';
@@ -114,7 +114,7 @@ function mapExperimentRow(row: ExperimentRow): Experiment {
 // ---------------------------------------------------------------------------
 
 export function useTrackAssumptions(projectId: string | undefined) {
-  const query = useSupabaseQuery<AssumptionRow[]>({
+  const assumptionsQuery = useSupabaseQuery<AssumptionRow[]>({
     table: 'assumptions',
     queryKey: queryKeys.track.assumptions(projectId),
     filters: projectId
@@ -124,9 +124,36 @@ export function useTrackAssumptions(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
+  const expCountQuery = useSupabaseQuery<{ assumption_code: string }[]>({
+    table: 'experiments',
+    queryKey: [...queryKeys.track.assumptions(projectId), 'exp_counts'],
+    select: 'assumption_code',
+    filters: projectId
+      ? [{ column: 'project_id', operator: 'eq', value: projectId }]
+      : [],
+    enabled: !!projectId,
+  });
+
+  const expCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (expCountQuery.data) {
+      for (const row of expCountQuery.data) {
+        counts[row.assumption_code] = (counts[row.assumption_code] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [expCountQuery.data]);
+
+  const isLoading = assumptionsQuery.isLoading || expCountQuery.isLoading;
+
   return {
-    ...query,
-    data: query.data?.map((row) => mapRowToTrackAssumption(row)) ?? [],
+    ...assumptionsQuery,
+    isLoading,
+    data: isLoading
+      ? []
+      : assumptionsQuery.data?.map((row) =>
+          mapRowToTrackAssumption(row, expCounts[row.code] ?? 0)
+        ) ?? [],
   };
 }
 
@@ -181,6 +208,52 @@ export function useUpdateTrackAssumptionStatus(projectId: string | undefined) {
       });
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// useCreateTrackAssumption — INSERT new assumption (manual add from Kanban)
+// ---------------------------------------------------------------------------
+
+export function useCreateTrackAssumption(projectId: string | undefined) {
+  return useSupabaseMutation<AssumptionRow, AssumptionInsert>({
+    table: 'assumptions',
+    type: 'insert',
+    invalidateKeys: [
+      queryKeys.track.assumptions(projectId),
+      queryKeys.assumptions.byProject(projectId),
+    ],
+    successMessage: '假設已新增',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useDeleteTrackAssumption — DELETE assumption by id
+// ---------------------------------------------------------------------------
+
+export function useDeleteTrackAssumption(projectId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, { id: string }>({
+    mutationFn: async ({ id }) => {
+      const { error } = await supabase
+        .from('assumptions')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.track.assumptions(projectId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.assumptions.byProject(projectId),
+      });
+      toast.success('假設已刪除');
+    },
+    onError: (error) => {
+      toast.error(`刪除假設失敗：${error.message}`);
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -338,15 +411,96 @@ export function useTrackExperiments(assumptionCode: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-// useDeleteTrackExperiment — DELETE experiment by id
+// useCreateTrackExperiment and useUpdateTrackExperiment and useDeleteTrackExperiment — CREATE and UPDATE and DELETE experiment by id
 // ---------------------------------------------------------------------------
 
 import { useMutation } from '@tanstack/react-query';
 
+export function useCreateTrackExperiment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      projectId: string;
+      assumptionCode: string;
+      name: string;
+      status: ExperimentStatus;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from('experiments')
+        .insert({
+          project_id: params.projectId,
+          user_id: user?.id,
+          assumption_code: params.assumptionCode,
+          name: params.name,
+          status: params.status,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.track.assumptions(variables.projectId),
+      });
+    },
+    onError: () => {
+      toast.error('新增實驗失敗');
+    },
+  });
+}
+
+export function useUpdateTrackExperiment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      id: string;
+      assumptionCode: string;
+      projectId?: string;
+      status?: ExperimentStatus;
+      result?: string | null;
+    }) => {
+      const updates: Record<string, unknown> = {};
+      if (params.status !== undefined) updates.status = params.status;
+      if (params.result !== undefined) updates.result = params.result;
+
+      const { data, error } = await supabase
+        .from('experiments')
+        .update(updates)
+        .eq('id', params.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+      });
+      if (variables.projectId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.track.assumptions(variables.projectId),
+        });
+      }
+    },
+    onError: () => {
+      toast.error('更新實驗失敗');
+    },
+  });
+}
+
 export function useDeleteTrackExperiment() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { id: string; assumptionCode: string }>({
+  return useMutation<void, Error, { id: string; assumptionCode: string; projectId?: string }>({
     mutationFn: async ({ id }) => {
       const { error } = await supabase
         .from('experiments')
@@ -359,6 +513,11 @@ export function useDeleteTrackExperiment() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
       });
+      if (variables.projectId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.track.assumptions(variables.projectId),
+        });
+      }
       toast.success('實驗已刪除');
     },
     onError: (error) => {

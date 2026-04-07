@@ -94,7 +94,6 @@ def _solve_tc(req: TrizLookupRequest) -> TrizLookupResponse:
 
 
 def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
-    print("_solve_pc req: ", req)
     triz_context = build_triz_pc_context()
 
     prompt = TRIZ_PC_INSTANTIATION.format(
@@ -114,8 +113,6 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
         if not s.get("path"):
             s["path"] = "PC"
             
-    print("suggestions: ", suggestions)
-
     return TrizLookupResponse(
         suggestions=suggestions,
     )

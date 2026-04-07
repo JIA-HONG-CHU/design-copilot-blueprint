@@ -3,7 +3,7 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -780,11 +780,26 @@ class SubsystemSuggestRequest(BaseModel):
 
 
 class InterfaceContract(BaseModel):
+    # Accept BOTH camelCase (LLM output per SUBSYSTEM_SUGGESTION prompt) and
+    # snake_case (Python convention). Previously only snake_case was accepted,
+    # which silently dropped LLM-generated values into empty strings.
     envelope: str = ""
-    loadPath: str = Field(default="", validation_alias="load_path")
-    thermalPath: str = Field(default="", validation_alias="thermal_path")
-    signalPath: str = Field(default="", validation_alias="signal_path")
-    datumTolerance: str = Field(default="", validation_alias="datum_tolerance")
+    loadPath: str = Field(
+        default="",
+        validation_alias=AliasChoices("loadPath", "load_path"),
+    )
+    thermalPath: str = Field(
+        default="",
+        validation_alias=AliasChoices("thermalPath", "thermal_path"),
+    )
+    signalPath: str = Field(
+        default="",
+        validation_alias=AliasChoices("signalPath", "signal_path"),
+    )
+    datumTolerance: str = Field(
+        default="",
+        validation_alias=AliasChoices("datumTolerance", "datum_tolerance"),
+    )
     serviceability: str = ""
 
 

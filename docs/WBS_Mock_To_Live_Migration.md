@@ -2,6 +2,19 @@
 
 **目標**：將所有 16 個 mock data 檔案替換為 Supabase 即時 API，實現完整的 CRUD 資料流。
 
+**最後更新**：2026-04-07
+**整體進度**：~75% 完成（Sprint 0–3 已落地，Sprint 4 知識管理大致完成但 7 個 mock 檔尚有殘留 import）
+
+### 進度速覽
+
+| Sprint | 狀態 | 備註 |
+|--------|------|------|
+| Sprint 0 基礎建設 | ✅ 完成 | 31 表 + RLS + types + react-query 結構 |
+| Sprint 1 專案 + Step 1 | ✅ 完成 | Projects/Brief/Constraints/KPIs/Socratic/Contradictions/Assumptions/CLD 全部 live |
+| Sprint 2 Step 2 解方探索 | ✅ 完成 | Anti-Anchor/TRIZ(含 Su-Field)/Subsystems/SCAMPER/Alternatives/ConceptRoutes/CompatPairs/Solutions/PreCAD 全部 live；Track 假設新增/刪除已寫入 DB |
+| Sprint 3 Step 3 審查決策 | ✅ 完成 | Evidence Matrix / Risks / Experiments / Decision / WANT / AC / Signatures / Actions / Export 全部 live |
+| Sprint 4 知識 + 收尾 | 🟡 進行中 | Feynman/KnowledgeArticles hooks live；7 個 mock 檔仍存在於 `src/data/`（含部分 import）|
+
 ---
 
 ## §1 現況盤點
@@ -28,15 +41,17 @@
 | 16 | Settings | `/settings` | — | — | 已有 (profiles) | — |
 | 17 | Auth | `/auth` | — | — | 已有 (auth) | — |
 
-### 1.2 現有 Supabase 資源
+### 1.2 現有 Supabase 資源（2026-04-07 更新）
 
 | 資源 | 狀態 |
 |------|------|
-| Auth (signIn/signUp/reset) | 已實作 |
-| profiles 表 | 已實作 |
-| experiments 表 | 已實作 (基本欄位) |
-| review_attachments 表 | 已實作 |
-| 其餘所有業務資料 | 全部 mock |
+| Auth (signIn/signUp/reset) | ✅ 已實作 |
+| profiles 表 | ✅ 已實作 |
+| **31 張業務資料表** | ✅ 已部署（migrations 000–004）|
+| RLS Policies | ✅ 全表覆蓋 |
+| types.ts (auto-gen) | ✅ 同步 |
+| react-query 封裝 | ✅ `src/hooks/api/` 完整結構 |
+| Storage（review attachments）| ✅ 已實作 |
 
 ---
 
@@ -597,94 +612,105 @@ CREATE TABLE knowledge_entries (
 
 ## §5 WBS 開發工作分解
 
-### Sprint 0：基礎建設（1 週）
+### Sprint 0：基礎建設 ✅ 完成
 
-| WBS | 工作項目 | 產出 | 依賴 |
+| WBS | 工作項目 | 狀態 | 產出 |
 |-----|---------|------|------|
-| 0.1 | Supabase Schema 建立 | 26 張新表 + 3 張擴展 | — |
-| 0.2 | RLS (Row Level Security) 策略 | 每張表的 RLS policy | 0.1 |
-| 0.3 | Supabase types 自動產生 | `types.ts` 更新 | 0.1 |
-| 0.4 | API 基礎架構 | `src/hooks/api/` 目錄結構、共用 query client 配置 | 0.3 |
-| 0.5 | Error handling 與 loading 統一元件 | `<QueryBoundary>`, `<ErrorFallback>` | — |
-| 0.6 | Seed data 腳本 | 開發用初始資料 | 0.1 |
+| 0.1 | Supabase Schema 建立 | ✅ | 31 張表（migrations 000–004）|
+| 0.2 | RLS (Row Level Security) 策略 | ✅ | 每張表的 RLS policy |
+| 0.3 | Supabase types 自動產生 | ✅ | `src/integrations/supabase/types.ts` 同步 |
+| 0.4 | API 基礎架構 | ✅ | `src/hooks/api/` + react-query QueryClient |
+| 0.5 | Error/Loading 統一元件 | ✅ | `<QueryBoundary>` / `<ErrorFallback>` |
+| 0.6 | Seed data 腳本 | ✅ | DevSeed.tsx + seed migration |
 
-### Sprint 1：專案骨幹 + Step 1（2 週）
+### Sprint 1：專案骨幹 + Step 1 ✅ 完成
 
-| WBS | 工作項目 | 功能 | Mock 檔案替換 | 依賴 |
-|-----|---------|------|-------------|------|
-| 1.1 | Projects API + 頁面接入 | F01, F02 | mockProjects, mockDashboard, mockNavCards | 0.4 |
-| 1.2 | Brief/Constraints/KPIs API | F03, F04, F05, F06 | mockTaskDefinition, mockExtraction | 1.1 |
-| 1.3 | Socratic + Contradictions API | F07, F08, F09 | mockExplore, mockContradictions, trizParameters | 1.1 |
-| 1.4 | Assumptions + CLD API | F10, F11, F12 | mockAssumptions | 1.3 |
+| WBS | 工作項目 | 功能 | 狀態 | Mock 檔案 |
+|-----|---------|------|------|-----------|
+| 1.1 | Projects API + 頁面接入 | F01, F02 | ✅ | mockProjects ✅ 移除 / mockDashboard ✅ 移除 / mockNavCards 🟡 仍存在但未使用 |
+| 1.2 | Brief/Constraints/KPIs API | F03–F06 | ✅ | mockTaskDefinition ✅ 移除 / mockExtraction ✅ 移除 |
+| 1.3 | Socratic + Contradictions API | F07–F09 | ✅ | mockExplore 🟡 仍 import / mockContradictions ✅ 移除 / trizParameters 保留 |
+| 1.4 | Assumptions + CLD API | F10–F12 | ✅ | mockAssumptions ✅ 移除 |
 
-### Sprint 2：Step 2 解方探索（2 週）
+### Sprint 2：Step 2 解方探索 ✅ 完成
 
-| WBS | 工作項目 | 功能 | Mock 檔案替換 | 依賴 |
-|-----|---------|------|-------------|------|
-| 2.1 | Track API (假設看板 + 未知因素) | F13, F14 | mockTrack | 1.4 |
-| 2.2 | Anti-Anchor + TRIZ + Subsystem API | F15, F16, F17 | mockCreate (部分) | 1.3 |
-| 2.3 | SCAMPER + Alternatives API | F18, F19, F20 | mockCreate (部分) | 2.2 |
-| 2.4 | Convergence Loop + Multi-Solution API | F21, F22 | mockConvergence, mockConceptRoutes | 2.3 |
-| 2.5 | Solution Explorer API | F23 | mockSolutions | 2.2 |
-| 2.6 | Pre-CAD + CAD Status API | F24, F25 | mockSolutions (部分) | 2.3 |
+| WBS | 工作項目 | 功能 | 狀態 | Mock 檔案 |
+|-----|---------|------|------|-----------|
+| 2.1 | Track API（假設看板 + 未知因素 + 實驗）| F13, F14 | ✅ | mockTrack 🟡 仍 import；`unknown_factors` 表已建立、`useTrackAssumptions/useCreate/useDelete/useUnknownFactors/useTrackExperiments` 完整 |
+| 2.2 | Anti-Anchor + TRIZ + Subsystem API | F15–F17 | ✅ | mockCreate 🟡 仍 import；TRIZ 已支援 TC/PC/SF 三路徑（含 `/triz/sufield`）|
+| 2.3 | SCAMPER + Alternatives API | F18–F20 | ✅ | mockCreate（同上）；含 SCAMPER feedback-contradictions 閉環 |
+| 2.4 | Convergence Loop + Multi-Solution API | F21, F22 | ✅ | mockConvergence ✅ 移除 / mockConceptRoutes 🟡 仍存在 |
+| 2.5 | Solution Explorer API | F23 | ✅ | mockSolutions ✅ 移除 |
+| 2.6 | Pre-CAD + CAD Status API | F24, F25 | ✅ | `usePreCadSolutions` / `usePreCadConvergenceStats` 已 live |
 
-### Sprint 3：Step 3 審查決策（2 週）
+### Sprint 3：Step 3 審查決策 ✅ 完成
 
-| WBS | 工作項目 | 功能 | Mock 檔案替換 | 依賴 |
-|-----|---------|------|-------------|------|
-| 3.1 | Evidence Matrix API | F26 | mockDesignReview (部分) | 2.1 |
-| 3.2 | Risks + Experiments API | F27, F28 | mockDesignReview (部分) | 3.1 |
-| 3.3 | Decision + WANT Scoring API | F30, F31 | mockDecisionRecord (部分) | 2.3 |
-| 3.4 | AC + Signatures + Actions API | F32, F33, F34 | mockDecisionRecord (部分) | 3.3 |
-| 3.5 | Export API | F35 | — | 3.4 |
+| WBS | 工作項目 | 功能 | 狀態 | Mock 檔案 |
+|-----|---------|------|------|-----------|
+| 3.1 | Evidence Matrix API | F26 | ✅ | mockDesignReview ✅ 移除 |
+| 3.2 | Risks + Experiments API | F27, F28 | ✅ | 同上（experiments 表已擴展 linked_assumptions/evidence_level/method/success_criteria）|
+| 3.3 | Decision + WANT Scoring API | F30, F31 | ✅ | mockDecisionRecord ✅ 移除 |
+| 3.4 | AC + Signatures + Actions API | F32–F34 | ✅ | 同上 |
+| 3.5 | Export API | F35 | ✅ | `POST /api/v1/export` 已實作 |
 
-### Sprint 4：知識管理 + 收尾（1 週）
+### Sprint 4：知識管理 + 收尾 🟡 進行中
 
-| WBS | 工作項目 | 功能 | Mock 檔案替換 | 依賴 |
-|-----|---------|------|-------------|------|
-| 4.1 | Feynman Knowledge Entries API | F36 | 內建 mock | 3.4 |
-| 4.2 | Knowledge Base API | F37 | mockKnowledge | — |
-| 4.3 | Knowledge Refs 遷移 | — | mockKnowledgeRefs | 4.2 |
-| 4.4 | Mock 檔案清除 | — | 全部 16 個 mock 檔案 | 全部完成 |
-| 4.5 | 整合測試 + E2E 驗證 | — | — | 4.4 |
+| WBS | 工作項目 | 功能 | 狀態 | 備註 |
+|-----|---------|------|------|------|
+| 4.1 | Feynman Knowledge Entries API | F36 | ✅ | `useKnowledgeEntries` live |
+| 4.2 | Knowledge Base API | F37 | ✅ Hook live | `useKnowledgeArticles` 完成；KnowledgeBase.tsx 仍 import `mockKnowledge` 作為 fallback |
+| 4.3 | Knowledge Refs 遷移 | — | 🟡 | `mockKnowledgeRefs` 仍被 KnowledgeBase 使用 |
+| 4.4 | Mock 檔案清除 | — | 🟡 | 仍剩 7 個 mock 檔（見 §6）|
+| 4.5 | 整合測試 + E2E 驗證 | — | 🔲 | 待 4.4 完成 |
 
-### 工期總覽
+### 工期總覽（實績）
 
-| Sprint | 週數 | 工作項目數 | Mock 檔案清除 |
+| Sprint | 狀態 | 工作項目數 | Mock 檔案清除 |
 |--------|------|-----------|-------------|
-| Sprint 0 基礎建設 | 1 | 6 | 0 |
-| Sprint 1 專案 + Step 1 | 2 | 4 | 7 |
-| Sprint 2 Step 2 | 2 | 6 | 5 |
-| Sprint 3 Step 3 | 2 | 5 | 2 |
-| Sprint 4 知識 + 收尾 | 1 | 5 | 2 |
-| **合計** | **8 週** | **26** | **16** |
+| Sprint 0 基礎建設 | ✅ | 6 | 0 |
+| Sprint 1 專案 + Step 1 | ✅ | 4 | 6 |
+| Sprint 2 Step 2 | ✅ | 6 | 2 |
+| Sprint 3 Step 3 | ✅ | 5 | 2 |
+| Sprint 4 知識 + 收尾 | 🟡 | 5 | 0（pending） |
+| **合計** | **~85%** | **26** | **10 / 17** |
 
 ---
 
-## §6 Mock 檔案 → 刪除對照表
+## §6 Mock 檔案 → 清除狀態（2026-04-07）
 
-| Mock 檔案 | 替換 Sprint | 替換的 API Hooks |
-|-----------|------------|-----------------|
-| `mockProjects.ts` | Sprint 1 | useProjects, useProject |
-| `mockDashboard.ts` | Sprint 1 | useProjectStats |
-| `mockNavCards.ts` | Sprint 1 | useProject (derived) |
-| `mockTaskDefinition.ts` | Sprint 1 | useBrief, useConstraints, useKpis |
-| `mockExtraction.ts` | Sprint 1 | AI extraction endpoint |
-| `mockExplore.ts` | Sprint 1 | useSocraticQuestions, useCldNodes/Edges |
-| `mockContradictions.ts` | Sprint 1 | useContradictions |
-| `mockAssumptions.ts` | Sprint 1 | useAssumptions, useCldNodes/Edges |
-| `mockTrack.ts` | Sprint 2 | useAssumptions (Track view) |
-| `mockCreate.ts` | Sprint 2 | useAntiAnchorRoutes, useTrizSolutions, useSubsystems, useScamperVariants, useAlternatives |
-| `mockConvergence.ts` | Sprint 2 | useConvergenceLoop (refactor) |
-| `mockConceptRoutes.ts` | Sprint 2 | useConceptRoutes, useCompatibilityPairs |
-| `mockSolutions.ts` | Sprint 2 | useSolutions |
-| `mockDesignReview.ts` | Sprint 3 | useEvidenceMatrix, useRisks, useExperiments |
-| `mockDecisionRecord.ts` | Sprint 3 | useDecision, useWantCriteria, useWantScores, useSignatures |
-| `mockKnowledge.ts` | Sprint 4 | useKnowledgeArticles |
-| `mockKnowledgeRefs.ts` | Sprint 4 | (知識引用系統) |
-| `trizParameters.ts` | **保留** | 靜態知識，不需遷移至 DB |
+| Mock 檔案 | 規劃 Sprint | 替換的 API Hooks | 清除狀態 |
+|-----------|------------|-----------------|----------|
+| `mockProjects.ts` | Sprint 1 | useProjects, useProject | ✅ 已移除 |
+| `mockDashboard.ts` | Sprint 1 | useProjectStats | ✅ 已移除 |
+| `mockNavCards.ts` | Sprint 1 | useProject (derived) | 🟡 檔案存在但無頁面 import |
+| `mockTaskDefinition.ts` | Sprint 1 | useBrief, useConstraints, useKpis | ✅ 已移除 |
+| `mockExtraction.ts` | Sprint 1 | AI extraction endpoint | ✅ 已移除 |
+| `mockExplore.ts` | Sprint 1 | useSocraticQuestions, useCldNodes/Edges | 🟡 仍被 Explore.tsx import（fallback）|
+| `mockContradictions.ts` | Sprint 1 | useContradictions | ✅ 已移除 |
+| `mockAssumptions.ts` | Sprint 1 | useAssumptions, useCldNodes/Edges | ✅ 已移除 |
+| `mockTrack.ts` | Sprint 2 | useTrackAssumptions, useUnknownFactors, useTrackExperiments | 🟡 仍被 Track.tsx import |
+| `mockCreate.ts` | Sprint 2 | useAntiAnchorRoutes/useTrizSolutions/useSubsystems/useScamperVariants/useAlternatives | 🟡 仍被 Create.tsx import |
+| `mockConvergence.ts` | Sprint 2 | useContradictionScan / convergence stats | ✅ 已移除 |
+| `mockConceptRoutes.ts` | Sprint 2 | useConceptRoutes, useCompatibilityPairs | 🟡 檔案存在 |
+| `mockSolutions.ts` | Sprint 2 | useSolutions | ✅ 已移除 |
+| `mockDesignReview.ts` | Sprint 3 | useEvidenceMatrix, useRisks, useExperiments, useEvidenceEntries | ✅ 已移除 |
+| `mockDecisionRecord.ts` | Sprint 3 | useDecision, useWantCriteria, useWantScores, useSignatures, useActionItems, useAdverseConsequences | ✅ 已移除 |
+| `mockKnowledge.ts` | Sprint 4 | useKnowledgeArticles | 🟡 仍被 KnowledgeBase.tsx import |
+| `mockKnowledgeRefs.ts` | Sprint 4 | (各頁 KnowledgeRefsPanel) | 🟡 仍被 KnowledgeBase.tsx import |
+| `trizParameters.ts` | **保留** | 靜態知識，不需遷移至 DB | ⏸ 永久保留 |
+
+**清除統計**：9 ✅ 已移除 / 7 🟡 殘留 / 1 ⏸ 永久保留 = 共 17 個
 
 > `trizParameters.ts` 為 TRIZ 39 工程參數靜態資料，屬於知識庫常數，保留於前端。
+
+### Sprint 4 收尾待辦清單
+
+1. **Explore.tsx**：移除 `mockExplore` import，全面改用 `useSocraticQuestions` / `useExploreContradictions` / `useCldNodes` / `useCldEdges`。
+2. **Track.tsx**：移除 `mockTrack` import；目前 hooks 已 live，僅型別/輔助常數仍依賴 mock 檔。
+3. **Create.tsx**：移除 `mockCreate` import；解方探索全 hook 已 live，Create 頁仍以 mock 為視覺 fallback。
+4. **KnowledgeBase.tsx**：移除 `mockKnowledge` / `mockKnowledgeRefs`，全面切換至 `useKnowledgeArticles` / `useKnowledgeEntries`。
+5. **mockNavCards.ts / mockConceptRoutes.ts**：確認無頁面依賴後直接刪檔。
+6. **整合 E2E 驗證**：完成上述清除後執行 Playwright / 走查 Gate 1.1 → Phase Gate 3 全流程。
 
 ---
 

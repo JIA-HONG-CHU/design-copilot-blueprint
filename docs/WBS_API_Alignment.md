@@ -1,6 +1,6 @@
 # WBS × API 對齊分析：SOW v1.0 vs 現況實作
 
-> **Date**: 2026-03-13 (Updated)
+> **Date**: 2026-04-07 (Updated)
 > **Purpose**: 逐項比對 SOW WBS 規劃的 API 端點與現有實作，標記路徑偏差、缺失端點、實作方式差異
 
 ---
@@ -9,43 +9,51 @@
 
 | 指標 | SOW 規劃 | 實際實作 |
 |------|----------|----------|
-| 後端 API 端點數 | 35+ (CRUD + AI) | 24 (AI + Gate + stub) |
+| 後端 API 端點數 | 35+ (CRUD + AI) | **31** (AI + Gate + 健康檢查，全部已實作)|
 | CRUD 端點 | 後端 REST API | 前端 Supabase JS Client |
-| AI 端點 | 後端 FastAPI | 後端 FastAPI ✅（全部 SOW 路徑對齊）|
-| 資料庫表 | 27 (SQLAlchemy ORM) | 29 (Supabase，多 concept_routes + compatibility_pairs) |
+| AI 端點 | 後端 FastAPI | 後端 FastAPI ✅（全部 SOW 路徑對齊 + 11 個新增）|
+| 資料庫表 | 27 (SQLAlchemy ORM) | **31** (Supabase，新增 unknown_factors, contradiction_assumption_links 等)|
 | 認證 | 自訂 JWT | Supabase Auth |
 | Gate 檢查 | `GET /gates/:id/check` | ✅ 已實作（8 Gate 全查 Supabase）|
+| 501 stub 端點 | — | **0**（先前 export / knowledge_writeback / scamper_feedback 三 stub 已全部完成）|
 
 **根因**：ADR-001 決定採用 BaaS-First 架構，CRUD 由前端直接操作 Supabase，後端僅負責 AI 編排。
 
-### 後端路由全清單（28 routes）
+### 後端路由全清單（31 routes，2026-04-07）
 
 | # | Method | Path | 模組 | 狀態 |
 |---|--------|------|------|------|
 | 1 | POST | `/api/v1/definitions/extract` | 任務定義 | ✅ 完整實作 |
 | 2 | POST | `/api/v1/definitions/rewrite` | 任務定義 | ✅ 完整實作 |
-| 3 | POST | `/api/v1/definitions/suggest-constraints` | 任務定義 | ✅ 完整實作 |
-| 4 | POST | `/api/v1/definitions/suggest-kpis` | 任務定義 | ✅ 完整實作 |
-| 5 | POST | `/api/v1/definitions/generate-5w1h` | 任務定義 | ✅ 完整實作 |
-| 6 | POST | `/api/v1/questions/generate` | 索克拉底問答 | ✅ 完整實作 |
-| 7 | POST | `/api/v1/causal-loops/generate` | 因果迴路 | ✅ 完整實作 |
-| 8 | POST | `/api/v1/contradictions/{cid}/formalize` | 矛盾管理 | ✅ 完整實作 |
-| 9 | POST | `/api/v1/assumptions/extract` | 假設台帳 | ✅ 完整實作 |
-| 10 | POST | `/api/v1/alternatives/anti-anchor` | 反錨定 | ✅ 完整實作 |
-| 11 | POST | `/api/v1/triz/solve` | TRIZ | ✅ 完整實作 |
-| 12 | POST | `/api/v1/scamper/perform` | SCAMPER | ✅ 完整實作 |
-| 13 | POST | `/api/v1/scamper/subsystem-suggestions` | SCAMPER | ✅ 完整實作 |
-| 14 | POST | `/api/v1/scamper/feedback-contradictions` | SCAMPER | 🔸 501 stub |
-| 15 | POST | `/api/v1/risks/analyze` | 風險分析 | ✅ 完整實作 |
-| 16 | POST | `/api/v1/actions/suggest` | 行動建議 | ✅ 完整實作 |
-| 17 | POST | `/api/v1/convergence/scan` | 收斂掃描 | ✅ 完整實作 |
-| 18 | POST | `/api/v1/must/evaluate` | MUST 評估 | ✅ 完整實作 |
-| 19 | POST | `/api/v1/pre-cad-reviews/{rid}/ai-analyze` | Pre-CAD | ✅ 完整實作 |
-| 20 | POST | `/api/v1/want/criteria/seed` | WANT 評分 | ✅ 完整實作 |
-| 21 | GET | `/api/v1/gates/{gate_id}/check` | Gate 檢查 | ✅ 完整實作（8 gates） |
-| 22 | POST | `/api/v1/export` | 匯出 | 🔸 501 stub (v1.1) |
-| 23 | POST | `/api/v1/knowledge/writeback` | 知識回寫 | 🔸 501 stub (v1.1) |
-| 24 | GET | `/api/v1/health` | 健康檢查 | ✅ |
+| 3 | POST | `/api/v1/definitions/check-feasibility` | 任務定義 | ✅ 新增（約束間衝突偵測）|
+| 4 | POST | `/api/v1/definitions/suggest-constraints` | 任務定義 | ✅ 完整實作 |
+| 5 | POST | `/api/v1/definitions/suggest-kpis` | 任務定義 | ✅ 完整實作 |
+| 6 | POST | `/api/v1/definitions/generate-5w1h` | 任務定義 | ✅ 完整實作 |
+| 7 | POST | `/api/v1/questions/generate` | 索克拉底問答 | ✅ 完整實作 |
+| 8 | POST | `/api/v1/questions/follow-up` | 索克拉底問答 | ✅ 新增（追問鏈）|
+| 9 | POST | `/api/v1/questions/brief-impact` | 索克拉底問答 | ✅ 新增（回答 → Brief 影響分析）|
+| 10 | POST | `/api/v1/questions/auto-tag` | 索克拉底問答 | ✅ 新增（自動標記假設/矛盾）|
+| 11 | POST | `/api/v1/causal-loops/generate` | 因果迴路 | ✅ 完整實作 |
+| 12 | POST | `/api/v1/contradictions/{cid}/formalize` | 矛盾管理 | ✅ 完整實作 |
+| 13 | POST | `/api/v1/assumptions/extract` | 假設台帳 | ✅ 完整實作 |
+| 14 | POST | `/api/v1/alternatives/anti-anchor` | 反錨定 | ✅ 完整實作 |
+| 15 | POST | `/api/v1/alternatives/validation-passport` | 反錨定 | ✅ 新增（路線可行性護照）|
+| 16 | POST | `/api/v1/triz/solve` | TRIZ (TC/PC) | ✅ 完整實作 |
+| 17 | POST | `/api/v1/triz/sufield` | TRIZ (Su-Field) | ✅ 新增（76 Standard Solutions）|
+| 18 | POST | `/api/v1/scamper/perform` | SCAMPER | ✅ 完整實作 |
+| 19 | POST | `/api/v1/scamper/subsystem-suggestions` | SCAMPER | ✅ 完整實作 |
+| 20 | POST | `/api/v1/scamper/feedback-contradictions` | SCAMPER | ✅ **已完成**（先前為 501 stub）|
+| 21 | POST | `/api/v1/unknown-factors/discover` | 未知因素 | ✅ 新增（U-set 自動發現）|
+| 22 | POST | `/api/v1/risks/analyze` | 風險分析 | ✅ 完整實作 |
+| 23 | POST | `/api/v1/actions/suggest` | 行動建議 | ✅ 完整實作 |
+| 24 | POST | `/api/v1/convergence/scan` | 收斂掃描 | ✅ 完整實作 |
+| 25 | POST | `/api/v1/must/evaluate` | MUST 評估 | ✅ 完整實作 |
+| 26 | POST | `/api/v1/pre-cad-reviews/{rid}/ai-analyze` | Pre-CAD | ✅ 完整實作 |
+| 27 | POST | `/api/v1/want/criteria/seed` | WANT 評分 | ✅ 完整實作 |
+| 28 | GET | `/api/v1/gates/{gate_id}/check` | Gate 檢查 | ✅ 完整實作（8 gates） |
+| 29 | POST | `/api/v1/export` | 匯出 | ✅ **已完成**（先前為 501 stub）|
+| 30 | POST | `/api/v1/knowledge/writeback` | 知識回寫 | ✅ **已完成**（先前為 501 stub）|
+| 31 | GET | `/api/v1/health` | 健康檢查 | ✅ |
 
 ---
 
@@ -54,8 +62,8 @@
 | WBS | SOW 規劃 | 實際實作 | 狀態 |
 |-----|----------|----------|------|
 | WP-1.1 | FastAPI scaffold + middleware + error handler | FastAPI scaffold ✅ CORS middleware ✅ | ✅ 完成 |
-| WP-1.2 | 27 ORM tables + Alembic migration | 29 Supabase tables + SQL migrations | ⚠️ 偏差：無 ORM，改用 Supabase migration |
-| WP-1.3 | 統一 LLMService (retry + token + prompt loader) | 簡易 `call_llm_json` / `call_llm_structured` | ⚠️ 缺失：無 retry / token / prompt loader（見 ADR-003）|
+| WP-1.2 | 27 ORM tables + Alembic migration | 31 Supabase tables + 5 SQL migrations (000–004) | ⚠️ 偏差：無 ORM，改用 Supabase migration |
+| WP-1.3 | 統一 LLMService (retry + token + prompt loader) | `retry_on_transient` (指數退避) + `_estimate_tokens` + `_resolve_anthropic_max_tokens` + 集中 prompts (`backend/app/prompts/`) + 多 provider (Anthropic/OpenAI/Azure/Gemini/Qwen) | ✅ **已完成**（ADR-003 closure）|
 | WP-1.4 | JWT/SSO + user model + permission middleware | Supabase Auth + RLS | ⚠️ 偏差：無自訂 auth 端點 |
 | WP-1.5 | React scaffold + routes + Design System | React + Vite + shadcn/ui + 19 pages | ✅ 完成（超出預期頁面數）|
 
@@ -121,8 +129,8 @@
 | 取得假設列表 | GET | `/assumptions/{pid}` | — | ❌ 前端 Supabase |
 | 更新假設 | PUT | `/assumptions/{id}` | — | ❌ 前端 Supabase |
 | AI 提取假設 | POST | `/assumptions/extract` | `/api/v1/assumptions/extract` | ✅ 路徑一致 |
-| 記錄反證 | POST | `/assumptions/{aid}/disprove` | — | ❌ 未實作 |
-| Unknown Factors CRUD | POST/GET/PUT | `/unknown-factors/*` | — | ❌ 使用 localStorage（見 ADR-002）|
+| 記錄反證 | POST | `/assumptions/{aid}/disprove` | — | ❌ 未實作（前端可透過 status='refuted' update 達成）|
+| Unknown Factors CRUD | POST/GET/PUT | `/unknown-factors/*` | Supabase `unknown_factors` 表 + AI 發現端點 `/api/v1/unknown-factors/discover` | ✅ **已完成**（脫離 localStorage）|
 
 ### WP-3.2 Anti-Anchor Sprint
 
@@ -145,13 +153,13 @@
 |---------|--------|----------|----------|------|
 | 執行 SCAMPER | POST | `/scamper/perform` | `/api/v1/scamper/perform` | ✅ 路徑一致 |
 | 子系統建議 | POST | `/scamper/subsystem-suggestions` | `/api/v1/scamper/subsystem-suggestions` | ✅ 路徑一致 |
-| 矛盾回饋 | POST | `/scamper/feedback-contradictions` | `/api/v1/scamper/feedback-contradictions` | 🔸 501 stub（需 Supabase 整合）|
+| 矛盾回饋 | POST | `/scamper/feedback-contradictions` | `/api/v1/scamper/feedback-contradictions` | ✅ **已完成**（整合 Supabase `contradictions` 寫入）|
 
 ### WP-3.5 Contradiction Feedback Loop
 
 | SOW API | SOW 路徑 | 實際實作 | 狀態 |
 |---------|----------|----------|------|
-| 回饋新矛盾 | `/scamper/feedback-contradictions` | 後端 501 stub + 前端 `useContradictionScan` hook | 🔸 前端邏輯替代，後端待整合 |
+| 回饋新矛盾 | `/scamper/feedback-contradictions` | 後端完整實作 + 前端 `useContradictionScan` hook | ✅ 端到端閉環 |
 
 ### WP-3.6 Alternative Set + Interface Contract
 
@@ -228,14 +236,14 @@
 
 | SOW API | Method | SOW 路徑 | 實際路徑 | 狀態 |
 |---------|--------|----------|----------|------|
-| 知識回寫 | POST | `/knowledge/writeback` | `/api/v1/knowledge/writeback` | 🔸 501 stub (v1.1) |
+| 知識回寫 | POST | `/knowledge/writeback` | `/api/v1/knowledge/writeback` | ✅ **已完成** |
 | Knowledge CRUD | — | — | — | ❌ 前端 Supabase `knowledge_entries` + `knowledge_articles` |
 
 ### WP-4.8 Export
 
 | SOW API | Method | SOW 路徑 | 實際路徑 | 狀態 |
 |---------|--------|----------|----------|------|
-| 匯出 | POST | `/export` | `/api/v1/export` | 🔸 501 stub (v1.1) |
+| 匯出 | POST | `/export` | `/api/v1/export` | ✅ **已完成** |
 
 ---
 
@@ -290,13 +298,20 @@
 | WANT Seed | `POST /want/criteria/seed` | `/api/v1/want/criteria/seed` |
 | Gate 檢查 | `GET /gates/{gate_id}/check` | `/api/v1/gates/{gate_id}/check` |
 
-### 🔸 SOW 外新增的端點（4 個）
+### 🔸 SOW 外新增的端點（11 個，全部已實作）
 
 | 功能 | 實際路徑 | 說明 |
 |------|----------|------|
+| 約束可行性檢查 | `POST /api/v1/definitions/check-feasibility` | 約束間衝突偵測（pass/warn/fail）|
+| 索克拉底追問 | `POST /api/v1/questions/follow-up` | 根據既有回答產生追問 |
+| 回答影響 Brief | `POST /api/v1/questions/brief-impact` | 將回答轉化為 Mission/約束/KPI 變更建議 |
+| 自動標記 | `POST /api/v1/questions/auto-tag` | AI 標記回答為假設或矛盾 |
+| 路線可行性護照 | `POST /api/v1/alternatives/validation-passport` | Anti-Anchor 路線的驗證護照 |
+| TRIZ Su-Field | `POST /api/v1/triz/sufield` | 76 Standard Solutions（migration 004 對應）|
+| 未知因素發現 | `POST /api/v1/unknown-factors/discover` | U-set AI 自動掃描 |
 | 收斂掃描 | `POST /api/v1/convergence/scan` | 二次矛盾偵測 + 架構健康度 |
-| 匯出 | `POST /api/v1/export` | 501 stub，v1.1 實作 |
-| 知識回寫 | `POST /api/v1/knowledge/writeback` | 501 stub，v1.1 實作 |
+| 匯出 | `POST /api/v1/export` | Markdown / JSON / PDF 匯出 |
+| 知識回寫 | `POST /api/v1/knowledge/writeback` | 6 類資產自動寫回 `knowledge_entries` |
 | 健康檢查 | `GET /api/v1/health` | 基礎設施 |
 
 ### ⚠️ 路徑不一致：無
@@ -307,7 +322,7 @@
 
 ## 前後端 Schema 一致性
 
-**結論：所有已實作的 24 個端點，前後端欄位完全對齊。**
+**結論：所有已實作的 31 個端點，前後端欄位完全對齊。**
 
 | 端點 | 前端 TS 介面 | 後端 Pydantic | 欄位一致 |
 |------|-------------|--------------|---------|
@@ -342,33 +357,31 @@
 
 | 缺口 | 說明 | 建議實作方式 |
 |------|------|-------------|
-| Phase state machine | 防止非法 Phase 轉換，`projects.phase` 可被任意設值 | Supabase `BEFORE UPDATE` trigger |
+| Phase state machine trigger | `projects.phase` 仍可被任意 update，需要 BEFORE UPDATE trigger 強制 phase 流轉規則 | Supabase trigger |
 
 ### P1 — 使用者體驗
 
 | 缺口 | 說明 | 建議實作方式 |
 |------|------|-------------|
-| Unknown Factors CRUD | 目前用 localStorage，資料不持久 | Supabase 表 + 前端 hooks |
-| `POST /assumptions/{aid}/disprove` | 反證工作流 | FastAPI 端點 + Supabase update |
-| SCAMPER feedback-contradictions | 目前 501 stub | 整合 Supabase `contradictions` 表寫入 |
+| `POST /assumptions/{aid}/disprove` | 反證專屬工作流（目前由 status='refuted' 替代）| FastAPI 端點 + Supabase update |
+| `GET /knowledge/rag/search` | RAG 知識檢索（目前僅有 writeback）| 後端 RAG pipeline |
 
-### P2 — v1.1
+### P2 — 收尾與品質
 
-| 缺口 | 說明 |
+| 項目 | 說明 |
 |------|------|
-| `POST /export` | Markdown + JSON 匯出（目前 501 stub）|
-| `POST /knowledge/writeback` | 知識沉澱管線（目前 501 stub）|
-| `GET /knowledge/rag/search` | RAG 知識搜尋 |
-| LLM retry + token management | 見 ADR-003 |
 | pytest + Playwright + Docker | 見 ADR-004 |
+| 後端 OpenAPI Schema 自動匯出至前端型別 | 減少手動同步 |
 
 ---
 
-## 結論
+## 結論（2026-04-07）
 
-1. **API 路徑 100% 對齊**：所有 20 個 SOW 定義的 AI 端點路徑已完全對齊，無任何路徑不一致。
-2. **前後端 Schema 一致**：所有 24 個端點的前端 TypeScript 介面與後端 Pydantic Schema 欄位完全對齊。
-3. **架構偏差是設計決策**：SOW 的 35+ 端點中約 24 個 CRUD 端點已由 Supabase 前端替代（ADR-001）。
-4. **功能超出 SOW**：新增 4 個 SOW 未規劃的端點（Convergence、Export stub、Knowledge stub、Health）。
-5. **Gate 檢查已實作**：8 個 Gate（1.1, 1.2, PG1, 2.1, 2.2, PG2, 3.2, PG3）全部透過 Supabase 查詢實作。
-6. **P0 缺口**：僅剩 Phase state machine（Supabase trigger）是最急迫項目。
+1. **API 路徑 100% 對齊 + 11 個增量**：20 個 SOW 端點全對齊，另新增 11 個 SOW 外功能（含 TRIZ Su-Field、Unknown Factors、Brief check-feasibility、Socratic 追問鏈、Validation Passport 等）。
+2. **501 stub 全部清零**：先前的三個 stub（`/scamper/feedback-contradictions`、`/export`、`/knowledge/writeback`）已全部完成實作。
+3. **前後端 Schema 一致**：所有 31 個端點的前端 TypeScript 介面與後端 Pydantic Schema 欄位完全對齊。
+4. **LLM Service 完整**：retry + token estimation + 多 provider + 集中 prompts 已落地（ADR-003 closure）。
+5. **資料庫成長至 31 表**：新增 `unknown_factors`、`contradiction_assumption_links` 等；migrations 001–004 補齊 validation passport / 追溯連結 / 子系統階層 / Su-Field 欄位。
+6. **架構偏差是設計決策**：SOW 的 35+ 端點中約 24 個 CRUD 端點已由 Supabase 前端替代（ADR-001）。
+7. **Gate 檢查已實作**：8 個 Gate（1.1, 1.2, PG1, 2.1, 2.2, PG2, 3.2, PG3）全部透過 Supabase 查詢實作。
+8. **P0 唯一缺口**：Phase state machine trigger。

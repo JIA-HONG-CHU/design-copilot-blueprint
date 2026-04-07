@@ -2,7 +2,8 @@
 
 > **專案**: RD Design Copilot — E2E 規格對齊
 > **基準日期**: 2026-03-12
-> **最後更新**: 2026-03-12
+> **最後更新**: 2026-04-07
+> **狀態**: 全部 42 工作包 100% 完成（2026-03-12 達成），後續持續延伸至 §6 後續強化
 > **依據**: `docs/e2e/RD_Design_Copilot_整合流程.md` 差距分析
 
 ---
@@ -235,3 +236,96 @@
 - `src/pages/DesignReview.tsx` — North Star KPI gate + MUST E2+ 驗證 + KnowledgeRefsPanel
 - `src/pages/DecisionRecord.tsx` — AC 表格 + Gate AC 條件 + W1-W7 + KnowledgeRefsPanel
 - `src/pages/Feynman.tsx` — 6 類資產 + 覆蓋率統計 + Gate 8 檢查 + KnowledgeRefsPanel
+
+---
+
+## 6.0 後續強化（2026-03-13 → 2026-04-07）
+
+> 主 WBS（1.0–5.0）在 2026-03-12 已 100% 完成。下列為差距關閉後新加入的整合與強化項目，作為交付里程碑紀錄。
+
+### 6.1 TRIZ 三路徑完整支援
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.1.1** | TRIZ Su-Field 路徑後端端點 | ✅ | `POST /api/v1/triz/sufield`，76 Standard Solutions 對應 | `backend/app/api/v1/triz.py` |
+| **6.1.2** | Contradictions 表 Su-Field 欄位 | ✅ | `sf_substance_1/2`, `sf_field`, `sf_interaction`, `sf_completeness` | `supabase/migrations/004_sufield_columns.sql` |
+| **6.1.3** | TC/PC/SF 流程文件 | ✅ | TC/PC/SF flows + 差異 doc + README index | `rd_assistant_design_system/triz_knowledge_base/` |
+
+### 6.2 Unknown Factors 持久化
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.2.1** | `unknown_factors` 表建立 | ✅ | Supabase 表 + RLS | `supabase/migrations/000_full_deploy.sql` |
+| **6.2.2** | AI 自動發現端點 | ✅ | `POST /api/v1/unknown-factors/discover` | `backend/app/api/v1/unknown_factors.py` |
+| **6.2.3** | 前端 hooks + Track 整合 | ✅ | `useUnknownFactors` / `useCreateUnknownFactor` / `useConvertUnknownToAssumption` | `src/hooks/api/useUnknownFactors.ts` |
+
+### 6.3 假設台帳 DB 化（Track Kanban）
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.3.1** | Track 假設新增/刪除寫入 DB | ✅ | `useCreateTrackAssumption` / `useDeleteTrackAssumption` | `src/hooks/api/useTrack.ts` |
+| **6.3.2** | Kanban UI 串接 | ✅ | 卡片新增、刪除確認 Dialog、cache invalidation | `src/components/track/KanbanBoard.tsx` |
+| **6.3.3** | 實驗數量顯示修正 | ✅ | 解決顯示為 0 / 刪除需按兩次的問題 | `src/hooks/api/useTrack.ts` |
+
+### 6.4 追溯連結與子系統階層
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.4.1** | Contradiction → Question 來源連結 | ✅ | `contradictions.source_question_id` | `supabase/migrations/002_traceability_links.sql` |
+| **6.4.2** | Contradiction ↔ Assumption N:N | ✅ | `contradiction_assumption_links` 表（depends_on/challenges/derived_from）| `supabase/migrations/002_traceability_links.sql` |
+| **6.4.3** | 子系統階層化 | ✅ | `subsystems.level` (system/module/component) + `interface_contracts JSONB` | `supabase/migrations/003_subsystem_hierarchy.sql` |
+
+### 6.5 Anti-Anchor Validation Passport
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.5.1** | 路線可行性護照欄位 | ✅ | `anti_anchor_routes.validation_passport JSONB` + `mechanism / why_unconventional / cross_domain_source` | `supabase/migrations/001_validation_passport.sql` |
+| **6.5.2** | 後端護照產生端點 | ✅ | `POST /api/v1/alternatives/validation-passport` | `backend/app/api/v1/validation.py` |
+
+### 6.6 Socratic 問答強化
+
+| WBS ID | 工作包 | 狀態 | 交付物 | 修改檔案 |
+|--------|--------|------|--------|----------|
+| **6.6.1** | 追問鏈端點 | ✅ | `POST /api/v1/questions/follow-up` | `backend/app/api/v1/socratic.py` |
+| **6.6.2** | 回答 → Brief 影響分析 | ✅ | `POST /api/v1/questions/brief-impact` | `backend/app/api/v1/socratic.py` |
+| **6.6.3** | 自動標記 | ✅ | `POST /api/v1/questions/auto-tag`（識別假設/矛盾候選）| `backend/app/api/v1/socratic.py` |
+| **6.6.4** | Socratic 問答資料納入矛盾識別/CLD prompt | 🔲 設計中 | 已蒐集所有問答、待設計如何注入 prompt | — |
+
+### 6.7 501 Stub 全面清除
+
+| WBS ID | 工作包 | 狀態 | 交付物 |
+|--------|--------|------|--------|
+| **6.7.1** | `/scamper/feedback-contradictions` | ✅ | 整合 Supabase contradictions 寫入 |
+| **6.7.2** | `/export` | ✅ | Markdown / JSON / PDF 匯出 |
+| **6.7.3** | `/knowledge/writeback` | ✅ | 6 類資產自動寫入 `knowledge_entries` |
+
+### 6.8 LLM Service 強化（ADR-003 closure）
+
+| WBS ID | 工作包 | 狀態 | 交付物 |
+|--------|--------|------|--------|
+| **6.8.1** | Retry with exponential backoff | ✅ | `retry_on_transient` decorator（1s/2s/4s, max 3）|
+| **6.8.2** | Token estimation + 警告 | ✅ | `_estimate_tokens` + `_warn_if_high_token_usage` (80% 警示) |
+| **6.8.3** | 多 provider 抽象 | ✅ | Anthropic / OpenAI / Azure / Gemini / Qwen via `settings.llm_provider` |
+| **6.8.4** | 集中 prompts | ✅ | `backend/app/prompts/{analyst,evaluator,triz_solver,knowledge}.py` |
+
+### 6.9 後續強化完成統計
+
+| 區段 | 工作包 | 完成 | 待做 |
+|------|--------|------|------|
+| 6.1 TRIZ 三路徑 | 3 | 3 | 0 |
+| 6.2 Unknown Factors | 3 | 3 | 0 |
+| 6.3 Track DB 化 | 3 | 3 | 0 |
+| 6.4 追溯連結 | 3 | 3 | 0 |
+| 6.5 Validation Passport | 2 | 2 | 0 |
+| 6.6 Socratic 強化 | 4 | 3 | 1 |
+| 6.7 501 清除 | 3 | 3 | 0 |
+| 6.8 LLM Service | 4 | 4 | 0 |
+| **小計** | **25** | **24** | **1** |
+
+### 6.10 全 WBS 累計（1.0–6.0）
+
+| 階段 | 工作包 | 完成 | 完成率 |
+|------|--------|------|--------|
+| 1.0–5.0 主差距修正 | 42 | 42 | 100% |
+| 6.0 後續強化 | 25 | 24 | 96% |
+| **總計** | **67** | **66** | **98.5%** |

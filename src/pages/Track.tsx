@@ -139,9 +139,9 @@ export default function Track() {
   const highRiskWithExp = highRiskAssumptions.filter((a) => a.experimentCount > 0).length;
 
   const gateItems: TrackGateItem[] = useMemo(() => [
-    { label: '至少 5 個假設已建立', current: totalAssumptions, target: 5, passed: totalAssumptions >= 5 },
+    // { label: '至少 5 個假設已建立', current: totalAssumptions, target: 5, passed: totalAssumptions >= 5 },
     { label: '至少 1 個假設處於「驗證中」或以上', current: beyondUnverified, target: 1, passed: beyondUnverified >= 1 },
-    { label: '所有高風險 (H*/H) 假設皆有實驗計畫', current: highRiskWithExp, target: Math.max(highRiskAssumptions.length, 1), passed: highRiskAssumptions.length > 0 && highRiskWithExp === highRiskAssumptions.length },
+    // { label: '所有高風險 (H*/H) 假設皆有實驗計畫', current: highRiskWithExp, target: Math.max(highRiskAssumptions.length, 1), passed: highRiskAssumptions.length > 0 && highRiskWithExp === highRiskAssumptions.length },
   ], [totalAssumptions, beyondUnverified, highRiskWithExp, highRiskAssumptions.length]);
 
   const openFactors = displayFactors.filter((f) => f.status === 'open').length;

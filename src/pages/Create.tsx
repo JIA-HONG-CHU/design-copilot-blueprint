@@ -1088,14 +1088,6 @@ export default function Create() {
                       <Badge variant="outline" className="text-xs font-mono shrink-0">路線 {i + 1}</Badge>
                       <span className="text-sm font-semibold flex-1 truncate">{r.name}</span>
                       <div className="flex items-center gap-2 shrink-0">
-                        {r.crossDomainSource && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="secondary" className="text-[9px] max-w-[120px] truncate cursor-default">{r.crossDomainSource}</Badge>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-xs text-xs">{r.crossDomainSource}</TooltipContent>
-                          </Tooltip>
-                        )}
                         {confidence !== null && (
                           <Badge variant="outline" className="text-[9px]">信心 {confidence}%</Badge>
                         )}
@@ -1330,7 +1322,14 @@ export default function Create() {
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <Badge className={cn("text-[10px]", PATH_COLORS[ts.path] || 'bg-muted')}>{ts.path}</Badge>
                                 <Badge variant="outline" className="text-[10px]">
-                                  {ts.principleNumber ? `原理 ${ts.principleNumber}: ` : ''}{ts.principleName}
+                                  {ts.path === 'TC' && ts.principleNumber
+                                  ? `原理 #${ts.principleNumber}: ${ts.principleName}`
+                                  : ts.path === 'PC'
+                                  ? `${ts.principleName}`
+                                  : ts.path === 'SF'
+                                  ? `${ts.principleName}`
+                                  : ts.principleName
+                                }
                                 </Badge>
                                 <Badge className={cn("text-[10px]", statusInfo.cls)}>{statusInfo.label}</Badge>
                               </div>

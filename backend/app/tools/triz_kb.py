@@ -60,53 +60,51 @@ def load_76_standard_solutions() -> str:
 
 @lru_cache(maxsize=128)
 def lookup_matrix(improving: int, worsening: int) -> list[int]:
-    """Lookup contradiction matrix: returns candidate principle numbers.
+    """Look up the contradiction matrix and return candidate principle numbers.
 
-    Instead of loading the full 39×39 matrix into LLM context,
-    we parse the specific cell and return just the principle numbers.
+    The matrix markdown is organized as one section per improving parameter,
+    each containing a two-column table where rows represent worsening parameters
+    and cells hold comma-separated principle numbers.
+
+    Args:
+        improving: The improving parameter number (1-39).
+        worsening: The worsening parameter number (1-39).
+
+    Returns:
+        A list of candidate inventive principle numbers, or [] if no entry found.
     """
     raw = _load_matrix_raw()
 
-    # Parse the matrix table — each row starts with "| {improving_param} |"
-    # and columns correspond to worsening parameters
-    lines = raw.split("\n")
+    # Locate the section for the given improving parameter.
+    pattern = rf"## 參數\s+{improving}\s*[:：]"
+    match = re.search(pattern, raw)
+    if not match:
+        return []
 
-    # Find table header to determine column positions
-    header_line = None
-    data_lines = []
-    in_table = False
+    # Extract text until the next section (or end of file).
+    next_section = re.search(r"## 參數\s+\d+\s*[:：]", raw[match.end():])
+    if next_section:
+        section = raw[match.start():match.end() + next_section.start()]
+    else:
+        section = raw[match.start():]
 
-    for line in lines:
-        if line.startswith("|") and "改善" in line or "worsening" in line.lower():
-            header_line = line
-            in_table = True
+    # Scan table rows within the section to find the worsening parameter.
+    for line in section.split("\n"):
+        if not line.startswith("|"):
             continue
-        if in_table and line.startswith("|---"):
-            continue
-        if in_table and line.startswith("|"):
-            data_lines.append(line)
-        elif in_table and not line.startswith("|"):
-            in_table = False
-
-    # Find the row for improving parameter
-    for line in data_lines:
         cells = [c.strip() for c in line.split("|")[1:-1]]
-        if not cells:
-            continue
-        try:
-            row_param = int(re.search(r"\d+", cells[0]).group())
-        except (AttributeError, ValueError):
-            continue
-        if row_param != improving:
+        if len(cells) < 2:
             continue
 
-        # Find column for worsening parameter (column index = worsening - 1 + 1 for row header)
-        col_idx = worsening  # 1-based, first cell is row header
-        if col_idx < len(cells):
-            cell = cells[col_idx]
-            # Parse principle numbers from cell (e.g., "1, 28, 35" or "—")
-            principles = [int(n) for n in re.findall(r"\d+", cell)]
-            return principles
+        # The first cell starts with the worsening parameter number,
+        # e.g. "27 可靠性 (Reliability)".
+        num_match = re.match(r"(\d+)\s", cells[0])
+        if not num_match:
+            continue
+
+        if int(num_match.group(1)) == worsening:
+            # The second cell contains comma-separated principle numbers.
+            return [int(n) for n in re.findall(r"\d+", cells[1])]
 
     return []
 
@@ -211,46 +209,14 @@ def build_sufield_context(system_state: str | None = None) -> str:
         return f"{intro}\n\n---\n\n{filtered}\n\n---\n\n{flow}"
     return f"## Su-Field 76 標準解\n\n{full_text}"
 
-
-def _extract_principles_by_ids(principle_ids: list[int]) -> str:
-    """Extract specific principles from 40 principles by their IDs."""
-    full_text = load_40_principles()
-    sections = []
-    for pid in principle_ids:
-        pattern = rf"(### #{pid}\s.+?)(?=### #\d+\s|## LLM|$)"
-        match = re.search(pattern, full_text, re.DOTALL)
-        if match:
-            sections.append(match.group(1).strip())
-    return "\n\n".join(sections) if sections else full_text
-
-
-# Separation strategy → most relevant 40 principles mapping
-_SEPARATION_RELEVANT_PRINCIPLES: dict[str, list[int]] = {
-    "time":      [9, 10, 11, 15, 19, 20, 21],   # pre-action, dynamics, periodic, rushing
-    "space":     [1, 2, 3, 4, 7, 17],             # segmentation, extraction, local quality, nesting, dimension
-    "condition":  [15, 35, 36, 37, 38, 39],        # dynamics, parameter change, phase transition, thermal expansion
-    "whole_part": [1, 5, 6, 7, 31, 40],            # segmentation, merging, universality, nesting, porous, composite
-}
-
-
-def build_triz_pc_context(separation_type: str | None = None) -> str:
+    
+def build_triz_pc_context() -> str:
     """Build prompt context for Physical Contradiction resolution.
 
-    Level 1 optimization: if separation_type is provided, only inject
-    the relevant subset of 40 principles (~500-800 tokens) instead of all 40 (~4000 tokens).
+    Only injects the separation principles knowledge base.
+    PC resolution uses separation strategies directly,
+    not the 40 inventive principles.
     """
     sep_text = load_separation_principles()
 
-    if separation_type and separation_type in _SEPARATION_RELEVANT_PRINCIPLES:
-        principle_ids = _SEPARATION_RELEVANT_PRINCIPLES[separation_type]
-        principles_context = _extract_principles_by_ids(principle_ids)
-        label = separation_type
-    else:
-        principles_context = load_40_principles()
-        label = "all"
-
-    return (
-        f"## 物理矛盾分離原則\n\n{sep_text}\n\n"
-        f"---\n\n"
-        f"## 候選發明原理（{label} 分離相關）\n\n{principles_context}"
-    )
+    return f"## 物理矛盾分離原則\n\n{sep_text}"

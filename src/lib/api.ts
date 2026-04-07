@@ -443,6 +443,7 @@ export interface CldGenerateRequest {
   mission?: string;
   constraints?: string[];
   kpis?: string[];
+  socraticAnswers?: string[];
 }
 
 export interface CldNode {
@@ -787,6 +788,7 @@ export interface ContradictionFormalizeRequest {
   mission?: string;
   constraints?: string[];
   kpis?: string[];
+  socraticAnswers?: string[];
 }
 
 export interface ContradictionFormalizeResponse {

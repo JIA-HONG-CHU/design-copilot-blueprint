@@ -170,7 +170,7 @@ class SocraticQuestion(BaseModel):
     # 內部欄位叫 category，但可接受輸入 key = type_class
     category: str = Field(validation_alias="type_class") # clarification, assumption, consequence, counter, origin, reflection, reframing
     text: str
-    suggested_tag: str | None = None  # assumption, contradiction, or None
+    suggested_tag: str | None = None  # assumption, or None
 
 
 class SocraticResponse(BaseModel):
@@ -272,6 +272,7 @@ class CldGenerationRequest(BaseModel):
     mission: str = ""
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
+    socraticAnswers: list[str] = Field(default_factory=list)
 
 
 class CldNode(BaseModel):
@@ -717,6 +718,7 @@ class ContradictionFormalizeRequest(BaseModel):
     mission: str = ""
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
+    socraticAnswers: list[str] = Field(default_factory=list)
 
 
 class ContradictionFormalizeResponse(BaseModel):

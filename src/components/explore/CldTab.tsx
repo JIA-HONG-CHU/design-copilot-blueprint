@@ -62,6 +62,7 @@ interface CldTabProps {
   mission?: string;
   constraints?: string[];
   kpis?: string[];
+  socraticAnswers?: string[];
 }
 
 const NODE_W = 140;
@@ -146,7 +147,7 @@ function toFlowEdges(causalEdges: CausalEdge[]): Edge[] {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis }: CldTabProps) {
+export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictions = [], assumptions = [], mission, constraints, kpis, socraticAnswers }: CldTabProps) {
   const qc = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const { runGuarded, isMountedRef } = useAiOperationGuard();
@@ -213,6 +214,7 @@ export function CldTab({ causalLoop, onUpdateCausalLoop, projectId, contradictio
           mission,
           constraints,
           kpis,
+          socraticAnswers,
         });
 
         await supabase.from("cld_edges").delete().eq("project_id", projectId);

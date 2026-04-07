@@ -28,9 +28,10 @@ interface ContradictionTabProps {
   mission?: string;
   constraints?: string[];
   kpis?: string[];
+  socraticAnswers?: string[];
 }
 
-export function ContradictionTab({ contradictions, onUpdateContradictions, hasAnswers, projectId, mission, constraints, kpis }: ContradictionTabProps) {
+export function ContradictionTab({ contradictions, onUpdateContradictions, hasAnswers, projectId, mission, constraints, kpis, socraticAnswers }: ContradictionTabProps) {
   const qc = useQueryClient();
   const [aiLoadingType, setAiLoadingType] = useState<ContradictionType | null>(null);
   const { runGuarded, isMountedRef } = useAiOperationGuard();
@@ -176,7 +177,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
               project_id: projectId,
               contradiction_id: c.id,
               natural_description: c.description,
-              mission, constraints, kpis,
+              mission, constraints, kpis, socraticAnswers,
             });
             await supabase
               .from('contradictions')
@@ -227,7 +228,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           project_id: projectId,
           contradiction_id: draft.id,
           natural_description: desc,
-          mission, constraints, kpis,
+          mission, constraints, kpis, socraticAnswers,
         });
 
         await supabase

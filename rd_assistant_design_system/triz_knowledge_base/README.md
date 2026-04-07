@@ -14,6 +14,8 @@
 | `03_40_principles.md` | TRIZ 40 發明原理 + 子原理 | 40 筆 | Step 5a (原理具體化) |
 | `04_separation_principles.md` | 物理矛盾分離原則 | 4 大類 | Step 5a-2 (分離策略) |
 | `05_76_standard_solutions.md` | Su-Field 76 標準解 | 76 筆 (5 大類) | Step 5a-3 (標準解) |
+| `06_tc_pc_sf_flows.md` | TC / PC / SF 三徑流程 + Prompt 解析區塊圖 | 1 篇（Mermaid） | 架構對照、Prompt 設計 |
+| `07_tc_pc_sf_differences.md` | TC / PC / SF 差異對照（矛盾形態、KB、Prompt 共用性） | 1 篇 | 類型判定、與後端對齊 |
 
 ## 使用方式
 

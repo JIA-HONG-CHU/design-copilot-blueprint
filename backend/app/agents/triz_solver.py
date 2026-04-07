@@ -112,7 +112,7 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
     for s in suggestions:
         if not s.get("path"):
             s["path"] = "PC"
-            
+
     return TrizLookupResponse(
         suggestions=suggestions,
     )

@@ -221,6 +221,7 @@ export default function Explore() {
                         sf_field: result.sf_field,
                         sf_interaction: result.sf_interaction,
                         sf_completeness: result.sf_completeness,
+                        natural_description: result.engineering_statement || desc,
                         updated_at: new Date().toISOString(),
                       })
                       .eq('id', data.id)

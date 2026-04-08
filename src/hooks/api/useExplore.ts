@@ -83,8 +83,6 @@ interface ExploreContradictionRow {
 }
 
 const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradiction => {
-  // Parse PC attributes from physical_contradiction field
-  // Format from manual edit: "A | notA", from AI: free-text description
   let pcA: string | null = null;
   let pcNotA: string | null = null;
   if (r.physical_contradiction) {
@@ -93,10 +91,14 @@ const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradi
       pcA = parts[0].trim() || null;
       pcNotA = parts[1].trim() || null;
     } else {
-      // AI returns a descriptive sentence — show as attribute A
       pcA = r.physical_contradiction;
     }
   }
+
+  // ✅ 優先用 engineering_statement，fallback 到 natural_description
+  const description = (r.engineering_statement && r.engineering_statement.trim())
+    || (r.natural_description && r.natural_description.trim())
+    || '';
 
   return {
     id: r.id,
@@ -111,10 +113,11 @@ const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradi
     sfField: r.sf_field ?? null,
     sfInteraction: r.sf_interaction ?? null,
     sfCompleteness: r.sf_completeness ?? null,
-    description: r.engineering_statement || r.natural_description || '',
+    description,
     engineeringStatement: r.engineering_statement ?? null,
     status: (r.resolved ? 'confirmed' : 'draft') as ContradictionStatus,
-    source: r.engineering_statement ? 'ai' : 'manual',
+    // ✅ 修正 source 判斷邏輯：有 improving_param 或 sf_substance_1 也算 AI 處理過
+    source: (r.engineering_statement || r.improving_param || r.sf_substance_1) ? 'ai' : 'manual',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -294,6 +297,8 @@ export function useExploreContradictions(projectId: string | undefined) {
     },
     enabled: !!projectId,
     ...defaultQueryOptions,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

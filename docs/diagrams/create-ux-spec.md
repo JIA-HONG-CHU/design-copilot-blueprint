@@ -1,5 +1,13 @@
 # Create 頁面 UX 設計規格
 
+> **v6 (2026-04-08)**：對齊 architecture v10 — Tab ② 子系統定義新增 Spatial Discovery Validator UI。
+> - 介面契約展開區新增 spatial 區塊（bbox + mass + confidence badge）
+> - 新增 Package Map 面板（SVG 包絡圖 + clash 警示）
+> - 新增 RD inline override 入口（手動修正單一 component 數字）
+> - 新增 What-if Overlay 二級按鈕（試算車架包絡）
+> - Pre-CAD spatial_score 改為 deterministic（validator 算術產出，非 LLM 拍腦袋）
+> - 新增 Spatial Confidence 視覺對應規範
+>
 > **v5 (2026-03-26)**：雙軌對稱 — 各一個節點 → 候選池 → 決策中心。
 > - 反向：Anti-Anchor（1 個節點，創意發散）
 > - 正向：TRIZ + 子系統 + SCAMPER 合成一個 E2E 節點（內部 tab 切換），報告風格對齊 Anti-Anchor
@@ -123,15 +131,48 @@
 | 收斂 Dashboard | confidence / health / fatal·major·minor | 唯讀 |
 | 人類審核 | converged/halted 時 → 確認或重試 | setReviewConfirmed() |
 
-**Tab ② 子系統定義**
+**Tab ② 子系統定義（含 Spatial Discovery）**
 
-| 元素 | 互動 | 觸發 |
+> 對應架構：`Forward_Subsystem_Discovery_Architecture.md` v2.0 的 F2 + F2.5。F2 是 LLM 產出三層樹 + 6 維契約；F2.5 是純算術 validator 把 LLM 估計值用 layered resolver 真值覆寫，並產出 Package Map。**整個 tab 的 UI 必須讓 RD 一眼分辨「這是 LLM 拍腦袋的 / 這是 vendor 真值 / 這是我自己 override 的」**。
+
+##### 區塊 A：三層樹 + 介面契約
+
+| 元素 | 互動 | 觸發 / API |
 |------|------|------|
-| [AI 建議架構分解] | LLM 產出 System→Module→Component 樹 | POST /scamper/subsystem-suggestions |
-| [手動新增] | 表單：名稱 / 層級 / 理由 / 關聯矛盾 | createSubsystem() |
-| 樹狀結構 | 展開 System → Module → Component | 可收合 |
-| 介面契約 | 耦合模組間 6 維介面 | 唯讀 / 可編輯 |
+| [AI 建議架構分解] | LLM 產出 System→Module→Component 樹（含 spatial） | POST /scamper/subsystem-suggestions |
+| [手動新增] | 表單：名稱 / 層級 / 理由 / 關聯矛盾 / 鄰居名稱 | createSubsystem() |
+| 樹狀結構 | 展開 System → Module → Component（三層皆可帶契約） | 可收合 |
+| 介面契約・6 維欄位 | envelope / loadPath / signalPath / thermalPath / datumTolerance / serviceability | 唯讀 / 可編輯 |
+| 介面契約・spatial 區塊 | bbox（x×y×z mm）+ mass_g + mounting_pattern | 唯讀 |
+| 介面契約・confidence badge | rd_confirmed / library / estimate / llm_estimate 五色 | 唯讀（見 §Spatial Confidence） |
+| 介面契約・reference_source | rd_override:&lt;key&gt; / learned:&lt;key&gt; / web:&lt;query&gt; / seed:&lt;key&gt; / llm_estimate | 唯讀 hover 顯示 trace |
+| [✏ 我來給數字] | 開啟 RD inline override 對話框（輸入 bbox + mass） | POST /spatial/component-overrides |
+| [📤 推升至 learned] | 把當前估計推升為跨專案 learned component | POST /spatial/learned-components |
 | [確認] | confirmed → 解鎖 SCAMPER tab | updateSubsystem() |
+
+##### 區塊 B：Package Map 面板（F2.5 discovery 輸出）
+
+| 元素 | 互動 | 觸發 / API |
+|------|------|------|
+| Package Map SVG | 俯視（XY）+ 側視（XZ）兩個正交圖 | 唯讀（隨 subsystem-suggestions response 自動更新） |
+| 總質量 | required.total_mass_g | 唯讀數字 |
+| 最小封殼 | required.total_bbox_mm | 唯讀數字 |
+| Clash 警示 | 重疊的 module pair 紅色標示 | 即時 |
+| Notes | validator 補充提示 | 唯讀清單 |
+
+##### 區塊 C：What-if Overlay（可選，F2.5 overlay）
+
+> **設計原則**：discovery 是 descriptive、overlay 是 prescriptive。overlay **不限制**創意發想，只用來事後比較 trade-off。
+
+| 元素 | 互動 | 觸發 / API |
+|------|------|------|
+| [🧪 試算車架包絡] | 二級按鈕，預設摺疊 | 開啟 overlay 對話框 |
+| Zone 輸入表單 | 為每個 anchor（BB_center / downtube_top / ...）輸入 max bbox | 表單編輯 |
+| Mass budget 輸入 | 為每個 module 輸入 max mass_g | 表單編輯 |
+| [執行 Overlay] | 套上 overlay 重算 | POST /scamper/spatial-overlay |
+| Overlay SVG | 紅 / 橘 / 綠標示 fits / tight / clash | 唯讀 |
+| overlay_violations 清單 | 超界 module 列表 | 唯讀 |
+| [清除 Overlay] | 回到 discovery 原始 SVG | 本地 state |
 
 **Tab ③ SCAMPER 變形**
 
@@ -170,7 +211,9 @@
 | 元素 | 互動 | 觸發 |
 |------|------|------|
 | MUST 快篩 | 每方案 × M1-M6 → pass/fail/marginal | AI + RD |
-| Pre-CAD 審查 | 五維雷達圖 | RD / AI 建議 |
+| Pre-CAD 審查 | 五維雷達圖 | spatial = validator 算術產出（deterministic）；cost/safety/decoupling/supply = LLM |
+| Pre-CAD spatial trace | 顯示 validator 用了哪些 module 的 bbox + clash + 總質量算出此分數 | 唯讀（hover 展開） |
+| [📤 推升簽核估計] | Pre-CAD 通過後，把高 confidence 的估計批次推升至 learned | POST /spatial/learned-components ×N |
 | Phase Gate 2 | ≥1 方案 overallPass → 進入 CAD | 自動 |
 
 ### ⑤ 收斂監控（摺疊面板）
@@ -193,6 +236,42 @@
 | **報告格式統一** | 兩條路徑的候選卡片格式一致（mechanism + VP） |
 | **路徑色彩** | 反向 = amber（⚡暖色），正向 = blue（🎯冷色） |
 | **候選池匯流** | 所有候選進同一個池，在決策中心統一比較 |
+| **Discovery 不限制創意** | F2.5 spatial validator 是 descriptive，never blocking。overlay 是可選的事後 trade-off 工具 |
+| **Confidence 必須可見** | 每個 spatial 數字都帶 confidence badge，RD 一眼分辨「LLM 拍腦袋 vs vendor 真值」 |
+| **Trace 每一個數字** | reference_source 必須能 hover 顯示完整 trace（哪一層、哪個 key、何時被覆寫） |
+
+---
+
+## Spatial Confidence 視覺對應
+
+> **來源**：`Forward_Subsystem_Discovery_Architecture.md` §6.2 reference_source 命名空間。
+> **設計原則**：colour-coded by trust level，深綠 → 紅依信任度遞減。RD 看顏色就知道是否需要手動 override。
+
+| confidence | reference_source 前綴 | Badge 配色（fill / stroke / text） | 語意 |
+|---|---|---|---|
+| **rd_confirmed** | `rd_override:<key>` | `#14532d` / `#052e16` / `#fff` 深綠白字 | RD 在本專案手動 override，最高信任 |
+| **library** | `learned:<key>` | `#bbf7d0` / `#14532d` / `#000` 淺綠黑字 | 命中跨專案 learned components |
+| **library** | `seed:<key>` | `#dcfce7` / `#14532d` / `#000` 更淺綠黑字 | 命中手工 seed JSON（backstop） |
+| **estimate** | `web:<query>` | `#fde68a` / `#92400e` / `#000` 橘黃黑字 | web lookup 抓取，未經 RD 簽核 |
+| **estimate** | （引用了 key 但查不到） | `#fef3c7` / `#92400e` / `#000` 淺橘黑字 | LLM 引用的 key 不存在，降級 |
+| **llm_estimate** | `llm_estimate` | `#fecaca` / `#7f1d1d` / `#000` 紅黑字 | LLM 自己的數字，最後 fallback，**RD 應該 override** |
+
+> **互動規則**：badge 上 hover 顯示完整 reference_source 字串與最後一次更新時間。點擊深綠 / 淺綠 badge 可看「這個值的來源歷史」（migration 路徑：seed → web → learned → rd_override）。
+
+---
+
+## Discovery vs Overlay 的職責分離
+
+> **必須遵守的 UI 規則**：discovery 與 overlay 的視覺元素**永遠不要混在同一張圖**。
+
+| 維度 | Discovery（區塊 B） | Overlay（區塊 C） |
+|---|---|---|
+| 觸發時機 | 一鍵建議子系統後**自動**算 | RD **主動**點「試算車架包絡」才算 |
+| 視覺位置 | 主面板 | 二級對話框 / 抽屜 |
+| 是否影響 confirmed | 否（只是資訊） | 否（只是 trade-off 試算） |
+| SVG 配色 | 中性灰藍 | 紅 / 橘 / 綠（fits/tight/clash） |
+| 預設顯示 | 一定顯示 | 預設摺疊 |
+| 失敗時 | 退化為「無 spatial 資料」提示 | 整個 overlay 區塊不顯示 |
 
 ---
 
@@ -202,11 +281,11 @@
 |----------|------|-----------|--------|
 | 0 | 反向探索 | 左卡片 | Anti-Anchor 操作 |
 | 1 | 正向: Tab ① TRIZ | 右卡片 | TRIZ 解矛盾 + Phase A |
-| 2 | 正向: Tab ② 子系統 | 右卡片 | 3 層架構樹 |
+| 2 | 正向: Tab ② 子系統 | 右卡片 | 3 層架構樹 + 6 維契約 + Spatial Discovery |
 | 3 | 正向: Tab ③ SCAMPER | 右卡片 | 創意變形 |
 | 4 | 決策中心 | 獨立區塊 | adopt/skip + Phase B |
 | 5 | MUST | 評估區 | M1-M6 |
-| 6 | Pre-CAD | 評估區 | 五維雷達圖 |
+| 6 | Pre-CAD | 評估區 | 五維雷達圖（spatial 為 deterministic 算術） |
 
 ---
 
@@ -220,3 +299,24 @@
 | 4 | 涉及子系統 | 第三眼 | subsystem 名稱 + 層級 |
 | 5 | 基於假設 | 第三眼 | evidence_level E0-E4 + is_falsifiable |
 | 6 | 缺少驗證 | 第三眼 | required verifications + 成本/時長 |
+
+---
+
+## 對齊文件對應表
+
+| 本 spec 章節 | 對應架構文件 | 章節 |
+|---|---|---|
+| Tab ② 區塊 A 三層樹 | `Forward_Subsystem_Discovery_Architecture.md` | §6.4 三層樹定義 |
+| Tab ② 區塊 A 6 維契約 | `Forward_Subsystem_Discovery_Architecture.md` | §6.5 六維介面契約定義 |
+| Tab ② 區塊 A spatial 區塊 | `Forward_Subsystem_Discovery_Architecture.md` | §6.1 介面契約 + Spatial 擴充 |
+| Tab ② 區塊 A reference_source | `Forward_Subsystem_Discovery_Architecture.md` | §6.2 命名空間 |
+| Tab ② 區塊 A 我來給數字 | `Forward_Subsystem_Discovery_Architecture.md` | §7.2 RD inline override 流程 |
+| Tab ② 區塊 A 推升 learned | `Forward_Subsystem_Discovery_Architecture.md` | §7.3 learned 推升流程 |
+| Tab ② 區塊 B Package Map | `Forward_Subsystem_Discovery_Architecture.md` | §3.3 PackageMap 結構 |
+| Tab ② 區塊 C What-if Overlay | `Forward_Subsystem_Discovery_Architecture.md` | §7.4 overlay 流程 |
+| Spatial Confidence 視覺對應 | `Forward_Subsystem_Discovery_Architecture.md` | §8.2 confidence 流轉 |
+| Discovery vs Overlay 職責分離 | `Forward_Subsystem_Discovery_Architecture.md` | §1.2 設計原則 #1 |
+| Tab ① TRIZ 解矛盾 | `Forward_TRIZ_Solver_Architecture.md` | §6 三條路徑定義 |
+| ④ Pre-CAD 五維雷達 spatial 算術 | `Forward_Subsystem_Discovery_Architecture.md` | §5.2 Pre-CAD spatial_score 改算術 |
+
+> **注意**：若架構文件版本升級（v10+），本 spec 必須同步檢查上表對應章節是否仍然成立，避免 UX 與架構脫鉤。

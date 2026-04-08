@@ -12,8 +12,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { scamperSubsystemSuggest } from '@/lib/api';
-import type { SuggestedSubsystem, PackageMap } from '@/types/generated/subsystem';
+import type { SuggestedSubsystem, PackageMap, SubsystemLevel } from '@/types/generated/subsystem';
 import { queryKeys } from './useQueryConfig';
+
+const VALID_LEVELS: ReadonlySet<SubsystemLevel> = new Set(['system', 'module', 'component']);
 
 export interface SubsystemSuggestionVariables {
   mission: string;
@@ -54,10 +56,20 @@ export function useSubsystemSuggestion(projectId: string | undefined) {
 
       const insertTree = async (nodes: SuggestedSubsystem[], parentId: string | null) => {
         for (const node of nodes) {
+          // Stage 6: fail-loud on missing level. Silent fallback to "module"
+          // was hiding upstream LLM bugs — a node without a level is a
+          // contract violation, not a degraded input to patch over.
+          if (!node.level || !VALID_LEVELS.has(node.level)) {
+            throw new Error(
+              `Subsystem "${node.name}" has invalid or missing level (${String(node.level)}). ` +
+              `Expected one of: system | module | component.`,
+            );
+          }
+
           const insertData: Record<string, unknown> = {
             project_id: projectId,
             name: node.name,
-            level: node.level ?? 'module',
+            level: node.level,
             reason: node.reason ?? '',
             related_contradictions: node.related_contradictions ?? [],
             confirmed: false,
@@ -73,9 +85,13 @@ export function useSubsystemSuggestion(projectId: string | undefined) {
             .select('id')
             .single();
 
+          // Stage 6: fail loud on insert error. Previously this `continue`d
+          // silently, causing the page to report "created N subsystems"
+          // with N < expected and no surface signal to RD that data was lost.
           if (error) {
-            console.error('[useSubsystemSuggestion] insert error:', error);
-            continue;
+            throw new Error(
+              `Failed to insert subsystem "${node.name}": ${error.message}`,
+            );
           }
           created++;
 

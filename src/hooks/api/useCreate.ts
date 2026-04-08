@@ -155,10 +155,22 @@ function mapTrizSolution(row: TrizSolutionRow): TrizSolution {
 }
 
 function mapSubsystem(row: SubsystemRow): Subsystem {
+  // Stage 6: if level is missing on the DB row this is a data corruption
+  // signal — log loudly so developers see it in the console, but keep the
+  // row visible (falling back to "module") so one bad row does not take
+  // down the entire subsystems list. Insert-path validation in
+  // useSubsystemSuggestion.ts is the fail-loud enforcement layer.
+  const level = (row.level as SubsystemLevel) ?? 'module';
+  if (!row.level) {
+    console.error(
+      `[mapSubsystem] subsystem ${row.id} (${row.name}) has no level in DB; ` +
+        `defaulting to "module". This indicates an insert-path bug — please report.`,
+    );
+  }
   return {
     id: row.id,
     name: row.name,
-    level: (row.level as SubsystemLevel) ?? 'module',
+    level,
     reason: row.reason ?? '',
     relatedContradictions: row.related_contradictions ?? [],
     confirmed: row.confirmed,

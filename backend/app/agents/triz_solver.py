@@ -277,6 +277,57 @@ def _override_with_reference_library(subsystems: list[SuggestedSubsystem]) -> No
     _resolve_spatial_via_layers(subsystems, project_id="")
 
 
+_SIX_DIM_FIELDS = (
+    "envelope", "loadPath", "thermalPath", "signalPath",
+    "datumTolerance", "serviceability",
+)
+
+
+def _find_empty_contracts(
+    subsystems: list[SuggestedSubsystem],
+) -> list[tuple[str, str, list[str]]]:
+    """Walk the tree and return a list of (owner_name, neighbour_name, empty_fields)
+    tuples for every interface contract that has at least one blank 6-dim field.
+
+    Returns an empty list when all contracts across all nodes are fully populated.
+    Used by suggest_subsystems to gate the retry-once-then-raise validation loop.
+    """
+    violations: list[tuple[str, str, list[str]]] = []
+
+    def visit(node: SuggestedSubsystem) -> None:
+        for neighbour, contract in (node.interface_contracts or {}).items():
+            missing = [
+                field for field in _SIX_DIM_FIELDS
+                if not (getattr(contract, field, "") or "").strip()
+            ]
+            if missing:
+                violations.append((node.name, neighbour, missing))
+        for child in node.children or []:
+            visit(child)
+
+    for root in subsystems:
+        visit(root)
+    return violations
+
+
+def _format_violations_for_retry(
+    violations: list[tuple[str, str, list[str]]],
+) -> str:
+    """Render violations as a concise instruction block for the retry prompt."""
+    lines = ["## PREVIOUS RESPONSE HAD EMPTY REQUIRED FIELDS"]
+    lines.append(
+        "Your previous response left the following 6-dim fields blank. "
+        "These fields are MANDATORY. Regenerate the full JSON response with "
+        "all fields populated for these specific interfaces (keep everything "
+        "else identical):"
+    )
+    for owner, neighbour, missing in violations[:20]:  # cap to keep prompt short
+        lines.append(f"  - {owner} ↔ {neighbour}: missing {', '.join(missing)}")
+    if len(violations) > 20:
+        lines.append(f"  - ... and {len(violations) - 20} more")
+    return "\n".join(lines)
+
+
 def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse:
     # Build a project-scoped resolver so RD overrides for THIS project surface
     # in the prompt vocabulary alongside global learned components and the
@@ -285,15 +336,52 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     resolver = default_resolver(include_web=False)
     library_summary = resolver.summarize_for_prompt(project_id=req.project_id)
 
-    prompt = SUBSYSTEM_SUGGESTION.format(
+    base_prompt = SUBSYSTEM_SUGGESTION.format(
         mission=req.mission,
         contradictions="\n".join(f"- {c}" for c in req.contradictions) or "（無）",
         existing_subsystems="\n".join(f"- {s}" for s in req.existing_subsystems) or "（無）",
         reference_library=library_summary,
     )
-    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
+
+    # First attempt
+    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, base_prompt)
     data = json.loads(raw)
     response = SubsystemSuggestResponse.model_validate(data)
+
+    # Fail-loud 6-dim validation — part of Stage 6 of
+    # refactor/subsystem-interface-contracts. We retry ONCE with a targeted
+    # instruction listing exactly which fields were empty, then raise if the
+    # LLM still can't comply. Silent fallback is forbidden — dropped contracts
+    # are exactly the "interface contracts disappearing" bug we're eliminating.
+    violations = _find_empty_contracts(response.subsystems)
+    if violations:
+        logger.warning(
+            "suggest_subsystems: %d interface contracts had empty 6-dim fields "
+            "on first attempt; retrying with targeted instruction",
+            len(violations),
+        )
+        retry_prompt = (
+            base_prompt
+            + "\n\n"
+            + _format_violations_for_retry(violations)
+        )
+        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, retry_prompt)
+        data = json.loads(raw)
+        response = SubsystemSuggestResponse.model_validate(data)
+
+        violations = _find_empty_contracts(response.subsystems)
+        if violations:
+            # Bubble up a structured error; the FastAPI router will translate
+            # this into an HTTP 502 with enough detail for the FE to show the
+            # user a meaningful "LLM produced incomplete output, please retry"
+            # toast. DO NOT fall back to partial data — that was the exact
+            # pattern that caused the contracts-disappearing bug in the first
+            # place.
+            raise IncompleteLLMResponseError(
+                "LLM left required 6-dim interface contract fields blank "
+                f"after one retry ({len(violations)} violations remaining)",
+                violations=violations,
+            )
 
     # Resolve spatial estimates through the full layered chain (with web
     # lookup ENABLED — we're willing to spend a search call here when the
@@ -312,6 +400,31 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
         response.package_map = None
 
     return response
+
+
+class IncompleteLLMResponseError(Exception):
+    """Raised when suggest_subsystems cannot coax a complete response from the
+    LLM even after a targeted retry. The router layer translates this into
+    HTTP 502 with a structured error body so the FE can surface it meaningfully.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        violations: list[tuple[str, str, list[str]]],
+    ) -> None:
+        super().__init__(message)
+        self.violations = violations
+
+    def to_dict(self) -> dict:
+        return {
+            "error": "incomplete_llm_response",
+            "message": str(self),
+            "violations": [
+                {"owner": o, "neighbour": n, "missing_fields": m}
+                for o, n, m in self.violations
+            ],
+        }
 
 
 def scamper_transform(req: ScamperRequest) -> ScamperResponse:

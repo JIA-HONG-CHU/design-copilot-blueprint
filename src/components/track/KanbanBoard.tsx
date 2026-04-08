@@ -65,7 +65,7 @@ export function KanbanBoard({ assumptions, onUpdateAssumptions, projectId, const
 
   // Fetch experiments from Supabase for the selected card
   const selectedAssumptionCode = selectedCard?.assumptionCode;
-  const experimentsQuery = useTrackExperiments(selectedAssumptionCode);
+  const experimentsQuery = useTrackExperiments(selectedAssumptionCode, projectId);
   const deleteExperiment = useDeleteTrackExperiment();
   const createExperiment = useCreateTrackExperiment();
   const updateExperiment = useUpdateTrackExperiment();

@@ -163,7 +163,7 @@ export const queryKeys = {
   experiments: {
     all: ['experiments'] as const,
     byProject: (projectId: string | undefined) => ['experiments', k(projectId)] as const,
-    byAssumptionCode: (code: string | undefined) => ['experiments', 'assumption', k(code)] as const,
+    byAssumptionCode: (projectId: string | undefined, code: string | undefined) =>['experiments', k(projectId), 'assumption', k(code)] as const,  
   },
 
   // Track page (Kanban view of assumptions + unknown factors)

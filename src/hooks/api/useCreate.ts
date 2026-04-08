@@ -19,7 +19,6 @@ import type {
   Subsystem,
   SubsystemSource,
   SubsystemLevel,
-  // SubsystemInterfaceContract was removed in Stage 1; use InterfaceContractMap directly
   ScamperVariant,
   ScamperAction,
   ScamperNewContradiction,

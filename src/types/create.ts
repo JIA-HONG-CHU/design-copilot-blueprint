@@ -69,13 +69,6 @@ export type SubsystemSource = 'rd' | 'ai' | 'ai_edited';
 import type { InterfaceContractMap, SubsystemLevel as GenSubsystemLevel } from '@/types/generated/subsystem';
 export type SubsystemLevel = GenSubsystemLevel;
 
-/**
- * @deprecated Use `InterfaceContract` from `@/types/generated/subsystem`.
- * This alias is kept temporarily so old imports do not break during the
- * Stage 1 refactor. Will be removed in Stage 7 cleanup.
- */
-export type { InterfaceContract as SubsystemInterfaceContract } from '@/types/generated/subsystem';
-
 export interface Subsystem {
   id: string;
   name: string;

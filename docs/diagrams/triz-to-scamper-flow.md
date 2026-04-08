@@ -1,5 +1,11 @@
 # 雙軌分析 → 候選方案決策中心：設計概念與流程圖
 
+> **v11 (2026-04-08)**: F1 內部分層化 — TC/PC/SF 從「互斥三選一」改為「分層 drill-down」（依 `TRIZ_Layered_DrillDown_Optimization.md`）。
+> - **F1 輸出升級**：從散落 TrizSolution[] pending 候選 → `LayeredTrizSolution[]`，每個 LTS 包含 L1 (TC 現象層) / L2 (PC 本質層，有條件) / L3 (SF 結構層，旁路) + `differential_analysis`。
+> - **同矛盾多路徑警告下線**：Phase B 的「同矛盾多路徑 → major 風險」改為「同 LTS 內跨層跳過互斥檢查；只有跨矛盾才比對」。drill-down 組合是合法路徑而非缺陷。
+> - **§0 第一性原理重寫**：v6→v7 的論證錯把症狀當病因，本版改正。
+> - **決策中心 UI**：從「每矛盾選一條路徑」改為「採納 drill-down 組合或單層」。
+>
 > **v10 (2026-04-07)**: F2 後新增 Spatial Discovery Validator + 可選 What-if Overlay。
 > - **Spatial Discovery（discovery 模式）**：6 維介面契約現可附帶結構化 `spatial` 區塊（bbox + mass + reference_source）。LLM 產出後，後處理會用 reference library 真實尺寸覆寫 LLM 數字；Python validator（無 LLM）算出此設計**要求**的最小包絡與總質量，輸出 SVG Package Map 給 RD 指著討論。
 > - **不收緊創意自由**：discovery 模式從不要求 RD 事先給空間預算 — validator 是 descriptive 而非 prescriptive。預算僅在 RD 願意做 what-if 時透過 `POST /scamper/spatial-overlay` 套上。
@@ -14,29 +20,42 @@
 
 ---
 
-## 0. 第一性原理：為什麼三路徑不能同時收斂
+## 0. 第一性原理：TC/PC/SF 是分層 drill-down，不是互斥三路徑
 
-### TRIZ 三路徑的本質
+### TRIZ 三層的本質（v11 重寫）
 
-| 路徑 | 問題表述 | 解法方向 |
-|------|----------|----------|
-| **TC** | 改善 A 會惡化 B | 40 原理打破 trade-off |
-| **PC** | 同一參數需要同時是 X 和 ¬X | 時間/空間/條件分離 |
-| **SF** | 物場交互不完整或有害 | 修改物質-場模型 |
+| 層 | 角色 | 問題表述 | 解法方向 |
+|------|----------|----------|----------|
+| **L1 — TC** | **現象層** | 改善 A 會惡化 B | 40 原理打破 trade-off |
+| **L2 — PC** | **本質層** | 同一物理參數同時要 X 和 ¬X | 時間/空間/條件/整體-局部分離 |
+| **L3 — SF** | **結構層**（旁路） | 物場交互不完整或有害 | 修改物質-場模型 |
 
-**這三者不是「三個工人做同一件事」，而是「三個醫生對同一個病人提出完全不同的治療方案」。**
+**這三者不是「三個獨立醫生對同一病人開不同處方」，而是「同一份分層診斷報告的三層 — 表象 / 根因 / 結構」。** TC 是現象層、PC 是本質層（對 TC 的深挖）、SF 是結構層（平行的功能鏈旁證）。完整論述見 `docs/e2e/TRIZ_Layered_DrillDown_Optimization.md`。
+
+### 為什麼舊版 v6 → v7 的修復是錯的
 
 ```
-❌ 之前（v6）：
-矛盾 C1 → TC解 + PC解 + SF解 → 全部送進 Phase B
-→ TC解和PC解衝突 → 二次矛盾 → re-scan → 又衝突 → ∞
+❌ v6：把 TC/PC/SF 當成互斥獨立候選
+       → 全部送 Phase B → TC 解與 PC 解被當成衝突 → re-scan → ∞
+       真因：Phase B 比對邏輯把同矛盾的多層解視為對立候選
 
-✅ 現在（v7）：
-矛盾 C1 → TC解 + PC解 + SF解 → 全部 pending（不做 Phase B）
-→ 決策中心：RD 選 C1 用 TC解
-→ Phase B 只收 [C1-TC, C2-PC, C3-SF]（每矛盾一條）
-→ 檢查跨矛盾衝突（合理的檢查）→ 正常收斂
+❌ v7（治標不治本）：每矛盾只能 adopt 一條，多條 → warning
+       表面解決了無限 re-scan，但代價是禁止 drill-down — 把 TRIZ 最有力
+       的「組合拳」（TC 表象 + PC 本質 + SF 結構三重驗證）當成 bug 迴避
+
+✅ v11（治本）：
+矛盾 C1 → solve_triz_layered orchestrator
+       → L1 必跑 + L3 必跑（平行）
+       → L2 critic 觸發判斷 → 必要時 deepen_link 推導 PC
+       → 聚合為 LayeredTrizSolution（含 differential_analysis）
+→ 決策中心：RD 採納整個 drill-down 組合 或 單層
+→ Phase B 收斂掃描：
+       同 LTS 內的跨層 → SKIP（同矛盾的不同層本來就應該協同）
+       跨矛盾 → 正常檢查衝突
+→ 不再有「同矛盾多路徑警告」
 ```
+
+**關鍵洞察**：無限 re-scan 的真因不是 TC/PC/SF 本質衝突，而是 Phase B 把它們**當成獨立候選來互相比對**。修對 Phase B 的比對邏輯，三層就可以共存。
 
 ---
 
@@ -58,19 +77,19 @@ flowchart TB
 
         subgraph FORWARD["正向路徑 — 系統化解矛盾"]
             direction TB
-            F1["F1: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
+            F1["F1: TRIZ 解矛盾 (v11 分層化)<br/>solve_triz_layered orchestrator<br/>L1 (TC 必跑) + L2 (PC 條件觸發) + L3 (SF 必跑旁路)<br/>輸出: LayeredTrizSolution[] + differential_analysis<br/>Phase A: 矛盾健康度"]
             F2["F2: 子系統定義<br/>System→Module→Component 3 層<br/>+ 6 維介面契約"]
             F2S["F2.5: Spatial Discovery Validator<br/>Reference library 覆寫 + 算術<br/>→ Package Map (SVG)<br/>(overlay 為 optional，不限制創意)"]
             F3["F3: SCAMPER 變形（創意工具）<br/>7 創意行動 × 子系統<br/>風險標註，不觸發 re-scan"]
-            FP["正向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選"]
+            FP["正向路徑候選池<br/>LayeredTrizSolution[]<br/>+ SCAMPER 候選"]
             F1 --> F2 --> F2S --> F3 --> FP
         end
 
         subgraph HUB["候選方案決策中心"]
             direction TB
-            SELECT["RD 挑選：每矛盾選一條路徑<br/>⚠ 同矛盾 adopt 多條 → 警告"]
-            PHASE_B["Phase B 收斂掃描<br/>只檢查被選方案之間的跨矛盾衝突<br/>+ 同矛盾多路徑風險檢查"]
-            COMPARE["橫向比較<br/>來源 / 機制 / 假設 / 驗證需求 / 信心"]
+            SELECT["RD 採納：drill-down 組合或單層<br/>預設依 differential_analysis.recommended_route<br/>同 LTS 跨層為合法組合，不再警告"]
+            PHASE_B["Phase B 收斂掃描 (v11)<br/>同 LTS 內跨層 → SKIP<br/>跨矛盾 → 正常衝突檢查"]
+            COMPARE["橫向比較<br/>來源 / 機制 / 假設 / 驗證需求 / 信心<br/>+ 跨層 differential_analysis"]
             SELECT --> PHASE_B --> COMPARE
         end
 
@@ -96,11 +115,13 @@ flowchart TB
 | 決策 | 說明 |
 |------|------|
 | **方法獨立** | 反向（創意）和正向（演繹）是兩種本質不同的方法，不應讓創意工具再跑演繹收斂 |
+| **正向路徑分層** (v11) | F1 內部 TC/PC/SF 是同一矛盾的三層 drill-down，不是互斥三選一。由 `solve_triz_layered` orchestrator 調度 |
 | **反向路徑簡化** | Anti-Anchor 自帶 Validation Passport，直接進候選池。不需要 R2-R4（TRIZ/子系統/SCAMPER） |
-| **產出與選擇分離** | 正向路徑：TRIZ 步驟只產出候選（Phase A），路徑選擇在決策中心（Phase B） |
+| **產出與選擇分離** | 正向路徑：TRIZ 步驟產出 `LayeredTrizSolution`（Phase A），採納在決策中心（Phase B） |
 | Phase A = 矛盾健康度 | 正向路徑 TRIZ 步驟呼叫 `startPhaseA()`（含語意去重） |
-| Phase B = 方案交叉檢查 | 決策中心 RD 挑選後手動觸發 `startPhaseB()`，只送 adopted 解法 |
-| 同矛盾多路徑警告 | Phase B prompt：同一矛盾的 TC+PC+SF 同時 adopt → major 風險 |
+| Phase B = 方案交叉檢查 | 決策中心 RD 採納後手動觸發 `startPhaseB()`，只送 adopted 解法 |
+| **同 LTS 跨層 = 合法組合** (v11) | Phase B 對同一 LayeredTrizSolution 內的多層解 SKIP 互斥檢查；只有跨矛盾才比對 |
+| ~~同矛盾多路徑警告~~ (v10 規則) | **v11 已下線**。drill-down 是合法路徑而非缺陷 |
 
 ---
 
@@ -173,7 +194,7 @@ flowchart TB
         B_START["決策中心：RD 按「執行收斂掃描」"]
         B_COLLECT["收集 adopted alternatives<br/>（RD 已挑選的解法）"]
         B_SCAN["POST /convergence/scan<br/>phase: B<br/>送 contradictions + adopted alternatives"]
-        B_CHECK["檢查項：<br/>1. 跨矛盾解法衝突<br/>2. 參數影響分析<br/>3. PC 狀態衝突<br/>4. 跨方案干涉<br/>5. ⚠ 同矛盾多路徑風險"]
+        B_CHECK["檢查項 (v11)：<br/>1. 跨矛盾解法衝突<br/>2. 參數影響分析<br/>3. PC 狀態衝突<br/>4. 跨方案干涉<br/>5. (v11 移除) 同矛盾多路徑風險<br/>→ 同 LTS 跨層 SKIP 互斥檢查"]
         B_RESULT["converged → 進入 MUST<br/>halted → 人類審核調整方案"]
         B_START --> B_COLLECT --> B_SCAN --> B_CHECK --> B_RESULT
     end
@@ -309,12 +330,12 @@ flowchart TB
 | 階段 | 輸入 | 處理 | 輸出 | 連鎖效果 |
 |------|------|------|------|----------|
 | Anti-Anchor 生成 | mission + constraints | AI 產出非典型架構（創意工具，自帶 Validation Passport） | `AntiAnchorRoute[].length ≥ 3` | **直接進反向候選池**，不經 TRIZ/子系統/SCAMPER |
-| TRIZ 產出候選 | 路徑矛盾集 | 三路徑並行生成解法 | `TrizSolution[]` 全部 `pending` | 不做 Phase B |
+| **TRIZ 分層求解** (v11) | 矛盾集 + severity | `solve_triz_layered`：L1 必跑 + L3 必跑 + L2 critic 觸發 + deepen_link + differential_analyzer | `LayeredTrizSolution[]`（含 L1/L2?/L3 + recommended_route） | 不做 Phase B |
 | Phase A 掃描 | `startPhaseA()` | 語意去重（`is_confirmatory` 過濾）→ 矛盾空間健康度 | converged / halted | 不觸發 Phase B |
 | 子系統定義 | TRIZ 矛盾親和性 | RD/AI 定義 System→Module→Component 3 層 + 6 維介面契約 | `Subsystem[confirmed]` | 解鎖 SCAMPER |
 | SCAMPER 展開 | 已確認子系統 | 7 行動 × N 子系統（創意工具，不觸發 re-scan） | `ScamperVariant[adopted]` + 風險標註 | 直接進候選池 |
-| **決策中心選擇** | 所有候選池 | **RD 挑選每矛盾一條路徑** | adopted Alternative[] | — |
-| **Phase B 掃描** | `startPhaseB()` | **跨矛盾衝突 + 同矛盾多路徑風險** | converged / halted | 人類審核 |
+| **決策中心採納** (v11) | 所有候選池 | **RD 採納 LTS 推薦組合 / 自訂組合 / 單層** | adopted Alternative[]（標註層級） | — |
+| **Phase B 掃描** (v11) | `startPhaseB()` | **跨矛盾衝突檢查；同 LTS 跨層 SKIP 互斥** | converged / halted | 人類審核 |
 | MUST 篩選 | adopted Alternative + M1-M6 | AI + RD 評分 | pass / fail / marginal | 淘汰不可行方案 |
 | Pre-CAD 審查 | 通過 MUST 的方案 | 五維評分 | overallPass | Phase Gate 2 判定 |
 
@@ -359,7 +380,7 @@ flowchart TB
 | 元件 | 職責 | 性質 |
 |------|------|------|
 | `useConvergenceLoop` | 收斂迴圈 driver。`startPhaseA()` / `startPhaseB()` 分離觸發 | 狀態 hook |
-| `/convergence/scan` API | Phase A: 矛盾空間分析；Phase B: 方案交叉 + 同矛盾多路徑風險 | 後端 AI |
+| `/convergence/scan` API | Phase A: 矛盾空間分析；Phase B: 方案交叉（**v11**: 同 LTS 跨層 SKIP 互斥） | 後端 AI |
 | `ConvergenceDashboard` | 顯示 confidence %、fatal/major/minor 計數 | 純展示 |
 | `BranchExplorationPanel` | 顯示各矛盾分支的探索輪次 | 純展示 |
 | `HumanReviewPanel` | converged / halted 時的人類審查介面 | 純展示 |
@@ -370,7 +391,26 @@ flowchart TB
 
 ---
 
-## 11. v8 → v9 差異摘要
+## 11. 版本差異摘要
+
+### v10 → v11 差異（本版）
+
+依 `docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` 的批判診斷修正：
+
+| 項目 | v10 | v11 |
+|------|-----|-----|
+| **F1 輸出單元** | 散落的 `TrizSolution[]`（TC/PC/SF 並列 pending） | **`LayeredTrizSolution[]`**（每矛盾一個分層聚合體） |
+| **F1 內部入口** | `solve_triz` dispatcher 依 `type` 路由到單一 solver | **`solve_triz_layered` orchestrator** 調度 L1/L2/L3，舊 dispatcher 降為 primitive |
+| **TC/PC/SF 關係** | 互斥三選一（依矛盾類型分類） | **分層 drill-down**：L1 現象 + L2 本質（深挖）+ L3 結構（旁路） |
+| **L2 觸發** | 沒有觸發概念（被當成獨立路徑） | critic：severity ≥ major / hits ≤ 2 / RD 手動 / LLM 判 trade-off |
+| **ARIZ 落地** | 缺席 | `deepen_link` 從 (improving, worsening) 自動推導 PC 候選 |
+| **同矛盾多路徑** | warning（major 風險） | **合法 drill-down 組合**，Phase B 跳過互斥檢查 |
+| **Phase B 比對** | 跨矛盾衝突 + 同矛盾多路徑風險 | 跨矛盾衝突；同 LTS 內跨層 SKIP |
+| **決策中心 UI** | 「每矛盾選一條路徑」 | 「採納推薦路線 / 自訂組合 / 單層」 |
+| **跨層差異輸出** | 無 | **`differential_analysis`** 提供 recommended_route + rationale |
+| **修復理由** | v6 無限 re-scan → v7 一刀切禁多路徑 | v7 把症狀當病因；v11 修對 Phase B 比對邏輯，drill-down 即可共存 |
+
+### v8 → v9 差異（歷史）
 
 | 項目 | v8 | v9 |
 |------|----|----|

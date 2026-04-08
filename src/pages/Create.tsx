@@ -1062,6 +1062,78 @@ export default function Create() {
           </Card>
         )}
 
+        {/* 🧭 新手閱讀指引 — 第一次看到這頁的人必讀 */}
+        <Collapsible defaultOpen={!antiAnchorGenerated}>
+          <Card className="border-primary/30 bg-primary/5">
+            <CollapsibleTrigger asChild>
+              <button className="w-full text-left p-4 flex items-center gap-3 hover:bg-primary/10 transition-colors group">
+                <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">報告怎麼看？（新手指引）</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">第一次看這頁不知道每個欄位代表什麼？點這裡展開 60 秒讀懂每一區塊</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="px-4 pb-4 pt-0 space-y-3 text-xs text-muted-foreground leading-relaxed border-t border-primary/20">
+                <div>
+                  <p className="font-semibold text-foreground mt-3 mb-1">這頁在做什麼？</p>
+                  <p>反向探索（Anti-Anchor）刻意跳過「解矛盾」的正向路徑，直接從物理第一原理逼 AI 想出「與主流競品物理機制不相容」的非典型架構。目的是在你被現有產品綁架之前，先暴露在其他可能的解題方向。每條路線都自帶一張 <strong>Validation Passport</strong>，告訴你「這條路還要驗證什麼才能採用」。</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-foreground mt-2 mb-1">每條「路線」的六個區塊</p>
+                  <ul className="space-y-1.5 pl-1">
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">①</span><strong>Physical Principle</strong>：這條路線背後的物理定律（例如 Lorentz 力、Seebeck 效應）。若只看一行，這裡是核心。</li>
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">②</span><strong>Causal Chain</strong>：從輸入到輸出的每一步都帶數字（48V 20A → 960W → 80Nm），用來檢查「帳能不能算得通」。</li>
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">③</span><strong>Boundary Conditions</strong>：在什麼條件下成立？什麼條件下會失效？（例如 T&lt;130°C 以內）</li>
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">④</span><strong>Why Unconventional</strong>：主流為什麼做不到？產業為什麼還沒採用？不是「這很新」，要說出阻礙的原因。</li>
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">⑤</span><strong>Potential Advantage</strong>：量化的好處，禁止「大幅、顯著、better」等模糊詞，必須有數字或區間。</li>
+                    <li><span className="font-mono text-[10px] bg-muted px-1 rounded mr-1">⑥</span><strong>Cross-Domain Source</strong>：靈感來自哪個跨領域的具體產品或論文（例如 Tesla Model 3 hairpin 繞組、Magnax AXF225）。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-foreground mt-2 mb-1">Validation Passport 是什麼？</p>
+                  <p>每條路線「自我揭露」的風險檔案，包含 4 個子區塊：</p>
+                  <ul className="space-y-1 pl-1 mt-1">
+                    <li>• <strong>Assumptions</strong>：這條路線要成立，哪 2~4 件事必須是真的？每條假設都標一個證據等級 <span className="font-mono bg-muted px-1 rounded">E0–E4</span>（見下）</li>
+                    <li>• <strong>Weak Points</strong>：承認的代價（不是錯，是「我知道有這個缺點」）</li>
+                    <li>• <strong>Required Verifications</strong>：採用前要做的實驗清單，照優先序排列</li>
+                    <li>• <strong>信心 %</strong>：不是 LLM 隨便給的，而是由假設的證據等級分佈自動算：大多 E2+ → ≥70 %；E1/E2 混合 → 40–70 %；大多 E0/E1 → &lt;40 %</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-foreground mt-2 mb-1">E0 ~ E4 證據等級怎麼讀？</p>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-1.5">
+                    <div className="rounded bg-red-100 dark:bg-red-950/30 px-2 py-1.5 border border-red-200 dark:border-red-900"><span className="font-mono font-bold text-red-900 dark:text-red-200">E0</span><div className="text-[10px] text-red-900/80 dark:text-red-200/80">純臆測</div></div>
+                    <div className="rounded bg-amber-100 dark:bg-amber-950/30 px-2 py-1.5 border border-amber-200 dark:border-amber-900"><span className="font-mono font-bold text-amber-900 dark:text-amber-200">E1</span><div className="text-[10px] text-amber-900/80 dark:text-amber-200/80">物理推理</div></div>
+                    <div className="rounded bg-yellow-100 dark:bg-yellow-950/30 px-2 py-1.5 border border-yellow-200 dark:border-yellow-900"><span className="font-mono font-bold text-yellow-900 dark:text-yellow-200">E2</span><div className="text-[10px] text-yellow-900/80 dark:text-yellow-200/80">跨領域量測</div></div>
+                    <div className="rounded bg-green-100 dark:bg-green-950/30 px-2 py-1.5 border border-green-200 dark:border-green-900"><span className="font-mono font-bold text-green-900 dark:text-green-200">E3</span><div className="text-[10px] text-green-900/80 dark:text-green-200/80">同類應用測試</div></div>
+                    <div className="rounded bg-emerald-200 dark:bg-emerald-950/40 px-2 py-1.5 border border-emerald-300 dark:border-emerald-900"><span className="font-mono font-bold text-emerald-900 dark:text-emerald-200">E4</span><div className="text-[10px] text-emerald-900/80 dark:text-emerald-200/80">已量產驗證</div></div>
+                  </div>
+                  <p className="mt-1.5">實務上 AI 產出的多半是 E1 ~ E2，這代表「值得做實驗驗證」，不代表「已經成立」。看到 E0 就要特別警覺。</p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-foreground mt-2 mb-1">看完一條路線後要做什麼？</p>
+                  <ul className="space-y-0.5 pl-1">
+                    <li>✓ 覺得值得繼續驗證 → 點<strong>「晉升為候選方案」</strong>，路線會進入「候選方案決策中心」與 TRIZ/SCAMPER 路徑的候選並列比較</li>
+                    <li>✗ 物理不通 / 成本太高 / 不符約束 → 點垃圾桶刪除</li>
+                    <li>↻ 全部都不滿意 → 點「重新生成」讓 AI 重試（已存在的路線會作為「避開」提示傳給 LLM）</li>
+                  </ul>
+                </div>
+
+                <div className="pt-1 text-[10px] text-muted-foreground/70 italic">
+                  完整架構說明見 <code>docs/e2e/Reverse_Anti_Anchor_Architecture.md</code>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
         {!antiAnchorGenerated ? (
           <div className="text-center py-16 space-y-4 bg-muted/30 rounded-xl border border-dashed">
             <Sparkles className="h-10 w-10 text-muted-foreground mx-auto" />
@@ -1089,10 +1161,24 @@ export default function Create() {
                       <span className="text-sm font-semibold flex-1 truncate">{r.name}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         {confidence !== null && (
-                          <Badge variant="outline" className="text-[9px]">信心 {confidence}%</Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-[9px] cursor-help">信心 {confidence}%</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+                              由假設的證據等級分佈自動推算：大多 E2+ → ≥70%；E1/E2 混合 → 40–70%；大多 E0/E1 → &lt;40%。不是 LLM 自由寫的。
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                         {assumptionCount > 0 && (
-                          <Badge variant="outline" className="text-[9px]">{assumptionCount} 假設</Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-[9px] cursor-help">{assumptionCount} 假設</Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+                              這條路線要成立必須是真的「可證偽命題」。展開後每條假設都會標 E0–E4 證據等級。
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                         <span className="badge-ai text-[9px]">AI</span>
                       </div>
@@ -1133,9 +1219,19 @@ export default function Create() {
                             if (sections.length === 0) {
                               sections.push({ label: "Mechanism", content: text });
                             }
+                            const labelHints: Record<string, string> = {
+                              "Physical Principle": "這條路線背後的物理定律或方程式（例如 Lorentz 力、Maxwell stress、Seebeck 效應）。若只看一行，這裡是核心。",
+                              "Causal Chain": "從輸入到輸出的因果鏈，每一步都要帶數字（48V 20A → 960W @92% η → 5:1 → 80Nm）。用來檢查『帳算不算得通』。",
+                              "Boundary Conditions": "這條路線在什麼條件下成立、什麼條件下會失效（例如 T_winding<130°C、B_gap>0.35T）。用來判斷風險邊界。",
+                              "Overview": "Mechanism 開頭的前言，未被切到三大區塊時的兜底顯示。",
+                              "Mechanism": "AI 沒有依規則切出三個區塊，整段合併顯示。這代表結構化失敗，可以考慮重新生成。",
+                            };
                             return sections.map((s, si) => (
                               <div key={si}>
-                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{s.label}</p>
+                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                  {s.label}
+                                  {labelHints[s.label] && <HelpTooltip text={labelHints[s.label]} />}
+                                </p>
                                 <p className="text-muted-foreground leading-relaxed">{s.content}</p>
                               </div>
                             ));
@@ -1147,19 +1243,28 @@ export default function Create() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {r.whyUnconventional && (
                           <div className="text-xs">
-                            <p className="font-semibold text-muted-foreground mb-1">Why Unconventional</p>
+                            <p className="font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                              Why Unconventional
+                              <HelpTooltip text="主流為什麼做不到？產業為什麼還沒採用？這裡不接受『這很新』，必須說出阻礙原因（成本？量產成熟度？法規？慣性？）。" />
+                            </p>
                             <p className="text-muted-foreground leading-relaxed">{r.whyUnconventional}</p>
                           </div>
                         )}
                         {r.potentialAdvantage && (
                           <div className="text-xs">
-                            <p className="font-semibold text-muted-foreground mb-1">Potential Advantage</p>
+                            <p className="font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                              Potential Advantage
+                              <HelpTooltip text="量化的好處。Prompt 禁止『高、低、大幅、顯著、better、improved』等模糊詞，必須有數字或區間（例如 BOM cost -40~50% 而非「成本大幅下降」）。" />
+                            </p>
                             <p className="text-muted-foreground leading-relaxed">{r.potentialAdvantage}</p>
                           </div>
                         )}
                         {r.crossDomainSource && (
                           <div className="text-xs">
-                            <p className="font-semibold text-muted-foreground mb-1">Cross-Domain Source</p>
+                            <p className="font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                              Cross-Domain Source
+                              <HelpTooltip text="靈感來自哪個『具體的』跨領域產品或論文（例如 Magnax AXF225、Tesla Model 3 hairpin winding）。不能只說「參考航太」。這是用來檢查 AI 不是在腦補。" />
+                            </p>
                             <p className="text-muted-foreground leading-relaxed">{r.crossDomainSource}</p>
                           </div>
                         )}
@@ -1169,27 +1274,66 @@ export default function Create() {
                       {r.validationPassport && (
                         <div className="text-xs space-y-2 border-t pt-3">
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-muted-foreground">Validation Passport</p>
-                            <Badge variant="outline" className="text-[9px]">
-                              信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
-                            </Badge>
+                            <p className="font-semibold text-muted-foreground flex items-center gap-1">
+                              Validation Passport
+                              <HelpTooltip
+                                maxWidth="max-w-sm"
+                                text="這條路線「自我揭露」的風險檔案：包含 Assumptions（必須為真的前提）、Weak Points（承認的代價）、Required Verifications（採用前要做的實驗）、以及由假設證據等級自動算出的信心 %。Anti-Anchor 是目前唯一一條路徑，其路線天生自帶 Passport。"
+                              />
+                            </p>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[9px] cursor-help">
+                                  信心 {Math.round((r.validationPassport.confidenceLevel ?? 0) * 100)}%
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+                                Prompt 強制規則：大多 E2+ → ≥70%；E1/E2 混合 → 40–70%；大多 E0/E1 → &lt;40%。LLM 不能自由寫。
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                           {(r.validationPassport.assumptions ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Assumptions ({(r.validationPassport.assumptions ?? []).length})</p>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                Assumptions ({(r.validationPassport.assumptions ?? []).length})
+                                <HelpTooltip
+                                  maxWidth="max-w-sm"
+                                  text="要讓這條路線成立必須為真的「可證偽命題」。每條前面的 E0–E4 代表證據等級：E0 純臆測 / E1 物理推理 / E2 跨領域量測 / E3 同類應用測試 / E4 已量產。AI 產出多半是 E1–E2，代表『值得實驗』而非『已成立』。看到 E0 要警覺。"
+                                />
+                              </p>
                               <ul className="space-y-1">
-                                {(r.validationPassport.assumptions ?? []).map((a, ai) => (
-                                  <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
-                                    <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5">{a.evidenceLevel ?? '?'}</span>
-                                    <span className="leading-relaxed">{a.content}</span>
-                                  </li>
-                                ))}
+                                {(r.validationPassport.assumptions ?? []).map((a, ai) => {
+                                  const lvl = (a.evidenceLevel ?? '?').toUpperCase();
+                                  const lvlTip: Record<string, string> = {
+                                    'E0': 'E0 — 純臆測（speculation）。風險最高，必須優先驗證。',
+                                    'E1': 'E1 — 第一原理 / 物理推理。有公式支持但未經實測。',
+                                    'E2': 'E2 — 跨領域量測類比。別的領域有測過，在本應用尚未。',
+                                    'E3': 'E3 — 同類應用已有測試資料。風險較低。',
+                                    'E4': 'E4 — 已在本應用量產驗證。幾乎是事實。',
+                                  };
+                                  return (
+                                    <li key={ai} className="flex items-start gap-1.5 text-muted-foreground">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-[9px] font-mono bg-muted rounded px-1 shrink-0 mt-0.5 cursor-help">{lvl}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="max-w-xs text-xs leading-relaxed">
+                                          {lvlTip[lvl] ?? '未知證據等級'}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                      <span className="leading-relaxed">{a.content}</span>
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             </div>
                           )}
                           {(r.validationPassport.weakPoints ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Weak Points</p>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                Weak Points
+                                <HelpTooltip text="這條路線「承認的代價」—— 不是錯，是『我知道有這個缺點』。它們不會變成假設被驗證，而是跟著方案一輩子（例如 +15% 重量、NRE 工具費）。" />
+                              </p>
                               <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
                                 {(r.validationPassport.weakPoints ?? []).map((wp, wi) => <li key={wi}>{wp}</li>)}
                               </ul>
@@ -1197,7 +1341,10 @@ export default function Create() {
                           )}
                           {(r.validationPassport.requiredVerifications ?? []).length > 0 && (
                             <div>
-                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Required Verifications</p>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                Required Verifications
+                                <HelpTooltip text="採用前必須做的實驗清單，已按優先序排列。每條實驗的完整細節（方法、天數、成功判據、成本等級）寫在對應的 Assumption 的 suggested_experiment 欄位。" />
+                              </p>
                               <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
                                 {(r.validationPassport.requiredVerifications ?? []).map((rv, ri) => <li key={ri}>{rv}</li>)}
                               </ol>
@@ -2386,10 +2533,16 @@ export default function Create() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold flex items-center gap-1">
                 {activeTrack === "reverse" ? "反向探索 Anti-Anchor" :
                  activeTrack === "forward" ? "正向分析" :
                  STEPS[currentStep].label}
+                {activeTrack === "reverse" && (
+                  <HelpTooltip
+                    maxWidth="max-w-sm"
+                    text="反向探索：刻意跳過『解矛盾』的正向路徑，直接從物理第一原理逼 AI 產出與主流競品物理機制不相容的非典型架構。目的是破路徑依賴，讓你在被現有產品綁架之前先看到其他可能。每條路線自帶 Validation Passport，可直接晉升為候選方案與 TRIZ 結果並列比較。完整架構見 docs/e2e/Reverse_Anti_Anchor_Architecture.md。"
+                  />
+                )}
               </h2>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                 activeTrack === "reverse" ? ZONE_LABELS.reverse.color :

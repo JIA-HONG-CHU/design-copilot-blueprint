@@ -296,7 +296,8 @@ SUBSYSTEM_SUGGESTION = """\
 <task>
 Decompose the system into a 3-level hierarchy (System → Module → Component) \
 based on the mission and identified contradictions. For each pair of coupled \
-modules, define a structured 6-dimensional interface contract.
+modules, define a structured 6-dimensional interface contract AND attach a \
+grounded spatial estimate (bbox + mass) for each module.
 </task>
 
 <context>
@@ -307,6 +308,20 @@ modules, define a structured 6-dimensional interface contract.
 <existing_subsystems>
 {existing_subsystems}
 </existing_subsystems>
+<reference_library>
+# Spatial reference vocabulary, drawn from a layered lookup. Each line is
+# prefixed with its source layer:
+#   rd_override:<key>  ← THIS project's RD has authoritatively set this. Trust above all.
+#   learned:<key>      ← Confirmed by prior projects (`confirmed N×` shown). Trust strongly.
+#   seed:<key>         ← Hand-curated backstop library. Trust as a starting point.
+# Lines are formatted as `<source>:<key>: <x>x<y>x<z>mm <mass>g <category>`.
+# When proposing modules whose function matches an entry, CITE that source key
+# in `reference_source` (e.g. "learned:downtube_battery_400wh"). The system will
+# auto-apply the vendor dimensions — DO NOT type your own numbers when citing.
+# If no entry fits and you can name a likely datasheet, use "web:<short query>"
+# and the system will attempt a live lookup. Last resort is "llm_estimate".
+{reference_library}
+</reference_library>
 </context>
 
 <instructions>
@@ -322,7 +337,23 @@ define a 6-dimensional interface contract:
    - **signalPath**: electrical/data signals
    - **datumTolerance**: critical dimensions and tolerances
    - **serviceability**: maintenance access and replaceability
-6. Do not repeat existing subsystems.
+6. **Spatial estimate (REQUIRED on every interface contract)** — attach a `spatial` block:
+   - **Prefer** citing an entry from <reference_library> via its source-prefixed \
+key. Use `reference_source: "rd_override:<key>"` / `"learned:<key>"` / `"seed:<key>"` \
+exactly as listed. Whatever bbox/mass you write will be auto-replaced by the \
+authoritative values, so do not invent numbers when citing.
+   - If no library entry fits but you can name a likely vendor datasheet, set \
+`reference_source: "web:<short search query>"` (e.g. "web:Shimano EP801 dimensions"). \
+The system will attempt a live web lookup and replace your numbers with extracted ones.
+   - Last resort: set `reference_source: "llm_estimate"`, fill `bbox` and `mass_g` \
+from publicly known specs or scaling laws, and put a one-line justification in \
+`rationale` (e.g., "scaled from Bosch CX, 90% mass"). This number stays — there \
+is no override.
+   - This is **discovery mode**: there is NO spatial budget to satisfy. Do NOT \
+shrink numbers to "fit" anything. Report what the design actually requires. If \
+two modules cannot coexist, surface that as a new contradiction in `secondary_contradictions`.
+   - Set `confidence` to "library" for cited entries and "estimate" for llm_estimate.
+7. Do not repeat existing subsystems.
 </instructions>
 
 <output_schema>
@@ -350,7 +381,15 @@ define a 6-dimensional interface contract:
               "thermalPath": "Conductive through aluminium housing",
               "signalPath": "3x Hall sensor + thermistor",
               "datumTolerance": "±0.02mm shaft concentricity",
-              "serviceability": "Motor removable without gearbox disassembly"
+              "serviceability": "Motor removable without gearbox disassembly",
+              "spatial": {{
+                "bbox": {{ "x_mm": 180, "y_mm": 140, "z_mm": 120, "anchor": "BB_center" }},
+                "mass_g": 3900,
+                "mounting_pattern": "BB_shell_BSA_68mm",
+                "reference_source": "seed:bafang_m600_mid_drive",
+                "confidence": "library",
+                "rationale": "Closest production analogue for the proposed mid-drive role"
+              }}
             }}
           }}
         }}

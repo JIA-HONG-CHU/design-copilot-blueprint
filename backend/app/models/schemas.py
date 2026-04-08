@@ -779,6 +779,31 @@ class SubsystemSuggestRequest(BaseModel):
     existing_subsystems: list[str] = Field(default_factory=list)
 
 
+# ---- Spatial Grounding (Discovery Mode) ----------------------------------
+# These types let Interface Contracts carry structured dimensional estimates
+# alongside the legacy free-text fields. They are OPTIONAL — RD discovery mode
+# never requires upfront spatial budgets.
+
+class BBox(BaseModel):
+    """Axis-aligned bounding box in millimeters."""
+    x_mm: float
+    y_mm: float
+    z_mm: float
+    origin_mm: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    anchor: str = ""  # e.g. "BB_center" / "downtube_top" — frame-relative anchor name
+
+
+class SpatialEstimate(BaseModel):
+    """Per-module structured dimensional estimate. In discovery mode these are
+    LLM proposals (or library lookups), not constraints."""
+    bbox: BBox | None = None
+    mass_g: float | None = None
+    mounting_pattern: str = ""           # e.g. "M6x4 @ 50mm PCD"
+    reference_source: str = ""           # "ref_lib:<key>" | "llm_estimate" | "rd_override"
+    confidence: str = "estimate"         # "library" | "estimate" | "rd_confirmed"
+    rationale: str = ""                  # one-line justification when llm_estimate
+
+
 class InterfaceContract(BaseModel):
     # Accept BOTH camelCase (LLM output per SUBSYSTEM_SUGGESTION prompt) and
     # snake_case (Python convention). Previously only snake_case was accepted,
@@ -801,6 +826,37 @@ class InterfaceContract(BaseModel):
         validation_alias=AliasChoices("datumTolerance", "datum_tolerance"),
     )
     serviceability: str = ""
+    # Optional structured spatial estimate. None when LLM omits it; existing
+    # contracts without spatial data remain valid.
+    spatial: SpatialEstimate | None = None
+
+
+# ---- Package Map (Discovery Validator output) ----------------------------
+
+class PackageNode(BaseModel):
+    """A single module flattened into the package map."""
+    name: str
+    spatial: SpatialEstimate
+    clashes: list[str] = Field(default_factory=list)  # names of overlapping nodes
+
+
+class RequiredEnvelope(BaseModel):
+    """The minimum envelope this design REQUIRES (descriptive, not prescriptive)."""
+    total_bbox_mm: tuple[float, float, float]
+    total_mass_g: float
+    by_anchor: dict[str, tuple[float, float, float]] = Field(default_factory=dict)
+
+
+class PackageMap(BaseModel):
+    """Discovery output. Tells RD what space and mass the design wants.
+    overlay_* fields populated only when an optional what-if overlay is applied."""
+    nodes: list[PackageNode] = Field(default_factory=list)
+    required: RequiredEnvelope
+    overlay_budget: dict | None = None
+    overlay_violations: list[str] = Field(default_factory=list)
+    svg: str = ""
+    table_md: str = ""
+    notes: list[str] = Field(default_factory=list)
 
 
 class SuggestedSubsystem(BaseModel):
@@ -814,6 +870,72 @@ class SuggestedSubsystem(BaseModel):
 
 class SubsystemSuggestResponse(BaseModel):
     subsystems: list[SuggestedSubsystem]
+    # Optional discovery output. None for legacy callers; populated when the
+    # spatial validator successfully derives a package map from the contracts.
+    package_map: PackageMap | None = None
+
+
+# ---- Optional spatial overlay (what-if) ----------------------------------
+# RD can POST a hypothetical frame envelope AFTER discovery to compare
+# trade-offs. This is intentionally not part of the discovery flow itself,
+# so creativity is not constrained upfront.
+
+class SpatialOverlayRequest(BaseModel):
+    """Stateless what-if: caller provides the subsystem tree to validate plus
+    an overlay. Discovery is recomputed from the subsystems and the overlay
+    is applied. Subsystems are passed in the same shape returned by
+    POST /scamper/subsystem-suggestions, so the FE can simply round-trip the
+    previous response back together with the new overlay."""
+    project_id: str
+    subsystems: list["SuggestedSubsystem"] = Field(default_factory=list)
+    overlay: dict = Field(default_factory=dict)
+    # Schema:
+    # {
+    #   "zones": {"downtube": {"x_mm": 380, ...}},
+    #   "mass_budget_g": {"Battery": 4500}
+    # }
+
+
+class SpatialOverlayResponse(BaseModel):
+    package_map: PackageMap
+
+
+# ---- Layered Spatial Lookup endpoints --------------------------------------
+# Backs the RD inline-override flow and the learned-component promotion flow.
+
+class ComponentOverrideRequest(BaseModel):
+    """RD says: for THIS project, this component IS this size. Authoritative."""
+    project_id: str
+    component_key: str          # free-form, e.g. "main_battery"
+    category: str = ""
+    bbox: BBox
+    mass_g: float = 0.0
+    note: str = ""
+
+
+class ComponentOverrideResponse(BaseModel):
+    saved: bool
+    component_key: str
+
+
+class LearnedComponentPromoteRequest(BaseModel):
+    """Promote a confirmed estimate into the global learned_components table.
+    Triggered when RD signs off on a Pre-CAD review whose estimate came from
+    web/llm — the estimate becomes a fact for future projects."""
+    key: str
+    category: str
+    bbox: BBox
+    mass_g: float = 0.0
+    origin: str = "manual"      # "rd_override" | "web" | "seed_promote" | "manual"
+    origin_project_id: str = ""
+    source_url: str = ""
+    source_text: str = ""
+
+
+class LearnedComponentPromoteResponse(BaseModel):
+    saved: bool
+    key: str
+    confirmed_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -842,6 +964,11 @@ class PreCadAnalyzeRequest(BaseModel):
     alternative_name: str
     mechanism: str
     constraints: list[str] = Field(default_factory=list)
+    # OPTIONAL: pass the subsystem tree (same shape as SubsystemSuggestResponse)
+    # so the spatial validator can compute a deterministic spatial_score from
+    # real arithmetic instead of letting the LLM guess. When omitted, behaviour
+    # is unchanged (LLM-only scoring).
+    subsystems: list["SuggestedSubsystem"] = Field(default_factory=list)
 
 
 class PreCadAnalyzeResponse(BaseModel):
@@ -854,6 +981,10 @@ class PreCadAnalyzeResponse(BaseModel):
     overall_pass: bool
     analysis: str
     evidence_references: list[EvidenceReference] = Field(default_factory=list)
+    # Populated when the request includes subsystems with spatial estimates.
+    # Lets the FE display the same package map RD already saw at F2 alongside
+    # the pre-CAD scores.
+    package_map: PackageMap | None = None
 
 
 # ---------------------------------------------------------------------------

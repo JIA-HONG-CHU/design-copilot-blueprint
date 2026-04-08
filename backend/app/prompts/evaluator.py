@@ -153,12 +153,23 @@ Perform a Pre-CAD five-dimension review of the design alternative.
 <project_constraints>
 {constraints}
 </project_constraints>
+<spatial_evidence>
+# Computed by the Python spatial validator (NOT by you). Treat as ground truth.
+# When this block is non-empty, your spatial_score MUST equal validator_spatial_score
+# below — do NOT re-score the spatial dimension by gut feel.
+{spatial_evidence}
+</spatial_evidence>
 </context>
 
 <instructions>
 Score each dimension 1–5:
 
 1. **Spatial** — Volume, mass, geometric interference.
+   - If <spatial_evidence> is non-empty, copy `validator_spatial_score` verbatim
+     into `spatial_score`. Use the evidence (required envelope, total mass,
+     clashes, notes) as the basis for your written analysis.
+   - If <spatial_evidence> is empty, fall back to qualitative judgement and
+     state explicitly in your analysis that no validator data was available.
 2. **Cost** — BOM cost, manufacturing process cost, tooling investment.
 3. **Safety** — Structural strength, electrical safety, thermal safety.
 4. **Decoupling** — Modularity, coupling with other subsystems.

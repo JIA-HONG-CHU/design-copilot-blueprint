@@ -18,7 +18,8 @@ import {
   Component as ComponentIcon,
   Link2,
 } from "lucide-react";
-import type { Subsystem } from "@/types/create";
+import type { Subsystem, SubsystemInterfaceContract } from "@/types/create";
+import { INTERFACE_CONTRACT_DIMS } from "@/types/create";
 
 interface SubsystemHierarchyViewProps {
   subsystems: Subsystem[];
@@ -130,14 +131,42 @@ function ComponentList({
 }
 
 // ── Interface Contracts (collapsed detail) ──
+// Normalize a single contract object to canonical camelCase keys.
+// Old DB rows (written before backend/app/models/schemas.py 接受 camelCase 別名前)
+// may carry snake_case keys (load_path / thermal_path / signal_path /
+// datum_tolerance). This adapter is read-only and keeps the display robust
+// regardless of which casing the row was persisted with.
+function normalizeContract(
+  raw: Record<string, unknown> | null | undefined,
+): SubsystemInterfaceContract {
+  const r = raw ?? {};
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = r[k];
+      if (typeof v === "string" && v.trim() !== "") return v;
+    }
+    return "";
+  };
+  return {
+    envelope:       pick("envelope"),
+    loadPath:       pick("loadPath", "load_path"),
+    signalPath:     pick("signalPath", "signal_path"),
+    thermalPath:    pick("thermalPath", "thermal_path"),
+    datumTolerance: pick("datumTolerance", "datum_tolerance"),
+    serviceability: pick("serviceability"),
+  };
+}
+
 function InterfaceContracts({
   contracts,
 }: {
-  contracts?: Record<string, Record<string, string>> | null;
+  contracts?: Record<string, Record<string, unknown>> | null;
 }) {
   if (!contracts || Object.keys(contracts).length === 0) return null;
 
-  const entries = Object.entries(contracts);
+  const entries = Object.entries(contracts).map(
+    ([target, raw]) => [target, normalizeContract(raw)] as const,
+  );
 
   return (
     <Collapsible>
@@ -150,28 +179,37 @@ function InterfaceContracts({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="ml-5 mt-2 space-y-3">
-          {entries.map(([target, contract]) => (
-            <div
-              key={target}
-              className="text-xs border rounded-lg p-3 bg-muted/20 space-y-1.5"
-            >
-              <p className="font-medium text-foreground">
-                ↔ {target}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {Object.entries(contract).map(([dim, value]) => (
-                  <div key={dim}>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-                      {dim}
-                    </span>
-                    <p className="text-muted-foreground leading-relaxed line-clamp-2">
-                      {value}
-                    </p>
+          {entries.map(([target, contract]) => {
+            const populated = INTERFACE_CONTRACT_DIMS.filter(
+              (d) => contract[d.key] && contract[d.key].trim() !== "",
+            );
+            return (
+              <div
+                key={target}
+                className="text-xs border rounded-lg p-3 bg-muted/20 space-y-1.5"
+              >
+                <p className="font-medium text-foreground">↔ {target}</p>
+                {populated.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    （此介面尚未填寫任何維度，請重新執行 Suggest Subsystems 或手動編輯）
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {populated.map((d) => (
+                      <div key={d.key}>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                          {d.labelZh}
+                        </span>
+                        <p className="text-muted-foreground leading-relaxed line-clamp-2">
+                          {contract[d.key]}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CollapsibleContent>
     </Collapsible>

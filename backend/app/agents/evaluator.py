@@ -63,15 +63,88 @@ def evaluate_must(req: MustEvaluationRequest) -> MustEvaluationResponse:
     return MustEvaluationResponse(**data)
 
 
+def _spatial_score_from_validator(package) -> int:
+    """Deterministic 1–5 score derived from PackageMap arithmetic.
+
+    Rules (cumulative penalties from a perfect 5):
+      - −1 per clashing module pair (capped)
+      - −1 if total mass exceeds a soft commuter-class threshold of 12 kg
+      - −1 if any single module is heavier than 5 kg
+      - −1 if required envelope x exceeds 700 mm (rough downtube cap)
+    Floor at 1.
+    """
+    if package is None or not package.nodes:
+        return 0  # signal "no evidence"
+    score = 5
+    distinct_clashes = sum(1 for n in package.nodes if n.clashes)
+    score -= min(2, distinct_clashes)
+    if package.required.total_mass_g > 12_000:
+        score -= 1
+    if any((n.spatial.mass_g or 0) > 5_000 for n in package.nodes):
+        score -= 1
+    if package.required.total_bbox_mm[0] > 700:
+        score -= 1
+    return max(1, score)
+
+
+def _format_spatial_evidence(package) -> str:
+    """Render the validator output as a compact text block for the prompt."""
+    if package is None or not package.nodes:
+        return "(empty — no spatial estimates available; use qualitative judgement)"
+    lines = [
+        f"required_envelope_mm: {package.required.total_bbox_mm[0]:.0f} x "
+        f"{package.required.total_bbox_mm[1]:.0f} x {package.required.total_bbox_mm[2]:.0f}",
+        f"total_mass_g: {package.required.total_mass_g:.0f}",
+        f"module_count: {len(package.nodes)}",
+    ]
+    clash_pairs = [
+        f"{n.name} <-> {', '.join(n.clashes)}" for n in package.nodes if n.clashes
+    ]
+    lines.append(f"clashes: {clash_pairs if clash_pairs else 'none'}")
+    if package.notes:
+        lines.append("notes:")
+        for note in package.notes:
+            lines.append(f"  - {note}")
+    lines.append(f"validator_spatial_score: {_spatial_score_from_validator(package)}")
+    return "\n".join(lines)
+
+
 def analyze_pre_cad(req: PreCadAnalyzeRequest) -> PreCadAnalyzeResponse:
+    # Compute the deterministic spatial validator output up front, if the
+    # caller supplied subsystems. The result feeds the prompt as evidence and
+    # also overrides the LLM's spatial_score on the way back.
+    from app.services.spatial_validator import discover_package
+
+    package = discover_package(req.subsystems) if req.subsystems else None
+    spatial_evidence = _format_spatial_evidence(package)
+    deterministic_spatial = _spatial_score_from_validator(package)
+
     prompt = PRE_CAD_ANALYSIS.format(
         alternative_name=req.alternative_name,
         mechanism=req.mechanism,
         constraints="\n".join(f"- {c}" for c in req.constraints) or "（無）",
+        spatial_evidence=spatial_evidence,
     )
     raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
     data = json.loads(raw)
-    return PreCadAnalyzeResponse(**data)
+    response = PreCadAnalyzeResponse(**data)
+
+    # Override the LLM's spatial score with the validator's arithmetic when
+    # we have evidence. The LLM's narrative `analysis` is preserved.
+    if deterministic_spatial > 0:
+        response.spatial_score = deterministic_spatial
+        response.package_map = package
+        # Recompute overall_pass since we may have changed the spatial score
+        scores = [
+            response.spatial_score,
+            response.cost_score,
+            response.safety_score,
+            response.decoupling_score,
+            response.supply_score,
+        ]
+        response.overall_pass = all(s >= 3 for s in scores)
+
+    return response
 
 
 def seed_want_criteria(req: WantSeedRequest) -> WantSeedResponse:

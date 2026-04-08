@@ -16,9 +16,12 @@ from app.models.schemas import (
     SubsystemSuggestResponse,
     ScamperFeedbackRequest,
     ScamperFeedbackResponse,
+    SpatialOverlayRequest,
+    SpatialOverlayResponse,
 )
 from app.agents.triz_solver import scamper_transform, suggest_subsystems
 from app.agents.scamper_feedback import process_scamper_feedback
+from app.services.spatial_validator import discover_package, apply_overlay
 
 router = APIRouter()
 
@@ -33,6 +36,20 @@ def scamper_perform(req: ScamperRequest):
 def scamper_subsystem_suggestions(req: SubsystemSuggestRequest):
     """AI suggests subsystems suitable for SCAMPER analysis."""
     return suggest_subsystems(req)
+
+
+@router.post("/scamper/spatial-overlay", response_model=SpatialOverlayResponse)
+def scamper_spatial_overlay(req: SpatialOverlayRequest):
+    """Apply an OPTIONAL what-if overlay to a previously generated subsystem
+    tree. Stateless: caller passes the subsystems back together with the
+    hypothetical frame envelope; this endpoint re-runs discovery and reports
+    overlay violations. Discovery never requires this — it exists so RD can
+    explore trade-offs against multiple imaginary frames after the design has
+    been freely proposed.
+    """
+    pkg = discover_package(req.subsystems)
+    overlaid = apply_overlay(pkg, req.overlay or {})
+    return SpatialOverlayResponse(package_map=overlaid)
 
 
 @router.post("/scamper/feedback-contradictions", response_model=ScamperFeedbackResponse)

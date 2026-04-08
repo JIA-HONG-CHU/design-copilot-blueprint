@@ -1,5 +1,10 @@
 # 雙軌分析 → 候選方案決策中心：設計概念與流程圖
 
+> **v10 (2026-04-07)**: F2 後新增 Spatial Discovery Validator + 可選 What-if Overlay。
+> - **Spatial Discovery（discovery 模式）**：6 維介面契約現可附帶結構化 `spatial` 區塊（bbox + mass + reference_source）。LLM 產出後，後處理會用 reference library 真實尺寸覆寫 LLM 數字；Python validator（無 LLM）算出此設計**要求**的最小包絡與總質量，輸出 SVG Package Map 給 RD 指著討論。
+> - **不收緊創意自由**：discovery 模式從不要求 RD 事先給空間預算 — validator 是 descriptive 而非 prescriptive。預算僅在 RD 願意做 what-if 時透過 `POST /scamper/spatial-overlay` 套上。
+> - **Pre-CAD spatial_score 升級**：當 `POST /pre-cad-reviews/{rid}/ai-analyze` 接收到 subsystems 時，spatial_score 改由 validator 算術產出（clash / mass / envelope），LLM 只負責散文 analysis。
+>
 > **v9 (2026-03-26)**: 反向路徑簡化 + 四項結構性修復。
 > - **反向路徑簡化**：R2-R4（TRIZ/子系統/SCAMPER）移除 — Anti-Anchor 是創意工具，不需要再跑演繹收斂。產出直接帶 Validation Passport 進候選池。
 > - P1: SCAMPER 改為純創意工具（不回饋收斂迴圈）
@@ -55,9 +60,10 @@ flowchart TB
             direction TB
             F1["F1: TRIZ 解矛盾<br/>三路徑產出候選（全部 pending）<br/>Phase A: 矛盾健康度"]
             F2["F2: 子系統定義<br/>System→Module→Component 3 層<br/>+ 6 維介面契約"]
+            F2S["F2.5: Spatial Discovery Validator<br/>Reference library 覆寫 + 算術<br/>→ Package Map (SVG)<br/>(overlay 為 optional，不限制創意)"]
             F3["F3: SCAMPER 變形（創意工具）<br/>7 創意行動 × 子系統<br/>風險標註，不觸發 re-scan"]
             FP["正向路徑候選池<br/>TC候選 + PC候選 + SF候選<br/>+ SCAMPER候選"]
-            F1 --> F2 --> F3 --> FP
+            F1 --> F2 --> F2S --> F3 --> FP
         end
 
         subgraph HUB["候選方案決策中心"]

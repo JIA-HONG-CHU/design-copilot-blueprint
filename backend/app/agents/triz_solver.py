@@ -32,7 +32,14 @@ from app.models.schemas import (
     ScamperResponse,
     SubsystemSuggestRequest,
     SubsystemSuggestResponse,
+    SuggestedSubsystem,
+    InterfaceContract,
+    SpatialEstimate,
+    BBox,
 )
+from app.services import reference_library  # legacy direct access (kept for back-compat)
+from app.services.spatial_lookup import LookupQuery, default_resolver
+from app.services.spatial_validator import discover_package
 
 
 def solve_triz(req: TrizLookupRequest) -> TrizLookupResponse:
@@ -199,15 +206,112 @@ def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
     )
 
 
+def _resolve_spatial_via_layers(
+    subsystems: list[SuggestedSubsystem],
+    project_id: str,
+    resolver=None,
+) -> None:
+    """Walk the subsystem tree and replace each LLM-supplied spatial estimate
+    with the highest-priority lookup result from the layered resolver.
+
+    The LLM may cite any of these source prefixes (or omit `reference_source`
+    entirely):
+        rd_override:<key>  | learned:<key>  | web:<...>  | seed:<key>  | llm_estimate
+
+    For non-llm sources, the resolver is queried by `key`. If the resolver
+    finds a match (in ANY layer — typically a project-level RD override or a
+    learned component), the bbox/mass are overwritten with the authoritative
+    values and `confidence` is set accordingly. The LLM number is always
+    discarded when an authoritative source is available.
+
+    For `llm_estimate` and entries with no reference_source set, the LLM
+    number is left in place — that's the final fallback layer.
+    """
+    resolver = resolver or default_resolver(include_web=False)
+
+    def visit(node: SuggestedSubsystem) -> None:
+        for target_name, contract in (node.interface_contracts or {}).items():
+            est = contract.spatial
+            if est is None:
+                continue
+            src = est.reference_source or ""
+            if not src or src == "llm_estimate":
+                continue  # leave LLM numbers as the last-resort fallback
+            # Strip any layer prefix to get the lookup key
+            key = src.split(":", 1)[1] if ":" in src else src
+            resolved = resolver.lookup(
+                LookupQuery(key=key, category="", project_id=project_id)
+            )
+            if resolved is None or resolved.bbox is None:
+                # The LLM cited a layer that didn't actually have this entry —
+                # downgrade confidence so RD knows the number is not vendor-grade.
+                est.confidence = "estimate"
+                continue
+            # Preserve any frame-relative origin/anchor the LLM proposed —
+            # those describe placement, not the part itself.
+            preserved_origin = est.bbox.origin_mm if est.bbox else (0.0, 0.0, 0.0)
+            preserved_anchor = est.bbox.anchor if est.bbox else resolved.bbox.anchor
+            est.bbox = BBox(
+                x_mm=resolved.bbox.x_mm,
+                y_mm=resolved.bbox.y_mm,
+                z_mm=resolved.bbox.z_mm,
+                origin_mm=preserved_origin,
+                anchor=preserved_anchor,
+            )
+            est.mass_g = resolved.mass_g
+            est.reference_source = resolved.reference_source
+            est.confidence = resolved.confidence
+            if not est.rationale and resolved.rationale:
+                est.rationale = resolved.rationale
+        for child in node.children or []:
+            visit(child)
+
+    for root in subsystems:
+        visit(root)
+
+
+# Legacy alias kept so older callers / tests still find this name. The new
+# implementation routes through the layered resolver instead of the static
+# JSON, but the behavioural contract is the same: vendor facts trump LLM.
+def _override_with_reference_library(subsystems: list[SuggestedSubsystem]) -> None:
+    _resolve_spatial_via_layers(subsystems, project_id="")
+
+
 def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse:
+    # Build a project-scoped resolver so RD overrides for THIS project surface
+    # in the prompt vocabulary alongside global learned components and the
+    # seed JSON. Web lookup is excluded from the prompt summary because it is
+    # an on-demand layer, not an enumerable one.
+    resolver = default_resolver(include_web=False)
+    library_summary = resolver.summarize_for_prompt(project_id=req.project_id)
+
     prompt = SUBSYSTEM_SUGGESTION.format(
         mission=req.mission,
         contradictions="\n".join(f"- {c}" for c in req.contradictions) or "（無）",
         existing_subsystems="\n".join(f"- {s}" for s in req.existing_subsystems) or "（無）",
+        reference_library=library_summary,
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
     data = json.loads(raw)
-    return SubsystemSuggestResponse.model_validate(data)
+    response = SubsystemSuggestResponse.model_validate(data)
+
+    # Resolve spatial estimates through the full layered chain (with web
+    # lookup ENABLED — we're willing to spend a search call here when the
+    # LLM cites web: or an unknown key, to keep the data grounded).
+    full_resolver = default_resolver(include_web=True)
+    _resolve_spatial_via_layers(response.subsystems, req.project_id, full_resolver)
+
+    # Discovery: compute the package map from whatever spatial estimates we
+    # ended up with. This never blocks the response — if the validator finds
+    # nothing useful (e.g., LLM omitted spatial entirely), it returns an empty
+    # PackageMap and the caller can ignore it.
+    try:
+        response.package_map = discover_package(response.subsystems)
+    except Exception as exc:  # pragma: no cover - defensive, validator must not break the agent
+        logger.warning("spatial validator failed: %s", exc)
+        response.package_map = None
+
+    return response
 
 
 def scamper_transform(req: ScamperRequest) -> ScamperResponse:

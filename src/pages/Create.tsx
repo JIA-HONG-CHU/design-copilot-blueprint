@@ -57,8 +57,9 @@ import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, scamperSubsystemSuggest, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
-import type { MustCriterionResult, SuggestedSubsystem } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
+import type { MustCriterionResult } from "@/lib/api";
+import { useSubsystemSuggestion } from "@/hooks/api/useSubsystemSuggestion";
 import { useProject } from "@/hooks/api/useProjects";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
@@ -239,7 +240,7 @@ export default function Create() {
   const [ssFormInterfaces, setSsFormInterfaces] = useState("");
   const [ssFormLevel, setSsFormLevel] = useState<SubsystemLevel>("module");
   const [ssFormParentId, setSsFormParentId] = useState<string | null>(null);
-  const [aiSubsystemLoading, setAiSubsystemLoading] = useState(false);
+  const suggestSubsystems = useSubsystemSuggestion(id);
 
   // Loading state — true while any query is loading
   const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
@@ -697,78 +698,23 @@ export default function Create() {
     setSsFormLevel("module"); setSsFormParentId(null);
   };
 
-  const aiSuggestSubsystems = async () => {
+  const aiSuggestSubsystems = () => {
     if (!id) return;
-    setAiSubsystemLoading(true);
-    try {
-      const contradictionDescs = (contradictionsQuery.data ?? []).map(c => c.engineeringStatement || c.naturalDescription || '').filter(Boolean);
-      // ↓ 新增：先清空 DB 和 local state
-      const { error: delErr } = await supabase
-        .from("subsystems")
-        .delete()
-        .eq("project_id", id)
-        .eq("source", "ai");  // 只刪除 AI 產生的
-      if (delErr) console.warn("Failed to clear subsystems:", delErr.message);
-      // 保留手動建立的子系統
-      setLocalSubsystems(prev => prev.filter(s => s.source !== "ai"));
-      
-      const existingNames: string[] = [];
-      const resp = await scamperSubsystemSuggest({
-        project_id: id,
-        mission: briefMission || "",
-        contradictions: contradictionDescs,
-        existing_subsystems: existingNames,
-      });
-
-      // Flatten tree → sequential inserts preserving parent chain
-      const tree = resp.subsystems ?? [];
-      let created = 0;
-
-      const insertTree = async (nodes: SuggestedSubsystem[], parentId: string | null) => {
-        for (const node of nodes) {
-          // Insert this node, get back the real DB id
-          const insertData: Record<string, unknown> = {
-            project_id: id,
-            name: node.name,
-            level: node.level ?? "module",
-            reason: node.reason ?? "",
-            related_contradictions: node.related_contradictions ?? [],
-            confirmed: false,
-            source: "ai",
-            parent_id: parentId,
-            interfaces: node.interface_contracts ? Object.keys(node.interface_contracts).join(", ") : null,
-            interface_contracts: node.interface_contracts ?? null,
-          };
-
-          const { data, error } = await (await import("@/integrations/supabase/client")).supabase
-            .from("subsystems")
-            .insert(insertData)
-            .select("id")
-            .single();
-
-          if (error) {
-            console.error("[aiSuggestSubsystems] insert error:", error);
-            continue;
-          }
-          created++;
-
-          // Recurse into children with the real parent id
-          if (node.children?.length && data?.id) {
-            await insertTree(node.children, data.id);
-          }
-        }
-      };
-
-      await insertTree(tree, null);
-      // Refetch to get all new rows
-      subsystemsQuery.refetch();
-      toast.success(`AI 建議了 ${created} 個子系統（含層級結構）`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`AI 子系統建議失敗：${msg}`);
-    } finally {
-      setAiSubsystemLoading(false);
-    }
+    // Optimistic local clear: preserve manual subsystems, drop AI ones.
+    // The query invalidation on success will refetch and replace this.
+    setLocalSubsystems(prev => prev.filter(s => s.source !== "ai"));
+    suggestSubsystems.mutate(
+      { mission: briefMission || "", contradictions: contradictionDescs },
+      {
+        onSuccess: ({ created }) => {
+          toast.success(`AI 建議了 ${created} 個子系統（含層級結構）`);
+        },
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast.error(`AI 子系統建議失敗：${msg}`);
+        },
+      },
+    );
   };
 
   const toggleScamperAdopt = (svId: string) => {
@@ -1589,7 +1535,7 @@ export default function Create() {
             <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => { resetSsForm(); setShowAddSubsystemForm(true); setEditingSubsystemId(null); }}>
               <Plus className="h-3.5 w-3.5" /> 新增子系統
             </Button>
-            <AiButton size="sm" loading={aiSubsystemLoading} onClick={aiSuggestSubsystems}>
+            <AiButton size="sm" loading={suggestSubsystems.isPending} onClick={aiSuggestSubsystems}>
               建議子系統
             </AiButton>
             <Badge variant="secondary" className="text-xs">{confirmedCount}/{subsystems.length} 已確認</Badge>

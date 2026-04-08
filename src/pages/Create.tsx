@@ -227,6 +227,7 @@ export default function Create() {
   useEffect(() => { setLocalSubsystems(subsystemsQuery.data); }, [subsystemsQuery.data]);
   useEffect(() => { setLocalScamperVariants(scamperQuery.data); }, [scamperQuery.data]);
   useEffect(() => { setLocalAlternatives(alternativesQuery.data); }, [alternativesQuery.data]);
+  useEffect(() => {if (id) {contradictionsQuery.refetch(); }}, [id]);
 
   // Use local state as the working data (allows optimistic updates)
   const routes = localRoutes;

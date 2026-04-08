@@ -33,7 +33,7 @@ export function MissionContext({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">核心設計使命</p>
-            <p className="text-sm font-medium mt-0.5 leading-relaxed">{problemStatement}</p>
+            <p className={`text-sm font-medium mt-0.5 leading-relaxed ${!expanded ? "line-clamp-2" : ""}`}>{problemStatement}</p>
           </div>
           <button
             onClick={() => setExpanded(!expanded)}

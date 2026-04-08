@@ -66,6 +66,10 @@ export function useSubsystemSuggestion(projectId: string | undefined) {
             );
           }
 
+          // Stage 4: no longer write the legacy `interfaces` comma-joined
+          // string. interface_contracts is the single source of truth; the
+          // `interfaces` column is kept only for read-path fallback until
+          // Stage 7 drops it entirely.
           const insertData: Record<string, unknown> = {
             project_id: projectId,
             name: node.name,
@@ -75,7 +79,6 @@ export function useSubsystemSuggestion(projectId: string | undefined) {
             confirmed: false,
             source: 'ai',
             parent_id: parentId,
-            interfaces: node.interface_contracts ? Object.keys(node.interface_contracts).join(', ') : null,
             interface_contracts: node.interface_contracts ?? null,
           };
 

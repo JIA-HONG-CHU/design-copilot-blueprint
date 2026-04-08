@@ -31,6 +31,35 @@ import type {
 } from "@/types/create";
 import { DEFAULT_MUST_CRITERIA, PRECAD_DIMENSIONS, SCAMPER_LABELS } from "@/types/create";
 import type { MustCriterion } from "@/types/create";
+import type { InterfaceContractMap } from "@/types/generated/subsystem";
+import { EMPTY_INTERFACE_CONTRACT } from "@/types/generated/subsystem";
+
+/**
+ * Stage 4 of refactor/subsystem-interface-contracts: convert the manual-form
+ * comma-separated "interfaces" text input into an InterfaceContractMap with
+ * empty 6-dim placeholders per neighbour. Preserves existing contracts when
+ * editing — only adds/removes keys, never overwrites populated fields.
+ *
+ * This lets the manual subsystem form feed the same data shape the AI path
+ * produces, so downstream consumers (InterfaceContractsPanel, Pre-CAD
+ * spatial_score, SCAMPER variant tracking) see a uniform structure.
+ */
+function neighbourTextToContractMap(
+  text: string,
+  existing?: InterfaceContractMap | null,
+): InterfaceContractMap | null {
+  const names = text
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (names.length === 0) return null;
+
+  const result: InterfaceContractMap = {};
+  for (const name of names) {
+    result[name] = existing?.[name] ?? { ...EMPTY_INTERFACE_CONTRACT };
+  }
+  return result;
+}
 // TODO: mockAntiAnchorWarning — AI-generated warning, keep on frontend until AI integration (Sprint 3+)
 import { mockAntiAnchorWarning } from "@/data/mockCreate";
 import {
@@ -559,6 +588,9 @@ export default function Create() {
   };
   const addSubsystem = () => {
     if (!id || !ssFormName.trim()) { toast.error("請輸入子系統名稱"); return; }
+    // Stage 4: write interface_contracts (not legacy `interfaces` string).
+    // Neighbour names from the text field become empty 6-dim placeholders
+    // that RD can fill in-panel later.
     createSubsystem.mutate({
       project_id: id,
       name: ssFormName.trim(),
@@ -566,7 +598,7 @@ export default function Create() {
       related_contradictions: ssFormContradictions,
       confirmed: true,
       source: "rd",
-      interfaces: ssFormInterfaces.trim() || undefined,
+      interface_contracts: neighbourTextToContractMap(ssFormInterfaces),
       level: ssFormLevel,
       parent_id: ssFormParentId,
     });
@@ -588,13 +620,20 @@ export default function Create() {
     if (!editingSubsystemId || !ssFormName.trim()) return;
     const ss = subsystems.find(s => s.id === editingSubsystemId);
     const newSource = ss?.source === "ai" ? "ai_edited" : ss?.source;
+    // Stage 4: compute the new contracts map, preserving any populated
+    // 6-dim fields on neighbours that the user kept in the text list.
+    const nextContracts = neighbourTextToContractMap(
+      ssFormInterfaces,
+      ss?.interfaceContracts ?? null,
+    );
     // Optimistic local update
     setLocalSubsystems(prev => prev.map(s => {
       if (s.id !== editingSubsystemId) return s;
       return {
         ...s, name: ssFormName.trim(), reason: ssFormReason.trim(),
         relatedContradictions: ssFormContradictions,
-        interfaces: ssFormInterfaces.trim() ? ssFormInterfaces.split(",").map(x => x.trim()).filter(Boolean) : [],
+        interfaces: nextContracts ? Object.keys(nextContracts) : [],
+        interfaceContracts: nextContracts ?? undefined,
         source: (newSource ?? s.source) as SubsystemSource,
         level: ssFormLevel,
         parentId: ssFormParentId,
@@ -605,7 +644,7 @@ export default function Create() {
       name: ssFormName.trim(),
       reason: ssFormReason.trim(),
       related_contradictions: ssFormContradictions,
-      interfaces: ssFormInterfaces.trim() || undefined,
+      interface_contracts: nextContracts,
       source: newSource,
       level: ssFormLevel,
       parent_id: ssFormParentId,
@@ -682,7 +721,9 @@ export default function Create() {
             related_contradictions: removed.relatedContradictions,
             confirmed: removed.confirmed,
             source: removed.source || "rd",
-            interfaces: removed.interfaces?.join(", ") || undefined,
+            // Stage 4: restore the full contracts map, not the legacy
+            // comma-joined string.
+            interface_contracts: removed.interfaceContracts ?? null,
           });
           setLocalSubsystems(prev => {
             const next = [...prev];

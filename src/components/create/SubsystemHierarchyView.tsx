@@ -16,11 +16,9 @@ import {
   Layers,
   Box,
   Component as ComponentIcon,
-  Link2,
 } from "lucide-react";
 import type { Subsystem } from "@/types/create";
-import type { InterfaceContract, InterfaceContractMap } from "@/types/generated/subsystem";
-import { INTERFACE_CONTRACT_DIMS } from "@/types/generated/subsystem";
+import { InterfaceContractsPanel } from "./InterfaceContractsPanel";
 
 interface SubsystemHierarchyViewProps {
   subsystems: Subsystem[];
@@ -110,19 +108,23 @@ function ComponentList({
       <CollapsibleContent>
         <div className="ml-5 mt-1.5 space-y-1 border-l-2 border-slate-200 dark:border-slate-700 pl-3">
           {components.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-start gap-2 py-1 text-xs"
-            >
-              <span className="w-1 h-1 rounded-full bg-slate-400 mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <span className="font-medium">{c.name}</span>
-                {c.reason && (
-                  <span className="text-muted-foreground ml-1.5">
-                    — {c.reason}
-                  </span>
-                )}
+            <div key={c.id} className="py-1">
+              <div className="flex items-start gap-2 text-xs">
+                <span className="w-1 h-1 rounded-full bg-slate-400 mt-1.5 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-medium">{c.name}</span>
+                  {c.reason && (
+                    <span className="text-muted-foreground ml-1.5">
+                      — {c.reason}
+                    </span>
+                  )}
+                </div>
               </div>
+              {/* Component-level contracts (rare but allowed by the model) */}
+              <InterfaceContractsPanel
+                contracts={c.interfaceContracts}
+                level="component"
+              />
             </div>
           ))}
         </div>
@@ -131,68 +133,10 @@ function ComponentList({
   );
 }
 
-// ── Interface Contracts (collapsed detail) ──
-// Wire format is camelCase only (single source of truth in
-// `@/types/generated/subsystem`). The previous `normalizeContract` adapter
-// existed to bridge a snake_case fallback that no longer exists after
-// Stage 1 of refactor/subsystem-interface-contracts.
-function InterfaceContracts({
-  contracts,
-}: {
-  contracts?: InterfaceContractMap | null;
-}) {
-  if (!contracts || Object.keys(contracts).length === 0) return null;
-
-  const entries: ReadonlyArray<readonly [string, InterfaceContract]> =
-    Object.entries(contracts);
-
-  return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group mt-2">
-          <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-          <Link2 className="h-3 w-3" />
-          <span>Interface Contracts ({entries.length})</span>
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="ml-5 mt-2 space-y-3">
-          {entries.map(([target, contract]) => {
-            const populated = INTERFACE_CONTRACT_DIMS.filter(
-              (d) => contract[d.key] && contract[d.key].trim() !== "",
-            );
-            return (
-              <div
-                key={target}
-                className="text-xs border rounded-lg p-3 bg-muted/20 space-y-1.5"
-              >
-                <p className="font-medium text-foreground">↔ {target}</p>
-                {populated.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground italic">
-                    （此介面尚未填寫任何維度，請重新執行 Suggest Subsystems 或手動編輯）
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {populated.map((d) => (
-                      <div key={d.key}>
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-                          {d.labelZh}
-                        </span>
-                        <p className="text-muted-foreground leading-relaxed line-clamp-2">
-                          {contract[d.key]}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
+// InterfaceContracts panel moved to ./InterfaceContractsPanel.tsx as part of
+// Stage 2 of refactor/subsystem-interface-contracts. Rendered at all three
+// levels (system / module / component) because the data model allows any
+// node to carry contracts with neighbours.
 
 // ── Module Card (Level 2) — this is what gets checkboxed ──
 function ModuleCard({
@@ -270,7 +214,10 @@ function ModuleCard({
           <ComponentList components={components} />
 
           {/* Interface Contracts — collapsed */}
-          <InterfaceContracts contracts={module.interfaceContracts} />
+          <InterfaceContractsPanel
+            contracts={module.interfaceContracts}
+            level="module"
+          />
         </div>
 
         {/* Actions */}
@@ -361,6 +308,11 @@ function SystemCard({
                   ))}
                 </div>
               )}
+              {/* System-level interface contracts (inter-system boundaries) */}
+              <InterfaceContractsPanel
+                contracts={system.interfaceContracts}
+                level="system"
+              />
             </div>
           </button>
         </CollapsibleTrigger>
@@ -391,13 +343,17 @@ function SystemCard({
                   未歸類元件（建議歸入模組）
                 </p>
                 {directComponents.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center gap-2 py-1 text-xs"
-                  >
-                    <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />
-                    <span>{c.name}</span>
-                    <span className="text-muted-foreground">— {c.reason}</span>
+                  <div key={c.id} className="py-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />
+                      <span>{c.name}</span>
+                      <span className="text-muted-foreground">— {c.reason}</span>
+                    </div>
+                    {/* Component-level contracts (rare but allowed by the model) */}
+                    <InterfaceContractsPanel
+                      contracts={c.interfaceContracts}
+                      level="component"
+                    />
                   </div>
                 ))}
               </div>

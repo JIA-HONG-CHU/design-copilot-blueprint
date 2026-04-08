@@ -18,8 +18,9 @@ import {
   Component as ComponentIcon,
   Link2,
 } from "lucide-react";
-import type { Subsystem, SubsystemInterfaceContract } from "@/types/create";
-import { INTERFACE_CONTRACT_DIMS } from "@/types/create";
+import type { Subsystem } from "@/types/create";
+import type { InterfaceContract, InterfaceContractMap } from "@/types/generated/subsystem";
+import { INTERFACE_CONTRACT_DIMS } from "@/types/generated/subsystem";
 
 interface SubsystemHierarchyViewProps {
   subsystems: Subsystem[];
@@ -131,42 +132,19 @@ function ComponentList({
 }
 
 // ── Interface Contracts (collapsed detail) ──
-// Normalize a single contract object to canonical camelCase keys.
-// Old DB rows (written before backend/app/models/schemas.py 接受 camelCase 別名前)
-// may carry snake_case keys (load_path / thermal_path / signal_path /
-// datum_tolerance). This adapter is read-only and keeps the display robust
-// regardless of which casing the row was persisted with.
-function normalizeContract(
-  raw: Record<string, unknown> | null | undefined,
-): SubsystemInterfaceContract {
-  const r = raw ?? {};
-  const pick = (...keys: string[]) => {
-    for (const k of keys) {
-      const v = r[k];
-      if (typeof v === "string" && v.trim() !== "") return v;
-    }
-    return "";
-  };
-  return {
-    envelope:       pick("envelope"),
-    loadPath:       pick("loadPath", "load_path"),
-    signalPath:     pick("signalPath", "signal_path"),
-    thermalPath:    pick("thermalPath", "thermal_path"),
-    datumTolerance: pick("datumTolerance", "datum_tolerance"),
-    serviceability: pick("serviceability"),
-  };
-}
-
+// Wire format is camelCase only (single source of truth in
+// `@/types/generated/subsystem`). The previous `normalizeContract` adapter
+// existed to bridge a snake_case fallback that no longer exists after
+// Stage 1 of refactor/subsystem-interface-contracts.
 function InterfaceContracts({
   contracts,
 }: {
-  contracts?: Record<string, Record<string, unknown>> | null;
+  contracts?: InterfaceContractMap | null;
 }) {
   if (!contracts || Object.keys(contracts).length === 0) return null;
 
-  const entries = Object.entries(contracts).map(
-    ([target, raw]) => [target, normalizeContract(raw)] as const,
-  );
+  const entries: ReadonlyArray<readonly [string, InterfaceContract]> =
+    Object.entries(contracts);
 
   return (
     <Collapsible>
@@ -292,14 +270,7 @@ function ModuleCard({
           <ComponentList components={components} />
 
           {/* Interface Contracts — collapsed */}
-          <InterfaceContracts
-            contracts={
-              module.interfaceContracts as Record<
-                string,
-                Record<string, string>
-              > | null
-            }
-          />
+          <InterfaceContracts contracts={module.interfaceContracts} />
         </div>
 
         {/* Actions */}

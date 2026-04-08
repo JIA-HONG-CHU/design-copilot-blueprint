@@ -3,7 +3,7 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -805,26 +805,18 @@ class SpatialEstimate(BaseModel):
 
 
 class InterfaceContract(BaseModel):
-    # Accept BOTH camelCase (LLM output per SUBSYSTEM_SUGGESTION prompt) and
-    # snake_case (Python convention). Previously only snake_case was accepted,
-    # which silently dropped LLM-generated values into empty strings.
+    """6-dimensional interface contract between two coupled modules.
+
+    Wire format is camelCase (matches the LLM SUBSYSTEM_SUGGESTION prompt and
+    the FE TypeScript types). Single source of truth — no aliases, no fallbacks.
+    Anything sending snake_case will fail validation loudly, which is the
+    desired behaviour: drift between layers should never be silent.
+    """
     envelope: str = ""
-    loadPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("loadPath", "load_path"),
-    )
-    thermalPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("thermalPath", "thermal_path"),
-    )
-    signalPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("signalPath", "signal_path"),
-    )
-    datumTolerance: str = Field(
-        default="",
-        validation_alias=AliasChoices("datumTolerance", "datum_tolerance"),
-    )
+    loadPath: str = ""
+    thermalPath: str = ""
+    signalPath: str = ""
+    datumTolerance: str = ""
     serviceability: str = ""
     # Optional structured spatial estimate. None when LLM omits it; existing
     # contracts without spatial data remain valid.

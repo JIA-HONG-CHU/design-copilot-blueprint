@@ -19,7 +19,7 @@ import type {
   Subsystem,
   SubsystemSource,
   SubsystemLevel,
-  SubsystemInterfaceContract,
+  // SubsystemInterfaceContract was removed in Stage 1; use InterfaceContractMap directly
   ScamperVariant,
   ScamperAction,
   ScamperNewContradiction,
@@ -28,6 +28,7 @@ import type {
   InterfaceContract,
   ValidationPassport,
 } from '@/types/create';
+import type { InterfaceContractMap } from '@/types/generated/subsystem';
 import type { Json } from '@/integrations/supabase/types';
 
 // ---------------------------------------------------------------------------
@@ -163,7 +164,7 @@ function mapSubsystem(row: SubsystemRow): Subsystem {
     confirmed: row.confirmed,
     parentId: row.parent_id,
     interfaces: row.interfaces ? row.interfaces.split(',').map(s => s.trim()).filter(Boolean) : [],
-    interfaceContracts: (row.interface_contracts as Record<string, SubsystemInterfaceContract>) ?? undefined,
+    interfaceContracts: (row.interface_contracts as InterfaceContractMap) ?? undefined,
     source: row.source as SubsystemSource,
     createdAt: row.created_at,
   };

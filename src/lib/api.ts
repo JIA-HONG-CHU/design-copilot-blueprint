@@ -847,31 +847,22 @@ export interface SubsystemSuggestRequest {
   existing_subsystems?: string[];
 }
 
-export interface SuggestedInterfaceContract {
-  envelope?: string;
-  loadPath?: string;
-  load_path?: string;
-  thermalPath?: string;
-  thermal_path?: string;
-  signalPath?: string;
-  signal_path?: string;
-  datumTolerance?: string;
-  datum_tolerance?: string;
-  serviceability?: string;
-}
-
-export interface SuggestedSubsystem {
-  name: string;
-  level?: string;  // system | module | component
-  reason: string;
-  related_contradictions: string[];
-  children?: SuggestedSubsystem[];
-  interface_contracts?: Record<string, SuggestedInterfaceContract>;
-}
-
-export interface SubsystemSuggestResponse {
-  subsystems: SuggestedSubsystem[];
-}
+// Subsystem suggestion types are imported from the single source of truth
+// (mirrored from backend Pydantic schemas). Wire format is camelCase only —
+// the previous dual-casing `SuggestedInterfaceContract` was a band-aid for
+// the now-removed AliasChoices hack in InterfaceContract.
+// See Stage 1 of refactor/subsystem-interface-contracts.
+export type {
+  SuggestedSubsystem,
+  SubsystemSuggestResponse,
+  InterfaceContract as SuggestedInterfaceContract,
+  InterfaceContractMap,
+  PackageMap,
+  PackageNode,
+  RequiredEnvelope,
+  SpatialEstimate,
+  BBox,
+} from '@/types/generated/subsystem';
 
 export function scamperSubsystemSuggest(body: SubsystemSuggestRequest) {
   return request<SubsystemSuggestResponse>("/scamper/subsystem-suggestions", body, { timeoutMs: 300_000 });

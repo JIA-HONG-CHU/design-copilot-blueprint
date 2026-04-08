@@ -63,16 +63,11 @@ export interface TrizSolution {
 
 // Subsystem
 export type SubsystemSource = 'rd' | 'ai' | 'ai_edited';
-export type SubsystemLevel = 'system' | 'module' | 'component';
-
-export interface SubsystemInterfaceContract {
-  envelope: string;
-  loadPath: string;
-  thermalPath: string;
-  signalPath: string;
-  datumTolerance: string;
-  serviceability: string;
-}
+// SubsystemLevel and InterfaceContract types are now imported from the
+// generated single source of truth (mirrored from backend Pydantic schemas).
+// This eliminates the previous duplicate definitions in this file.
+import type { InterfaceContractMap, SubsystemLevel as GenSubsystemLevel } from '@/types/generated/subsystem';
+export type SubsystemLevel = GenSubsystemLevel;
 
 export interface Subsystem {
   id: string;
@@ -83,7 +78,7 @@ export interface Subsystem {
   confirmed: boolean;
   parentId?: string | null;
   interfaces?: string[];
-  interfaceContracts?: Record<string, SubsystemInterfaceContract>;
+  interfaceContracts?: InterfaceContractMap;
   source: SubsystemSource;
   createdAt?: string;
 }
@@ -118,27 +113,15 @@ export interface ScamperVariant {
 }
 
 // Interface Contract — 6 Dimensions (E2E Spec)
-export interface InterfaceContract {
-  envelope: string;           // 包絡尺寸
-  loadPath: string;           // 負載路徑
-  signalPath: string;         // 信號路徑
-  thermalPath: string;        // 熱路徑
-  datumTolerance: string;     // 基準與公差
-  serviceability: string;     // 維修通道
-}
-
-export const INTERFACE_CONTRACT_DIMS: { key: keyof InterfaceContract; label: string; labelZh: string }[] = [
-  { key: 'envelope',       label: 'Envelope',          labelZh: '包絡尺寸' },
-  { key: 'loadPath',       label: 'Load Path',         labelZh: '負載路徑' },
-  { key: 'signalPath',     label: 'Signal Path',       labelZh: '信號路徑' },
-  { key: 'thermalPath',    label: 'Thermal Path',      labelZh: '熱路徑' },
-  { key: 'datumTolerance', label: 'Datum & Tolerance',  labelZh: '基準與公差' },
-  { key: 'serviceability', label: 'Serviceability',    labelZh: '維修通道' },
-];
-
-export const EMPTY_INTERFACE_CONTRACT: InterfaceContract = {
-  envelope: '', loadPath: '', signalPath: '', thermalPath: '', datumTolerance: '', serviceability: '',
-};
+// Single source of truth lives in `@/types/generated/subsystem`. Re-exported
+// here for backwards compatibility with existing alternative-flow imports.
+// Stage 1 of refactor/subsystem-interface-contracts: was 3 duplicate
+// definitions, now 1.
+export type { InterfaceContract } from '@/types/generated/subsystem';
+export {
+  INTERFACE_CONTRACT_DIMS,
+  EMPTY_INTERFACE_CONTRACT,
+} from '@/types/generated/subsystem';
 
 // Alternative (concept route)
 export type AlternativeSource = 'triz_tc' | 'triz_pc' | 'triz_sf' | 'scamper' | 'manual' | 'ai_integrated' | 'anti_anchor';

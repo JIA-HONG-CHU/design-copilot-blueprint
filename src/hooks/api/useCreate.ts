@@ -19,7 +19,6 @@ import type {
   Subsystem,
   SubsystemSource,
   SubsystemLevel,
-  SubsystemInterfaceContract,
   ScamperVariant,
   ScamperAction,
   ScamperNewContradiction,
@@ -28,6 +27,7 @@ import type {
   InterfaceContract,
   ValidationPassport,
 } from '@/types/create';
+import type { InterfaceContractMap } from '@/types/generated/subsystem';
 import type { Json } from '@/integrations/supabase/types';
 
 // ---------------------------------------------------------------------------
@@ -154,16 +154,38 @@ function mapTrizSolution(row: TrizSolutionRow): TrizSolution {
 }
 
 function mapSubsystem(row: SubsystemRow): Subsystem {
+  // Stage 6: if level is missing on the DB row this is a data corruption
+  // signal — log loudly so developers see it in the console, but keep the
+  // row visible (falling back to "module") so one bad row does not take
+  // down the entire subsystems list. Insert-path validation in
+  // useSubsystemSuggestion.ts is the fail-loud enforcement layer.
+  const level = (row.level as SubsystemLevel) ?? 'module';
+  if (!row.level) {
+    console.error(
+      `[mapSubsystem] subsystem ${row.id} (${row.name}) has no level in DB; ` +
+        `defaulting to "module". This indicates an insert-path bug — please report.`,
+    );
+  }
+  // Stage 4: derive `interfaces` list from interface_contracts keys rather
+  // than the legacy comma-joined `interfaces` column. Migration 008 already
+  // upgraded historical rows so the contracts map is the authoritative
+  // source. The legacy column is kept until Stage 7 for rollback safety.
+  const interfaceContracts = (row.interface_contracts as InterfaceContractMap) ?? undefined;
+  const interfaces = interfaceContracts
+    ? Object.keys(interfaceContracts)
+    : row.interfaces
+      ? row.interfaces.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
   return {
     id: row.id,
     name: row.name,
-    level: (row.level as SubsystemLevel) ?? 'module',
+    level,
     reason: row.reason ?? '',
     relatedContradictions: row.related_contradictions ?? [],
     confirmed: row.confirmed,
     parentId: row.parent_id,
-    interfaces: row.interfaces ? row.interfaces.split(',').map(s => s.trim()).filter(Boolean) : [],
-    interfaceContracts: (row.interface_contracts as Record<string, SubsystemInterfaceContract>) ?? undefined,
+    interfaces,
+    interfaceContracts,
     source: row.source as SubsystemSource,
     createdAt: row.created_at,
   };
@@ -342,6 +364,11 @@ export function useSubsystems(projectId: string | undefined) {
   return { ...result, data };
 }
 
+// Stage 4: mutation payloads now carry `interface_contracts` (JSONB) directly
+// instead of the legacy `interfaces` comma-joined string. The DB column
+// `subsystems.interfaces` still exists (to be dropped in Stage 7) but writes
+// no longer target it — migration 008 upgrades historical rows from
+// `interfaces` → `interface_contracts` with empty 6-dim placeholders.
 export function useCreateSubsystem() {
   return useSupabaseMutation<SubsystemRow, {
     project_id: string;
@@ -350,7 +377,7 @@ export function useCreateSubsystem() {
     related_contradictions?: string[];
     confirmed?: boolean;
     parent_id?: string | null;
-    interfaces?: string;
+    interface_contracts?: InterfaceContractMap | null;
     source?: string;
     level?: string;
   }>({
@@ -369,7 +396,7 @@ export function useUpdateSubsystem() {
     related_contradictions?: string[];
     confirmed?: boolean;
     parent_id?: string | null;
-    interfaces?: string;
+    interface_contracts?: InterfaceContractMap | null;
     source?: string;
     level?: string;
   }>({

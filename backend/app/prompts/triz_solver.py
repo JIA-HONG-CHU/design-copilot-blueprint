@@ -330,13 +330,19 @@ grounded spatial estimate (bbox + mass) for each module.
 3. For each module, list 2–5 **components** (e.g., Motor → Stator, Rotor, Bearing).
 4. Link each node to the contradictions it relates to.
 5. For each pair of coupled modules (sharing a contradiction or physical interface), \
-define a 6-dimensional interface contract:
-   - **envelope**: physical boundary (dimensions, mounting)
-   - **loadPath**: force/torque transfer path
-   - **thermalPath**: heat dissipation path
-   - **signalPath**: electrical/data signals
-   - **datumTolerance**: critical dimensions and tolerances
-   - **serviceability**: maintenance access and replaceability
+define a 6-dimensional interface contract. **ALL SIX TEXT FIELDS ARE MANDATORY** \
+— never emit an empty string, never omit a field. Each must carry real \
+engineering content grounded in the physical interaction, not placeholders \
+like "N/A", "—", or "standard". If the interface genuinely has no constraint \
+on a dimension, still write a specific sentence explaining why (e.g., \
+"serviceability: replaceable without removing adjacent modules; no special \
+tooling required"):
+   - **envelope**: physical boundary (dimensions, mounting pattern, clearance)
+   - **loadPath**: force/torque transfer path (magnitude + direction + mechanism)
+   - **thermalPath**: heat dissipation path (source → sink + expected ΔT)
+   - **signalPath**: electrical/data signals (protocol + voltage + latency)
+   - **datumTolerance**: critical dimensions and tolerances (±mm / ±degrees)
+   - **serviceability**: maintenance access and replaceability (teardown steps)
 6. **Spatial estimate (REQUIRED on every interface contract)** — attach a `spatial` block:
    - **Prefer** citing an entry from <reference_library> via its source-prefixed \
 key. Use `reference_source: "rd_override:<key>"` / `"learned:<key>"` / `"seed:<key>"` \

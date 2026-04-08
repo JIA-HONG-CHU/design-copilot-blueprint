@@ -19,7 +19,11 @@ from app.models.schemas import (
     SpatialOverlayRequest,
     SpatialOverlayResponse,
 )
-from app.agents.triz_solver import scamper_transform, suggest_subsystems
+from app.agents.triz_solver import (
+    scamper_transform,
+    suggest_subsystems,
+    IncompleteLLMResponseError,
+)
 from app.agents.scamper_feedback import process_scamper_feedback
 from app.services.spatial_validator import discover_package, apply_overlay
 
@@ -34,8 +38,19 @@ def scamper_perform(req: ScamperRequest):
 
 @router.post("/scamper/subsystem-suggestions", response_model=SubsystemSuggestResponse)
 def scamper_subsystem_suggestions(req: SubsystemSuggestRequest):
-    """AI suggests subsystems suitable for SCAMPER analysis."""
-    return suggest_subsystems(req)
+    """AI suggests subsystems suitable for SCAMPER analysis.
+
+    Raises HTTP 502 with a structured body when the LLM cannot produce a
+    complete 6-dim interface contract even after one targeted retry. The FE
+    should surface this to RD as "LLM output incomplete, please retry" and
+    log the violations for prompt tuning. This is intentionally fail-loud —
+    silent fallback to partial data was the root cause of the
+    "interface contracts disappearing" class of bugs.
+    """
+    try:
+        return suggest_subsystems(req)
+    except IncompleteLLMResponseError as exc:
+        raise HTTPException(status_code=502, detail=exc.to_dict()) from exc
 
 
 @router.post("/scamper/spatial-overlay", response_model=SpatialOverlayResponse)

@@ -3,7 +3,7 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -805,26 +805,18 @@ class SpatialEstimate(BaseModel):
 
 
 class InterfaceContract(BaseModel):
-    # Accept BOTH camelCase (LLM output per SUBSYSTEM_SUGGESTION prompt) and
-    # snake_case (Python convention). Previously only snake_case was accepted,
-    # which silently dropped LLM-generated values into empty strings.
+    """6-dimensional interface contract between two coupled modules.
+
+    Wire format is camelCase (matches the LLM SUBSYSTEM_SUGGESTION prompt and
+    the FE TypeScript types). Single source of truth — no aliases, no fallbacks.
+    Anything sending snake_case will fail validation loudly, which is the
+    desired behaviour: drift between layers should never be silent.
+    """
     envelope: str = ""
-    loadPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("loadPath", "load_path"),
-    )
-    thermalPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("thermalPath", "thermal_path"),
-    )
-    signalPath: str = Field(
-        default="",
-        validation_alias=AliasChoices("signalPath", "signal_path"),
-    )
-    datumTolerance: str = Field(
-        default="",
-        validation_alias=AliasChoices("datumTolerance", "datum_tolerance"),
-    )
+    loadPath: str = ""
+    thermalPath: str = ""
+    signalPath: str = ""
+    datumTolerance: str = ""
     serviceability: str = ""
     # Optional structured spatial estimate. None when LLM omits it; existing
     # contracts without spatial data remain valid.
@@ -973,18 +965,42 @@ class PreCadAnalyzeRequest(BaseModel):
 
 class PreCadAnalyzeResponse(BaseModel):
     """5D AI scores and analysis."""
+    # Ignore any LLM-supplied `overall_pass` — it is now computed server-side
+    # from the 5 scores so it cannot drift after a deterministic override.
+    model_config = ConfigDict(extra="ignore")
+
     spatial_score: int = Field(ge=1, le=5)
     cost_score: int = Field(ge=1, le=5)
     safety_score: int = Field(ge=1, le=5)
     decoupling_score: int = Field(ge=1, le=5)
     supply_score: int = Field(ge=1, le=5)
-    overall_pass: bool
     analysis: str
     evidence_references: list[EvidenceReference] = Field(default_factory=list)
     # Populated when the request includes subsystems with spatial estimates.
     # Lets the FE display the same package map RD already saw at F2 alongside
     # the pre-CAD scores.
     package_map: PackageMap | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def overall_pass(self) -> bool:
+        """Derived from the 5 scores: pass iff every dimension >= 3.
+
+        Implemented as a computed field (not stored) so that any code path
+        which mutates one of the scores (e.g. the deterministic spatial
+        override in `analyze_pre_cad`) automatically gets a consistent
+        `overall_pass` at serialization time — no manual recompute needed.
+        """
+        return all(
+            s >= 3
+            for s in (
+                self.spatial_score,
+                self.cost_score,
+                self.safety_score,
+                self.decoupling_score,
+                self.supply_score,
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

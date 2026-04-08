@@ -175,9 +175,9 @@ Score each dimension 1–5:
 4. **Decoupling** — Modularity, coupling with other subsystems.
 5. **Supply** — Key-component availability, supplier risk.
 
-Pass rule:
-- Any dimension ≤ 2 → overall_pass = false
-- All dimensions ≥ 3 → overall_pass = true
+Note: do NOT emit `overall_pass`. It is computed server-side from the 5
+scores (pass iff every dimension >= 3) and any value you provide will be
+ignored. Just return the five scores and your analysis.
 </instructions>
 
 <output_schema>
@@ -187,7 +187,6 @@ Pass rule:
   "safety_score": 5,
   "decoupling_score": 3,
   "supply_score": 4,
-  "overall_pass": true,
   "analysis": "Overall assessment (50–200 words)"
 }}
 </output_schema>

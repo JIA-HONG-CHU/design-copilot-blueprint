@@ -131,18 +131,12 @@ def analyze_pre_cad(req: PreCadAnalyzeRequest) -> PreCadAnalyzeResponse:
 
     # Override the LLM's spatial score with the validator's arithmetic when
     # we have evidence. The LLM's narrative `analysis` is preserved.
+    # `overall_pass` is a computed field on the response model, so it will
+    # automatically reflect the new score at serialization time — no manual
+    # recompute needed here.
     if deterministic_spatial > 0:
         response.spatial_score = deterministic_spatial
         response.package_map = package
-        # Recompute overall_pass since we may have changed the spatial score
-        scores = [
-            response.spatial_score,
-            response.cost_score,
-            response.safety_score,
-            response.decoupling_score,
-            response.supply_score,
-        ]
-        response.overall_pass = all(s >= 3 for s in scores)
 
     return response
 

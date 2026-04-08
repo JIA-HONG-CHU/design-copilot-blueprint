@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addingType, setAddingType] = useState<ContradictionType | null>(null);
   const [revertConfirmId, setRevertConfirmId] = useState<string | null>(null);
+  const pendingEditIdRef = useRef<string | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(projectId) });
 
@@ -84,7 +85,34 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
   const handleSaveEdit = async () => {
     if (!editingId) return;
-    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    // ✅ 驗證必填欄位，防止空描述被儲存
+    const desc = editForm.description?.trim();
+    if (!desc) {
+      toast.error('請填寫矛盾描述');
+      return;
+    }
+
+    if (editForm.type === 'TC') {
+      if (!editForm.improvingParam || !editForm.worseningParam) {
+        toast.error('技術矛盾需要選擇改善參數和惡化參數');
+        return;
+      }
+    } else if (editForm.type === 'PC') {
+      if (!editForm.pcAttributeA?.trim() || !editForm.pcAttributeNotA?.trim()) {
+        toast.error('物理矛盾需要填寫屬性 A 和非 A');
+        return;
+      }
+    } else if (editForm.type === 'SF') {
+      if (!editForm.sfSubstance1?.trim() || !editForm.sfSubstance2?.trim() || !editForm.sfField?.trim()) {
+        toast.error('Su-Field 問題需要填寫 S1、S2 和 Field');
+        return;
+      }
+    }
+
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
     if (editForm.description !== undefined) updateData.natural_description = editForm.description;
     if (editForm.improvingParam !== undefined) updateData.improving_param = editForm.improvingParam;
     if (editForm.worseningParam !== undefined) updateData.worsening_param = editForm.worseningParam;
@@ -92,7 +120,6 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     if (editForm.pcAttributeA !== undefined || editForm.pcAttributeNotA !== undefined) {
       updateData.physical_contradiction = `${editForm.pcAttributeA ?? ''} | ${editForm.pcAttributeNotA ?? ''}`;
     }
-    // Su-Field fields
     if (editForm.sfSubstance1 !== undefined) updateData.sf_substance_1 = editForm.sfSubstance1;
     if (editForm.sfSubstance2 !== undefined) updateData.sf_substance_2 = editForm.sfSubstance2;
     if (editForm.sfField !== undefined) updateData.sf_field = editForm.sfField;
@@ -103,7 +130,10 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       .from('contradictions')
       .update(updateData)
       .eq('id', editingId);
-    if (error) { toast.error(`更新失敗：${error.message}`); return; }
+    if (error) {
+      toast.error(`更新失敗：${error.message}`);
+      return;
+    }
     setEditingId(null);
     setEditForm({});
     invalidate();
@@ -142,21 +172,28 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       })
       .select()
       .single();
-    if (error) { toast.error(`新增失敗：${error.message}`); return; }
+    if (error) {
+      toast.error(`新增失敗：${error.message}`);
+      return;
+    }
     setAddingType(null);
-    invalidate();
-    setEditingId(data.id);
-    setEditForm({
-      id: data.id, projectId, type,
-      improvingParam: null, worseningParam: null,
-      pcAttributeA: null, pcAttributeNotA: null,
-      sfSubstance1: null, sfSubstance2: null, sfField: null,
-      sfInteraction: null, sfCompleteness: null,
-      description: '', status: 'draft' as const,
-      source: 'manual' as const,
-      createdAt: now, updatedAt: now,
+
+    // ✅ 記住待編輯的 ID，等資料刷新後再自動進入編輯模式
+    pendingEditIdRef.current = data.id;
+    await qc.invalidateQueries({
+      queryKey: queryKeys.contradictions.byProject(projectId),
     });
   };
+
+  // ✅ 資料刷新後，自動對剛新增的項目進入編輯模式
+  useEffect(() => {
+    if (!pendingEditIdRef.current) return;
+    const target = contradictions.find((c) => c.id === pendingEditIdRef.current);
+    if (target) {
+      handleStartEdit(target);
+      pendingEditIdRef.current = null;
+    }
+  }, [contradictions]);
 
   // ── AI re-identify (per type) ─────────────────────────────────────────
 

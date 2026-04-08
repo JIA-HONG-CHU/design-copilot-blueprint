@@ -76,7 +76,7 @@ Instantiate inventive principles for a Technical Contradiction (TC).
 
 TRIZ_PC_INSTANTIATION = """\
 <task>
-Resolve a Physical Contradiction (PC) using separation principles.
+Resolve a Physical Contradiction (PC) using separation principles and their strategies.
 </task>
 
 <context>
@@ -86,19 +86,42 @@ Resolve a Physical Contradiction (PC) using separation principles.
 </context>
 
 <instructions>
-1. Determine which separation principle(s) apply: time / space / condition / system level.
-2. For each applicable principle, identify corresponding inventive principles from the 40.
-3. Propose concrete engineering implementations for the project's context.
-4. Flag potential secondary contradictions.
+1. Identify which separation principle(s) apply to this physical contradiction.
+2. For each applicable separation principle, select the most relevant strategy
+   from the knowledge base.
+3. Propose concrete engineering implementations grounded in the project context.
+4. Each suggestion must trace back to a physical law or control equation
+   from the separation principle's description.
+5. Flag potential secondary contradictions.
 </instructions>
+
+<valid_principle_names>
+The "principle_name" field MUST be one of the following exactly:
+- "時間分離: 預先動作"
+- "時間分離: 事後動作"
+- "時間分離: 週期性切換"
+- "時間分離: 加速通過"
+- "空間分離: 局部品質"
+- "空間分離: 分割組合"
+- "空間分離: 嵌套"
+- "空間分離: 幾何變換"
+- "條件分離: 相變"
+- "條件分離: 參數閾值觸發"
+- "條件分離: 環境響應材料"
+- "條件分離: 外場控制"
+- "整體與局部分離: 複合結構"
+- "整體與局部分離: 多孔中空"
+- "整體與局部分離: 梯度漸變"
+- "整體與局部分離: 自相似碎形"
+</valid_principle_names>
 
 <output_schema>
 {{
   "suggestions": [
     {{
-      "separation_principle": "time|space|condition|system_level",
-      "principle_number": 1,
-      "principle_name": "Segmentation",
+      "separation_principle": "時間分離|空間分離|條件分離|整體與局部分離",
+      "principle_name": "<separation_principle>: <strategy_name>",
+      "physical_basis": "The physical law or equation that enables this separation",
       "suggestion": "Concrete engineering action (≥80 words)",
       "affected_modules": ["module_A"],
       "secondary_contradictions": ["..."]

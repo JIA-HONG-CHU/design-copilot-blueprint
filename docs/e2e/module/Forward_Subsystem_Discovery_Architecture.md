@@ -1,7 +1,7 @@
 # 正向分析・子系統定義：系統架構說明書（SA 視角）
 
-> **版本**：v2.0 | **日期**：2026-04-08 | **觀點**：Systems Analyst
-> **對齊依據**：`AI_Agent_Architecture.md` v1.4、`RD_Design_Copilot_整合流程.md` v1.6、`docs/diagrams/triz-to-scamper-flow.md` v10
+> **版本**：v2.1 | **日期**：2026-04-08 | **觀點**：Systems Analyst
+> **對齊依據**：`AI_Agent_Architecture.md` v1.4、`RD_Design_Copilot_整合流程.md` v1.6、`docs/diagrams/triz-to-scamper-flow.md` v11、`docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` v1.0
 > **文件目的**：以 SA 視角拆解「正向分析・子系統定義」階段（F2 + F2.5）的所有架構面向——actors、use cases、context、container、component、data、sequence、state、deployment——每張圖以 Mermaid 呈現，供開發、測試、維運與後續迭代共同對齊。
 
 ---
@@ -16,6 +16,7 @@
 | §1  | 業務情境               | 為什麼這個系統存在？解決誰的什麼問題？   |
 | §2  | Actors & Use Cases | 誰在用？做什麼事？             |
 | §3  | Context Diagram    | 系統與外部世界的邊界在哪？         |
+| §3.1 | F1→F2 契約        | 分層 TRIZ 輸入、`LayeredTrizSolution[]`、術語區分（樹階 vs 分析層） |
 | §4  | Container Diagram  | 系統內部由哪些可獨立部署的元件組成？    |
 | §5  | Component Diagram  | 每個 Container 內部的職責切分？ |
 | §6  | Data Model         | 核心資料實體與關係？            |
@@ -68,8 +69,8 @@ mindmap
 | Actor                            | 類型            | 與系統的關係                                         |
 | -------------------------------- | ------------- | ---------------------------------------------- |
 | **RD 工程師**                       | 主要人類 actor    | 觸發子系統定義、檢視 Package Map、做 inline override、簽核估計值 |
-| **AI Orchestrator**              | 系統內 actor     | 在 E2E 流程中銜接 F1（TRIZ）與 F3（SCAMPER），觸發 F2        |
-| **TRIZ Solver Agent**            | 系統內 LLM actor | 產生子系統樹與介面契約                                    |
+| **AI Orchestrator**              | 系統內 actor     | 在 E2E 流程中銜接 F1（分層 TRIZ）與 F3（SCAMPER），以 `LayeredTrizSolution[]`（或退化輸入）+ Brief 觸發 F2 |
+| **TRIZ Solver Agent**            | 系統內 LLM actor | 消費 F1 分層產出與 Brief，產生子系統樹（System / Module / Component）與六維介面契約；prompt 應優先使用採納路線上的 PC 根因與 SF 結構診斷（見 §3.1、§6.4.4） |
 | **Spatial Validator**            | 系統內純算術 actor  | 計算 Package Map，不呼叫 LLM                         |
 | **Layered Spatial Resolver**     | 系統內查詢 actor   | 跨五層查找真值                                        |
 | **Web Search Provider (Tavily)** | 外部系統          | 提供 datasheet 即時抓取                              |
@@ -140,7 +141,7 @@ graph TB
         F2[正向分析・子系統定義<br/>F2 + F2.5<br/>本文件範圍]
     end
 
-    F1[F1: TRIZ 解矛盾<br/>上游：提供矛盾清單]
+    F1[F1: TRIZ 解矛盾<br/>輸出 LayeredTrizSolution[]<br/>+ differential_analysis]
     F3[F3: SCAMPER 變形<br/>下游：消費介面契約]
     PreCAD[Pre-CAD 五維評分<br/>下游：消費 Package Map]
 
@@ -149,7 +150,7 @@ graph TB
     LLM[LLM Provider<br/>Claude / GPT]
 
     RD <--> F2
-    F1 -->|矛盾清單 + Brief| F2
+    F1 -->|LayeredTrizSolution[]<br/>+ Brief| F2
     F2 -->|結構化子系統樹<br/>+ 介面契約 + Package Map| F3
     F2 -->|Package Map<br/>+ spatial 評分| PreCAD
     F2 <-->|datasheet 抓取| Tavily
@@ -158,7 +159,20 @@ graph TB
     LLM -->|JSON 回應| F2
 ```
 
+### §3.1 F1→F2 契約（與分層 TRIZ 銜接）
 
+F1 與本文件所述 F2 之間的**正式 hand-off** 對齊 `TRIZ_Layered_DrillDown_Optimization.md` §8.1：
+
+| 項目 | 規格 |
+| --- | --- |
+| **主要輸入** | `LayeredTrizSolution[]`：每個矛盾一個聚合體，含 L1（TC 現象）/ L2（PC 本質，可缺）/ L3（SF 結構旁路）及 `differential_analysis` |
+| **Brief** | 專案任務與邊界敘述（與現行一致） |
+| **F2 預設行為** | 子系統建議與 `related_contradictions` 的**主綁定**預設跟隨 `differential_analysis.recommended_route`；RD 在決策中心採納後以 `adopted_route`（或等價欄位）覆寫 |
+| **向後相容** | 若管線尚未升級，可僅傳「矛盾清單 + 扁平 TRIZ 候選」：視為僅有 L1、無 `deepen_link`；F2 仍須能跑通，但不享有分層訊號 |
+
+**術語區分（必讀）**：本文件 §6.4 的 **System / Module / Component** 是 **F2 子系統樹的階層（tree tier）**，勿與 F1 的 **TC / PC / SF 分析層（phenomenon → essence → structural lens）** 混用。後者在 TRIZ 分層文件中以 L1/L2/L3 表示；本文件之後稱 F2 三階為 **樹階** 或直呼 System/Module/Component，避免與 F1 代號並列時產生歧義。
+
+**與 Phase B**：同矛盾、同一 `LayeredTrizSolution` 內多層解之組合為合法採納；跨矛盾衝突仍依 `triz-to-scamper-flow.md` v11 檢查。F2 的 `related_contradictions` 不將「同 LTS 跨層」當成互斥候選（見 §6.4.4）。
 
 ---
 
@@ -429,23 +443,25 @@ erDiagram
 
 「三層樹」不是任意分層，而是一個刻意設計的拆解框架，目的是讓 **TRIZ 矛盾、SCAMPER 變形、Pre-CAD 評分** 三個下游階段都有對應的操作粒度。
 
+> **命名提醒**：此處三階為 **F2 子系統樹（tree tier）**，與 F1 `LayeredTrizSolution` 的 TC/PC/SF **分析層**（TRIZ 文件中的 L1/L2/L3）為不同維度；下文圖中子圖標題使用「樹階」以避免與 F1 代號混淆。
+
 ### 6.4.1 為什麼是三層
 
 ```mermaid
 graph TB
-    subgraph L1[Level 1: System 系統層]
+    subgraph TreeSys[樹階 — System 系統層]
         S1[Power Subsystem]
         S2[Control Subsystem]
         S3[Structure Subsystem]
     end
 
-    subgraph L2[Level 2: Module 模組層]
+    subgraph TreeMod[樹階 — Module 模組層]
         M1[Motor Assembly]
         M2[Gearbox]
         M3[Inverter]
     end
 
-    subgraph L3[Level 3: Component 元件層]
+    subgraph TreeComp[樹階 — Component 元件層]
         C1[Stator]
         C2[Rotor]
         C3[Bearing]
@@ -458,9 +474,9 @@ graph TB
     M1 --> C2
     M1 --> C3
 
-    style L1 fill:#dbeafe,stroke:#1e3a8a,stroke-width:2px,color:#000
-    style L2 fill:#bfdbfe,stroke:#1e3a8a,stroke-width:2px,color:#000
-    style L3 fill:#93c5fd,stroke:#1e3a8a,stroke-width:2px,color:#000
+    style TreeSys fill:#dbeafe,stroke:#1e3a8a,stroke-width:2px,color:#000
+    style TreeMod fill:#bfdbfe,stroke:#1e3a8a,stroke-width:2px,color:#000
+    style TreeComp fill:#93c5fd,stroke:#1e3a8a,stroke-width:2px,color:#000
 ```
 
 
@@ -498,7 +514,7 @@ graph TB
 
 ```mermaid
 flowchart TB
-    Brief[Brief + 矛盾清單] --> Q1{是否為<br/>能量轉換 / 控制 / 結構<br/>三大功能群?}
+    Brief[Brief + F1 產出<br/>LayeredTrizSolution[]<br/>或退化：矛盾清單] --> Q1{是否為<br/>能量轉換 / 控制 / 結構<br/>三大功能群?}
     Q1 -->|是| SYS[標為 system level]
     Q1 -->|否| Q2{是否為<br/>可被 SCAMPER 整體替換的<br/>功能單元?}
     Q2 -->|是| MOD[標為 module level]
@@ -516,10 +532,16 @@ flowchart TB
 
 ### 6.4.4 與矛盾的綁定
 
-每個節點都帶 `related_contradictions` 欄位，是 F1 階段識別出的矛盾 ID 清單。這個綁定有兩個作用：
+每個節點都帶 `related_contradictions` 欄位，列出與該節點相關的**矛盾 ID**。在分層 TRIZ 管線下，綁定規則對齊 `TRIZ_Layered_DrillDown_Optimization.md` §8.1：
 
-1. **TRIZ 反向追蹤**：給定一個矛盾，能立刻找到所有受影響的 module
-2. **SCAMPER 影響範圍預測**：對某 module 做變形時，先看它綁定哪些矛盾，預測會不會引發二次矛盾
+1. **主綁定（給 SCAMPER / 二次矛盾預測用）**：預設僅將節點關聯到 RD 已採納路線（`adopted_route`，若尚未採納則用 `differential_analysis.recommended_route`）上所標示的**承載模組 / 根因元件**。同一 `LayeredTrizSolution` 內未採納的層（例如僅作說明的 L1 折衷解）**不**自動等同於「待變形依據」，避免 Phase B 與 F2 預測誤把 drill-down 堆疊當成互斥多解。
+2. **追溯與說明（可選欄位）**：可另存 `related_contradictions_context`（或等價結構）記錄「同矛盾下其餘層曾提及的模組／元件」，僅供 UI 與稽核，不參與預設 SCAMPER 影響範圍計算。
+3. **向後相容**：若輸入僅有扁平矛盾清單而無 `LayeredTrizSolution`，`related_contradictions` 維持「該節點曾由舊版 F1 關聯到的矛盾 ID 清單」語意，不區分主綁定與 context。
+
+此設計支援兩個既有目標：
+
+1. **TRIZ 反向追蹤**：給定一個矛盾，能立刻找到所有受影響的 module（與採納路線一致時最精準）。
+2. **SCAMPER 影響範圍預測**：對某 module 做變形時，以**主綁定**矛盾預測是否牽動已採納的跨層設計，降低與「同 LTS 跨層合法組合」的語意衝突。
 
 ```mermaid
 graph LR
@@ -669,13 +691,13 @@ sequenceDiagram
     participant DB as Supabase
 
     RD->>FE: 點「Suggest Subsystems」
-    FE->>API: POST /scamper/subsystem-suggestions<br/>{project_id, mission, contradictions}
+    FE->>API: POST /scamper/subsystem-suggestions<br/>{project_id, mission,<br/>layered_triz_solutions?, contradictions?}
     API->>AG: suggest_subsystems(req)
 
-    Note over AG,RES: Phase 1：詞彙準備
+    Note over AG,RES: Phase 1：詞彙準備（下列 L1–L4 為 spatial 查詢層級，非 F1 TRIZ 分層）
     AG->>RES: summarize_for_prompt(project_id)
-    RES->>DB: 查 rd_override (L1)
-    RES->>DB: 查 learned (L2)
+    RES->>DB: 查 rd_override (resolver L1)
+    RES->>DB: 查 learned (resolver L2)
     RES->>RES: 讀 seed JSON (L4)
     RES-->>AG: library_summary
 
@@ -687,7 +709,7 @@ sequenceDiagram
     AG->>AG: _resolve_spatial_via_layers()
     loop 每個 spatial 區塊
         AG->>RES: lookup(reference_source)
-        alt L1/L2/L3/L4 命中
+        alt resolver L1/L2/L3/L4 命中
             RES-->>AG: 真值 bbox + mass
             AG->>AG: 覆寫 LLM 數字<br/>(保留 anchor/origin)
         else 引用 key 不存在
@@ -728,7 +750,7 @@ sequenceDiagram
     API-->>FE: { saved: true }
     FE->>RD: 顯示 confirmation
 
-    Note over RD,DB: 下次 suggest_subsystems 時<br/>L1 直接命中此 override
+    Note over RD,DB: 下次 suggest_subsystems 時<br/>spatial resolver 第一層直接命中此 override
 ```
 
 
@@ -1111,7 +1133,8 @@ flowchart LR
 | `AI_Agent_Architecture.md` v1.4             | TRIZ Solver Agent 的「子系統拆解（三層階層）」職責即本文件 §5 |
 | `RD_Design_Copilot_整合流程.md` v1.6            | 本文件補充 F2.5 作為 F2 的後置子步                    |
 | `RD_Design_Copilot_State_Machine.md` v1.6   | 子系統 Artifact 狀態機見本文件 §8.1                 |
-| `docs/diagrams/triz-to-scamper-flow.md` v10 | 本文件是該流程圖的 SA 視角文字化                        |
+| `docs/diagrams/triz-to-scamper-flow.md` v11 | 本文件是該流程圖的 SA 視角文字化；F1 分層輸出與 Phase B 規則見該檔 v11 摘要 |
+| `docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` v1.0 | F1→F2 hand-off、`LayeredTrizSolution` 與本文件 §3.1、§6.4.4 對齊 |
 | `Pre_CAD_Review_Template.md`                | spatial_score 算術化，見本文件 §10                |
 
 

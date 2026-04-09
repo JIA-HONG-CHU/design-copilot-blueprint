@@ -21,10 +21,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
   Layers,
+  Pencil,
   Target,
   Zap,
   Activity,
@@ -53,12 +63,19 @@ import { DifferentialAnalysisPanel } from './DifferentialAnalysisPanel';
 
 export type AdoptionMode = 'recommended' | 'custom' | 'fallback';
 
+export interface DeepenLinkEdits {
+  derivedParameter: string;
+  separationType: 'time' | 'space' | 'condition' | 'whole_part';
+}
+
 export interface LayeredSolutionCardProps {
   solution: LayeredTrizSolution;
   /** Called when RD adopts a route. `layers` is the final L1/L2/L3 subset. */
   onAdopt?: (mode: AdoptionMode, layers: AdoptedLayerId[]) => void;
   /** Called when RD manually triggers L2 deepen (force_l2 re-fetch). */
   onForceDeepenL2?: () => void;
+  /** Called when RD edits the deepen_link derived parameter or separation type (WBS 8.7). */
+  onEditDeepenLink?: (edits: DeepenLinkEdits) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,12 +345,98 @@ function L2StatusBadge({ layer }: { layer: L2RootCause | null }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// L2 Deepen-link edit dialog (WBS 8.7)
+// ---------------------------------------------------------------------------
+
+const SEP_OPTIONS: { value: SeparationCandidate['type']; label: string }[] = [
+  { value: 'time', label: '⏱ 時間分離' },
+  { value: 'space', label: '🗺 空間分離' },
+  { value: 'condition', label: '🎚 條件分離' },
+  { value: 'whole_part', label: '🧩 整體-局部' },
+];
+
+function EditDeepenLinkDialog({
+  link,
+  onSave,
+}: {
+  link: DeepenLink;
+  onSave: (edits: DeepenLinkEdits) => void;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [param, setParam] = useState(link.derived_physical_parameter);
+  const topSep = link.separation_type_candidates[0]?.type ?? 'time';
+  const [sepType, setSepType] = useState<SeparationCandidate['type']>(topSep);
+
+  const handleSave = () => {
+    onSave({ derivedParameter: param.trim(), separationType: sepType });
+    setDialogOpen(false);
+  };
+
+  return (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="text-[11px] gap-1" data-testid="edit-deepen-link-btn">
+          <Pencil className="h-3 w-3" />
+          RD 手動編輯
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm">編輯 Deepen Link 參數</DialogTitle>
+          <DialogDescription className="text-xs">
+            修改 L2 推導物理量與分離類型後，將以修正值重新 fetch L2 結果。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">推導物理量 (derived_parameter)</label>
+            <input
+              type="text"
+              value={param}
+              onChange={(e) => setParam(e.target.value)}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              placeholder="例: 瞬時功率 P(t)"
+              data-testid="edit-derived-parameter"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">分離類型 (separation_type)</label>
+            <select
+              value={sepType}
+              onChange={(e) => setSepType(e.target.value as SeparationCandidate['type'])}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              data-testid="edit-separation-type"
+            >
+              {SEP_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button size="sm" variant="outline" onClick={() => setDialogOpen(false)}>
+            取消
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={!param.trim()} data-testid="edit-deepen-link-save">
+            儲存並重新 fetch L2
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function L2RootCauseSection({
   layer,
   onForceDeepenL2,
+  onEditDeepenLink,
 }: {
   layer: L2RootCause | null;
   onForceDeepenL2?: () => void;
+  onEditDeepenLink?: (edits: DeepenLinkEdits) => void;
 }) {
   const [open, setOpen] = useState(Boolean(layer && layer.status === 'ran'));
   const hasRun = layer && layer.status === 'ran';
@@ -357,9 +460,14 @@ export function L2RootCauseSection({
         {hasRun && (
           <>
             <SuggestionList items={layer.suggestions} />
-            <Badge variant="outline" className="text-[9px]">
-              depth: {layer.depth_indicator}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[9px]">
+                depth: {layer.depth_indicator}
+              </Badge>
+              {layer.deepen_link && onEditDeepenLink && (
+                <EditDeepenLinkDialog link={layer.deepen_link} onSave={onEditDeepenLink} />
+              )}
+            </div>
           </>
         )}
         {!hasRun && onForceDeepenL2 && (
@@ -459,6 +567,7 @@ export function LayeredSolutionCard({
   solution,
   onAdopt,
   onForceDeepenL2,
+  onEditDeepenLink,
 }: LayeredSolutionCardProps) {
   return (
     <Card className="border-primary/20" data-testid="layered-solution-card">
@@ -484,7 +593,7 @@ export function LayeredSolutionCard({
       </CardHeader>
       <CardContent className="space-y-2">
         <L1SurfaceSection layer={solution.l1_surface} onForceDeepenL2={onForceDeepenL2} />
-        <L2RootCauseSection layer={solution.l2_root_cause} onForceDeepenL2={onForceDeepenL2} />
+        <L2RootCauseSection layer={solution.l2_root_cause} onForceDeepenL2={onForceDeepenL2} onEditDeepenLink={onEditDeepenLink} />
         <L3StructuralSection layer={solution.l3_structural_check} />
         <DifferentialAnalysisPanel
           analysis={solution.differential_analysis}

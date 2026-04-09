@@ -23,7 +23,7 @@ import type { SpatialEstimate } from "@/types/generated/subsystem";
 // Visual config per confidence layer
 // ---------------------------------------------------------------------------
 
-type ConfidenceKey = "library" | "rd_confirmed" | "estimate" | "unknown";
+type ConfidenceKey = "library" | "rd_confirmed" | "estimate" | "llm_estimate" | "unknown";
 
 const CONFIDENCE_CONFIG: Record<
   ConfidenceKey,
@@ -42,6 +42,11 @@ const CONFIDENCE_CONFIG: Record<
   estimate: {
     label: "估算",
     cls: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800",
+    Icon: HelpCircle,
+  },
+  llm_estimate: {
+    label: "模型估算",
+    cls: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
     Icon: HelpCircle,
   },
   unknown: {
@@ -77,7 +82,9 @@ function formatUpdatedAt(iso?: string | null): string | null {
 
 function resolveKey(spatial: SpatialEstimate): ConfidenceKey {
   const c = spatial.confidence;
-  if (c === "library" || c === "rd_confirmed" || c === "estimate") return c;
+  if (c === "library" || c === "rd_confirmed" || c === "estimate" || c === "llm_estimate") return c;
+  // reference_source starts with "llm_estimate" → treat as llm_estimate
+  if (spatial.reference_source?.startsWith("llm_estimate")) return "llm_estimate";
   // spatial exists but confidence missing → treat as estimate
   return "estimate";
 }

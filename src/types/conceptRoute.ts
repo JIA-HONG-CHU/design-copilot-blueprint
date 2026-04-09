@@ -42,6 +42,22 @@ export type LayeredAdoptionMode = 'recommended' | 'custom' | 'fallback';
 
 /** v7 WP 10.3/10.4: per-layer snapshot embedded in the ConceptRoute so the
  *  Decision Hub can render second/third eyes without re-fetching the LTS. */
+/** Per-layer Validation Passport snapshot for the third eye (WBS 10.4). */
+export interface LayeredVPSnapshot {
+  /** Primary mechanism or principle selected for this layer. */
+  mechanism: string;
+  /** Key assumptions the layer's solution depends on. */
+  keyAssumptions: string[];
+  /** Conditions under which this layer's recommendation fails. */
+  failConditions: string[];
+  /** Evidence level label (E0…E4) — carried from the layer's evidence_level_floor. */
+  evidenceLevel: string;
+  /** Effort estimate (if available from the LLM). */
+  effort?: string;
+  /** Gain estimate (if available from the LLM). */
+  gain?: string;
+}
+
 export interface LayeredLayerSnapshot {
   layer: 'L1' | 'L2' | 'L3';
   depthIndicator: string;                  // "trade-off 改良" / "根因突破" / "功能鏈缺陷修補"
@@ -64,6 +80,8 @@ export interface LayeredLayerSnapshot {
     supportsL2: string;
     standaloneValue: string;
   };
+  /** Per-layer Validation Passport snapshot (WBS 10.4). */
+  validationPassport?: LayeredVPSnapshot;
 }
 
 export interface LayeredConceptRouteMeta {

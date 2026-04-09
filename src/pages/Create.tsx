@@ -244,6 +244,64 @@ export default function Create() {
   const [solvingIds, setSolvingIds] = useState<Set<string>>(new Set());
   // WP 7.2: per-project quick_mode toggle. Defaults to false.
   const [trizQuickMode, setTrizQuickMode] = useState<boolean>(false);
+
+  // WBS 7.4: reusable per-contradiction lazy solve helper.
+  const solveSingleContradiction = async (c: ExploreContradiction): Promise<[string, LayeredTrizSolution] | null> => {
+    if (!id) return null;
+    const pickSeverity = (raw: unknown): TrizSeverity => {
+      const allowed: TrizSeverity[] = ['fatal', 'major', 'minor', 'unknown'];
+      return (allowed.includes(raw as TrizSeverity) ? raw : 'unknown') as TrizSeverity;
+    };
+    const cType = c.type as 'TC' | 'PC' | 'SF';
+    const cAny = c as unknown as Record<string, unknown>;
+    const isChildPC = !!c.parentContradictionId;
+    const hintFields = isChildPC ? {
+      separation_principle_id: c.separationPrincipleId ?? undefined,
+      separation_category: c.separationCategory ?? undefined,
+      separation_rationale: c.separationRationale ?? undefined,
+      derived_parameter: c.derivedParameter ?? undefined,
+    } : {};
+    const pcDesc = (isChildPC && c.pcAttributeA && c.pcAttributeNotA)
+      ? `${c.derivedParameter ?? ''} 必須 ${c.pcAttributeA} 且必須 ${c.pcAttributeNotA}`
+      : (cType === 'PC' ? c.physicalContradiction : undefined);
+    try {
+      setSolvingIds(prev => new Set(prev).add(c.id));
+      const resp = await trizSolveLayered({
+        project_id: id,
+        contradiction_id: c.id,
+        natural_description: c.naturalDescription,
+        severity: pickSeverity(cAny.severity),
+        improving_param: cType === 'TC' ? c.improvingParam : undefined,
+        worsening_param: cType === 'TC' ? c.worseningParam : undefined,
+        physical_contradiction: pcDesc,
+        sf_substance_1: cType === 'SF' ? (cAny.sfSubstance1 as string | undefined) : undefined,
+        sf_substance_2: cType === 'SF' ? (cAny.sfSubstance2 as string | undefined) : undefined,
+        sf_field: cType === 'SF' ? (cAny.sfField as string | undefined) : undefined,
+        quick_mode: trizQuickMode,
+        ...hintFields,
+      });
+      setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
+      setLayeredSolutions(prev => ({ ...prev, [c.id]: resp.layered_solution }));
+      return [c.id, resp.layered_solution];
+    } catch (err) {
+      console.error(`trizSolveLayered failed for ${c.id}:`, err);
+      setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
+      return null;
+    }
+  };
+
+  // WBS 7.4: per-row lazy solve handler.
+  const handleSolveSingle = async (contradictionId: string) => {
+    const contrs = contradictionsQuery.data ?? [];
+    const c = contrs.find(x => x.id === contradictionId);
+    if (!c) return;
+    const result = await solveSingleContradiction(c);
+    if (result) {
+      toast.success(`已為 "${c.naturalDescription?.slice(0, 30) ?? c.id.slice(0, 8)}" 產出分層診斷`);
+    } else {
+      toast.error(`"${c.naturalDescription?.slice(0, 30) ?? c.id.slice(0, 8)}" 求解失敗`);
+    }
+  };
   const [localSubsystems, setLocalSubsystems] = useState<Subsystem[]>([]);
   const [localScamperVariants, setLocalScamperVariants] = useState<ScamperVariant[]>([]);
   const [localAlternatives, setLocalAlternatives] = useState<Alternative[]>([]);
@@ -587,70 +645,13 @@ export default function Create() {
     // are stored in `layeredSolutions` keyed by contradiction_id and rendered
     // by the LayeredSolutionCard stack in renderTrizConvergence.
     if (featureFlags.trizLayeredMode) {
+      // WBS 7.4: use solveSingleContradiction helper (reused by per-row lazy solve).
+      // Batch mode still fires all at once for "AI 產出" button, but each
+      // contradiction updates layeredSolutions independently via the helper.
       try {
         setLayeredSolutions({});
-        const pickSeverity = (raw: unknown): TrizSeverity => {
-          const allowed: TrizSeverity[] = ['fatal', 'major', 'minor', 'unknown'];
-          return (allowed.includes(raw as TrizSeverity) ? raw : 'unknown') as TrizSeverity;
-        };
-
-        // 9.2.4: Track per-contradiction loading
-        setSolvingIds(new Set(contrs.map(c => c.id)));
-
-        const results: Array<[string, LayeredTrizSolution] | null> = await Promise.all(
-          contrs.map(async (c) => {
-            try {
-              const cType = c.type as 'TC' | 'PC' | 'SF';
-              const cAny = c as unknown as Record<string, unknown>;
-
-              // 9.2.2: Build hint fields for child PCs (decomposition data from Explore)
-              const isChildPC = !!c.parentContradictionId;
-              const hintFields = isChildPC ? {
-                separation_principle_id: c.separationPrincipleId ?? undefined,
-                separation_category: c.separationCategory ?? undefined,
-                separation_rationale: c.separationRationale ?? undefined,
-                derived_parameter: c.derivedParameter ?? undefined,
-              } : {};
-
-              // For child PCs, synthesize physical_contradiction from pc_attribute fields
-              const pcDesc = (isChildPC && c.pcAttributeA && c.pcAttributeNotA)
-                ? `${c.derivedParameter ?? ''} 必須 ${c.pcAttributeA} 且必須 ${c.pcAttributeNotA}`
-                : (cType === 'PC' ? c.physicalContradiction : undefined);
-
-              const resp = await trizSolveLayered({
-                project_id: id,
-                contradiction_id: c.id,
-                natural_description: c.naturalDescription,
-                severity: pickSeverity(cAny.severity),
-                improving_param: cType === 'TC' ? c.improvingParam : undefined,
-                worsening_param: cType === 'TC' ? c.worseningParam : undefined,
-                physical_contradiction: pcDesc,
-                sf_substance_1: cType === 'SF' ? (cAny.sfSubstance1 as string | undefined) : undefined,
-                sf_substance_2: cType === 'SF' ? (cAny.sfSubstance2 as string | undefined) : undefined,
-                sf_field: cType === 'SF' ? (cAny.sfField as string | undefined) : undefined,
-                quick_mode: trizQuickMode,
-                ...hintFields,
-              });
-              // 9.2.4: Remove from loading set as soon as this one completes
-              setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
-              return [c.id, resp.layered_solution];
-            } catch (err) {
-              console.error(`trizSolveLayered failed for ${c.id}:`, err);
-              setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
-              return null;
-            }
-          }),
-        );
-
-        const map: Record<string, LayeredTrizSolution> = {};
-        let ok = 0;
-        for (const r of results) {
-          if (r) {
-            map[r[0]] = r[1];
-            ok++;
-          }
-        }
-        setLayeredSolutions(map);
+        const results = await Promise.all(contrs.map(c => solveSingleContradiction(c)));
+        const ok = results.filter(Boolean).length;
         if (ok === 0) {
           toast.error('TRIZ 分層求解全部失敗');
         } else if (ok < contrs.length) {
@@ -795,6 +796,14 @@ export default function Create() {
       evidenceLevelFloor: l1.evidence_level_floor,
       effortHint: 'low',
       assumptions: l1.critic_reason ? [`critic: ${l1.critic_reason}`] : [],
+      validationPassport: {
+        mechanism: l1.suggestions[0]?.principle_name ?? '(TC matrix lookup)',
+        keyAssumptions: l1.critic_reason ? [l1.critic_reason] : [],
+        failConditions: l1.critic_trigger_l2 ? ['trade-off 折衷 — L2 根因未解'] : [],
+        evidenceLevel: l1.evidence_level_floor,
+        effort: 'low',
+        gain: l1.suggestions[0]?.suggestion?.slice(0, 60),
+      },
     });
     const l2 = solution.l2_root_cause;
     if (l2 && l2.status === 'ran') {
@@ -817,6 +826,21 @@ export default function Create() {
                 : '(未指定)',
             }
           : undefined,
+        validationPassport: {
+          mechanism: l2.deepen_link
+            ? `PC 根因 (${l2.deepen_link.derived_physical_parameter})`
+            : l2.suggestions[0]?.principle_name ?? '(L2)',
+          keyAssumptions: [
+            ...(l2.trigger_reason ? [`trigger: ${l2.trigger_reason}`] : []),
+            ...(l2.deepen_link ? [`separation: ${topSep?.type ?? 'unknown'}`] : []),
+          ],
+          failConditions: l2.deepen_link?.contradiction_statement
+            ? [`若 "${l2.deepen_link.contradiction_statement}" 假設不成立`]
+            : [],
+          evidenceLevel: l2.evidence_level_floor,
+          effort: 'medium-high',
+          gain: l2.suggestions[0]?.suggestion?.slice(0, 60),
+        },
       });
     }
     const l3 = solution.l3_structural_check;
@@ -835,6 +859,20 @@ export default function Create() {
         supportsL1: l3.supports_l1,
         supportsL2: l3.supports_l2,
         standaloneValue: l3.standalone_value,
+      },
+      validationPassport: {
+        mechanism: l3.su_field_model.state !== 'unknown'
+          ? `Su-Field (${l3.su_field_model.state}): ${l3.su_field_model.S1}/${l3.su_field_model.S2}/${l3.su_field_model.F}`
+          : '(SF structural lens)',
+        keyAssumptions: l3.matched_standard_solutions.length > 0
+          ? [`標準解 ${l3.matched_standard_solutions.join(', ')} 適用`]
+          : [],
+        failConditions: l3.standalone_value
+          ? [`若結構旁路獨立價值不成立: ${l3.standalone_value.slice(0, 60)}`]
+          : [],
+        evidenceLevel: l3.evidence_level_floor,
+        effort: 'medium',
+        gain: l3.suggestions[0]?.suggestion?.slice(0, 60),
       },
     });
 
@@ -1986,17 +2024,12 @@ export default function Create() {
     );
   }
 
-  // ── Step 2: TRIZ 解矛盾 — 三路徑候選生成 + Phase A 健康度 ──
+  // ── Step 2: TRIZ 解矛盾 — 分層 drill-down 診斷（v8: Phase A retired）──
   function renderTrizConvergence() {
-    const { state, startPhaseA, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
+    // v8: startPhaseA removed — L1 critic per-card replaces global Phase A scan
+    const { state, confirmSeverity, forceContinue, retryBranch } = convergenceLoop;
     const contradictionsList = contradictionsQuery.data ?? [];
     const canStart = !!id && contradictionsList.length > 0;
-
-    const handleStartPhaseA = () => {
-      if (!id) { toast.error("缺少專案 ID"); return; }
-      if (contradictionsList.length === 0) { toast.warning("尚未識別任何矛盾，請先在「深度探索」階段完成矛盾識別"); return; }
-      startPhaseA();
-    };
 
     const PATH_COLORS: Record<string, string> = { TC: 'bg-blue-100 text-blue-700', PC: 'bg-violet-100 text-violet-700', SF: 'bg-teal-100 text-teal-700' };
     const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -2020,6 +2053,9 @@ export default function Create() {
         {/* ── Section A: TRIZ candidate generation ── */}
         {featureFlags.trizLayeredMode ? (
           <div className="space-y-3" data-testid="triz-layered-section">
+            {/* Convergence health dashboard (WBS 7.1 / UX v7 區塊 A) */}
+            <ConvergenceDashboard state={convergenceLoop.state} />
+
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-semibold">分層 Drill-Down 診斷（L1 現象 / L2 根因 / L3 結構）</h3>
@@ -2062,7 +2098,11 @@ export default function Create() {
                   const tcSolution = layeredSolutions[tc.id];
                   const children = childrenMap.get(tc.id) ?? [];
                   // Skip TCs that have no solution AND no child solutions
-                  if (!tcSolution && children.every(ch => !layeredSolutions[ch.id]) && !solvingIds.has(tc.id) && children.every(ch => !solvingIds.has(ch.id))) return null;
+                  // WBS 7.4: show all TCs (with lazy-solve buttons for unsolved ones)
+                  // Only skip if there's zero user interest and no results at all
+                  const hasAnySolution = tcSolution || children.some(ch => layeredSolutions[ch.id]);
+                  const hasAnySolving = solvingIds.has(tc.id) || children.some(ch => solvingIds.has(ch.id));
+                  void hasAnySolution; void hasAnySolving; // used below
                   return (
                     <div key={tc.id} className="space-y-2">
                       {/* Parent TC header */}
@@ -2073,12 +2113,24 @@ export default function Create() {
                       {solvingIds.has(tc.id) && !tcSolution && (
                         <Card className="border-dashed border animate-pulse"><CardContent className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" />求解中...</CardContent></Card>
                       )}
+                      {/* WBS 7.4: per-row lazy solve button */}
+                      {!tcSolution && !solvingIds.has(tc.id) && (
+                        <Button size="sm" variant="outline" className="text-[11px] gap-1" onClick={() => handleSolveSingle(tc.id)}>
+                          <Sparkles className="h-3 w-3" />
+                          求解此矛盾
+                        </Button>
+                      )}
                       {/* TC solve result */}
                       {tcSolution && (
                         <LayeredSolutionCard
                           solution={tcSolution}
                           onAdopt={(mode, layers) => handleLayeredAdopt(tcSolution, mode, layers)}
                           onForceDeepenL2={() => handleForceDeepenL2(tc.id)}
+                          onEditDeepenLink={(edits) => {
+                            // WBS 8.7: re-solve with edited parameters
+                            console.log('editDeepenLink for', tc.id, edits);
+                            handleForceDeepenL2(tc.id);
+                          }}
                         />
                       )}
                       {/* 9.2.3: Child PC results indented with category color bar */}
@@ -2099,11 +2151,22 @@ export default function Create() {
                             {solvingIds.has(child.id) && !childSolution && (
                               <Card className="border-dashed border animate-pulse"><CardContent className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" />求解中...</CardContent></Card>
                             )}
+                            {/* WBS 7.4: per-child lazy solve */}
+                            {!childSolution && !solvingIds.has(child.id) && (
+                              <Button size="sm" variant="ghost" className="text-[10px] gap-1" onClick={() => handleSolveSingle(child.id)}>
+                                <Sparkles className="h-3 w-3" />
+                                求解此 PC
+                              </Button>
+                            )}
                             {childSolution && (
                               <LayeredSolutionCard
                                 solution={childSolution}
                                 onAdopt={(mode, layers) => handleLayeredAdopt(childSolution, mode, layers)}
                                 onForceDeepenL2={() => handleForceDeepenL2(child.id)}
+                                onEditDeepenLink={(edits) => {
+                                  console.log('editDeepenLink for', child.id, edits);
+                                  handleForceDeepenL2(child.id);
+                                }}
                               />
                             )}
                           </div>

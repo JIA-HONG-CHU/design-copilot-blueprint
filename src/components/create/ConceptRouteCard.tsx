@@ -174,6 +174,38 @@ function LayerThirdEyeRow({ snap }: { snap: LayeredLayerSnapshot }) {
           )}
         </div>
       )}
+      {/* WBS 10.4: Validation Passport snapshot */}
+      {snap.validationPassport && (
+        <div className="rounded border border-dashed border-violet-300 p-1.5 space-y-1 bg-violet-50/60 dark:bg-violet-950/30" data-testid={`layer-vp-${snap.layer}`}>
+          <div className="text-[9px] font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wide">
+            Validation Passport
+          </div>
+          <div className="text-[10px]">
+            <span className="font-semibold">mechanism:</span> {snap.validationPassport.mechanism}
+          </div>
+          <div className="text-[10px]">
+            <span className="font-semibold">evidence:</span> {snap.validationPassport.evidenceLevel}
+            {snap.validationPassport.effort && <> · <span className="font-semibold">effort:</span> {snap.validationPassport.effort}</>}
+            {snap.validationPassport.gain && <> · <span className="font-semibold">gain:</span> {snap.validationPassport.gain}</>}
+          </div>
+          {snap.validationPassport.keyAssumptions.length > 0 && (
+            <div className="text-[10px]">
+              <span className="font-semibold">assumptions:</span>
+              <ul className="list-disc list-inside ml-1">
+                {snap.validationPassport.keyAssumptions.map((a, i) => <li key={i}>{a}</li>)}
+              </ul>
+            </div>
+          )}
+          {snap.validationPassport.failConditions.length > 0 && (
+            <div className="text-[10px] text-red-700 dark:text-red-400">
+              <span className="font-semibold">fail conditions:</span>
+              <ul className="list-disc list-inside ml-1">
+                {snap.validationPassport.failConditions.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

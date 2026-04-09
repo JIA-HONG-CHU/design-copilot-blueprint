@@ -150,45 +150,70 @@ AI 識別矛盾 → formalize_contradiction 回傳 TC
 
 ## 5.0 前端：自動觸發與持久化
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 5.1 | 新增 API client `contradictionDecompose(cid, payload)` | 位於既有 API 層（`src/lib/api/contradictions.ts` 或同等）；型別從 `src/types/explore.ts` 引入 | 3.4, 4.4 |
-| 5.2 | 在 `src/components/explore/ContradictionTab.tsx:200-298` AI re-identify 成功且 `type === 'TC'` 時串接自動呼叫 | 呼叫 `contradictionDecompose`；`triggered && decomposed_pcs.length > 0` 時進入 5.3 | 5.1 |
-| 5.3 | 批次 Supabase INSERT 子 PC | 每個 `DecomposedPC` 寫一筆 `contradictions` 列；`parent_contradiction_id = 父 TC id`；`type = 'PC'`；帶齊分離原則 / derived_parameter 等欄位；使用既有 `queryKeys.contradictions` invalidate | 4.3, 5.2 |
-| 5.4 | Toast 與錯誤處理 | 成功：`已自動深挖出 N 個物理矛盾`；失敗 / critic 判不需深挖：**安靜處理**不干擾 flow | 5.2 |
-| 5.5 | 防重入：同一父 TC 已有 children 時不自動再跑 | 前端在呼叫前先查 `parent_contradiction_id = 父 id` 的子列數量；若 > 0 跳過 | 5.3 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 5.1 | API client `contradictionDecompose` in `src/lib/api.ts` | 3 interfaces + 1 async function；使用既有 `request<T>()` helper | 3.4, 4.4 | ✅ Wave4-L |
+| 5.2 | `maybeAutoDecomposeTC` in ContradictionTab — AI re-identify 成功且 `type === 'TC'` 時自動呼叫 | 兩個 call-site（formalize loop + new draft branch） | 5.1 | ✅ Wave4-L |
+| 5.3 | 批次 Supabase INSERT 子 PC | `supabase.from('contradictions').insert(childRows)` + `invalidate()` | 4.3, 5.2 | ✅ Wave4-L |
+| 5.4 | Toast `sonner` — 成功顯示「已自動深挖出 N 個物理矛盾」；失敗安靜處理 | — | 5.2 | ✅ Wave4-L |
+| 5.5 | 防重入 `force` 參數 + `parentContradictionId` dedup guard | — | 5.3 | ✅ Wave4-L |
 
 ---
 
 ## 6.0 前端：巢狀卡片與分離原則 UI
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 6.1 | 修改 `ContradictionTab.tsx:514-537` 渲染層，建立 `Map<parentId, childPCs[]>` | 頂層只渲染 `parent_contradiction_id == null`；在 TC 卡片下方插 `<DecomposedPCList>` | 4.4 |
-| 6.2 | 新組件 `<DecomposedPCCard>` | 縮排小卡；左側色條取自 `CATEGORY_COLOR[separation_category]`；顯示 `subsystem_hint` 標籤 + `derived_parameter` 標題 + `pc_attribute_a ⟷ pc_attribute_not_a` + 分離原則名稱（從 `SEPARATION_PRINCIPLES` 查 `name_zh`） + 可折疊 `rationale` | 1.2 |
-| 6.3 | `confidence < 0.5` 顯示灰階 + 警示 icon | 提示 RD 驗證 | 6.2 |
-| 6.4 | 子 PC 編輯 / 刪除重用既有 handler | 呼叫既有單列編輯 UI；刪除走既有 `deleteContradiction`（父刪時由 DB FK CASCADE 自動處理） | 6.1, 4.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 6.1 | ContradictionTab `childrenMap` useMemo + `topLevelContradictions` 過濾 + `<DecomposedChildrenList>` JSX wiring | 頂層只渲染無父的矛盾；子 PC 巢狀於父 TC 下方 | 4.4 | ✅ Wave5-Q |
+| 6.2 | `<DecomposedPCCard>` 新組件（195 行）| 色條 + badge + 折疊 rationale + confidence prop | 1.2 | ✅ Wave4-M (13 tests) |
+| 6.3 | `confidence < 0.5` 灰階 + `AlertTriangle` 警示 | `opacity-70` + tooltip "低信心，建議驗證" | 6.2 | ✅ Wave4-M |
+| 6.4 | 子 PC 編輯/刪除 handler 重用既有 `handleStartEdit` / `setDeleteConfirmId` | 與父矛盾用同一套確認對話框 | 6.1, 4.1 | ✅ Wave5-Q |
 
 ---
 
 ## 7.0 前端：父更新時 children stale 提示
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 7.1 | 監聽父 TC `improving_param` / `worsening_param` / `engineering_statement` 變更 | 若變更且 children 存在，將 children 標記為 `stale` (client-only state) | 6.1 |
-| 7.2 | Stale 區塊顯示「父已更新，建議重新深挖」按鈕 | 點擊 = 手動呼叫 `contradictionDecompose` + 先刪舊 children（唯一允許手動觸發的入口） | 7.1, 5.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 7.1 | `staleParentIds` Set state + edit save handler 參數比對 | volatile client-side；重整頁面消失 | 6.1 | ✅ Wave6-U |
+| 7.2 | `DecomposedChildrenList` stale banner + `handleReDecompose`（刪舊 children → force re-decompose → clear stale） | 黃色 `AlertTriangle` 提示 + 「重新深挖」按鈕 | 7.1, 5.1 | ✅ Wave6-U |
 
 ---
 
 ## 8.0 測試、可觀測性、文件
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 8.1 | 後端單測 2.3 / 3.5 / 3.6 整合入 CI | pytest 全綠 | 2–3.x |
-| 8.2 | E2E 手測腳本 `docs/e2e/manual/explore_pc_decomposition.md` | 步驟：e-Bike brief (125Nm/2500g/111×92mm/60dBA) → AI 識別 → 自動產出 ≥2 個子 PC → 驗證分離原則涵蓋空間 + 條件混合 → 編輯 rationale 持久化 → 刪父驗 cascade | 5, 6 |
-| 8.3 | 可觀測性：backend 日誌記錄 critic 決策與深挖結果 | 每次 `/decompose` 呼叫 log：`triggered`, `trigger_reason`, `len(decomposed_pcs)`, `LLM elapsed`；失敗時 log stack trace | 3.3 |
-| 8.4 | 更新 `docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` §Changelog | 備註 v1.x 新增「Explore 階段 L1 critic + 多 PC 深挖」；說明與 §6.7 `deepen_link` 的差異（多 derived_parameter） | 3.3 |
-| 8.5 | Runbook：如何 rollback | migration rollback SQL + feature flag（若引入）的開關說明 | 4.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 8.1 | CI 整合 | `.github/workflows/` 不存在，需獨立 initiative 建立 | 2–3.x | ⏸ Deferred — 無 CI 基礎設施 |
+| 8.2 | E2E 手測腳本 + 9.7 延伸（11 步驟涵蓋 Explore → Create → CLD → F2 → Stale → Cascade） | 6 步 base + 5 步 downstream 延伸 | 5, 6 | ✅ Wave4-P + Wave6 延伸 |
+| 8.3 | 可觀測性：5 個結構化 log + `time.monotonic()` 計時 | entry / critic / LLM elapsed / result / error | 3.3 | ✅ Wave6-V |
+| 8.4 | `TRIZ_Layered_DrillDown_Optimization.md` Changelog v1.2 | 涵蓋 L1 critic + 多 PC + hint + CLD/AntiAnchor + L3 deferred | 3.3 | ✅ Wave4-P |
+| 8.5 | Runbook `docs/e2e/operations/runbook_pc_decomposition.md` | 5 層 rollback：FE stop → BE stop → data cleanup → migration rollback → restore | 4.1 | ✅ Wave4-P |
+
+---
+
+## 9.0 下游銜接（Explore → TRIZ Solve → F2 / CLD / Phase B）
+
+> **目的**：確保 Explore 階段產出的 `parent_contradiction_id` 樹 + `separation_principle_id` hint + `subsystem_hint` 能被 Create 階段 TRIZ Solve、F2 Subsystem Discovery、CLD 生成、Phase B adoption 正確消費，避免深挖成果在下游被忽略或誤用。
+> **設計前提**：L3 (SF) 完全延後到獨立 WBS (`Explore_L3_SF_Parallel_Check_WBS.md`)；本版產出的 `LayeredTrizSolution.l3` 永遠為 `None`，並以 `l3_status="deferred"` 明確告知下游。
+
+### 9.1 `_solve_pc` 接受 separation hint（反向相容）
+
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.1.1 | `TrizLookupRequest` +4 optional hint fields | Pydantic v2；反向相容 | 1.4 | ✅ Wave4-N |
+| 9.1.2 | `TRIZ_PC_INSTANTIATION_WITH_HINT` prompt (+56 lines) | 繼承 `TRIZ_SOLVER_SYSTEM`；跳過 separation KB 注入 | 1.1, 1.5 | ✅ Wave4-N |
+| 9.1.3 | `_solve_pc` dispatcher → `_solve_pc_base` + `_solve_pc_with_hint` | 未知 id fallback 到 base path；6 tests | 9.1.1, 9.1.2 | ✅ Wave4-N (6 tests) |
+| 9.1.4 | `_log_hint_override_delta` observability | `logger.info("separation hint override: ...")` | 9.1.3 | ✅ Wave4-N |
+
+### 9.2 Create 頁 TRIZ Solve 改為 parent-aware 樹狀流程
+
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.2.1 | Create.tsx `childrenMap` + `topLevelContradictions` useMemo | 與 Explore 同模式 | 5.3, 6.1 | ✅ Wave5-R |
+| 9.2.2 | 分層 Solve 按鈕（layered + legacy 雙模式）帶 hint fields | `solvingIds` Set 提供 per-card loading | 9.1.3, 9.2.1 | ✅ Wave5-R |
+| 9.2.3 | Client-side 使用 canonical `layeredTriz.ts` | `Contradiction` type 擴充 8 欄位 + `mapRow` adapter | 1.7 | ✅ Wave5-R |
+| 9.2.4 | 子 PC 結果色條（`border-l-4` by `separationCategory`）| blue/green/orange/purple | 9.2.1, 6.2 | ✅ Wave5-R |
 
 ---
 
@@ -217,41 +242,41 @@ AI 識別矛盾 → formalize_contradiction 回傳 TC
 
 ### 9.3 CLD 生成 scope 控制
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.3.1 | `backend/app/tools/contradiction_tree.py` 新檔，提供 `get_contradiction_leaves(project_id) -> list[Contradiction]` 與 `get_root_tcs(project_id)` | 葉節點 = 有父的子 PC **OR** 無子的孤立矛盾；單測兩種資料情境 | 4.1 |
-| 9.3.2 | `generate_cld` (`analyst.py:269`) prompt 組裝處改用 `get_contradiction_leaves` + 父 TC 的 `engineering_statement`；子 PC 只傳 `derived_parameter` 與 `physical_contradiction` 兩欄，**不傳 `pc_attribute_a/not_a`** | 避免 CLD 節點爆炸；當無子 PC 時行為與現況一致（反向相容） | 9.3.1 |
-| 9.3.3 | `CLD_GENERATION` prompt 加一段說明：「若 contradictions 中有 `derived_parameter` 欄位，代表是 TC 深挖後的物理根因，CLD 節點請優先使用 `derived_parameter` 當變數名」 | e-Bike e2e：CLD 節點含「齒輪模數」「齒輪寬度」「殼體剛度」而非「齒輪」單點 | 9.3.2 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.3.1 | `contradiction_tree.py` 新檔（67 行）：`get_contradiction_leaves` / `get_root_tcs` / `get_children_of` | 純 dict 操作 + 8 tests | 4.1 | ✅ Wave4-O |
+| 9.3.2 | CLD prompt +1 instruction 指引 LLM 用 `derived_parameter` 作 CLD 變數名 | 輕量 prompt 注入；filtering 在 caller 層（非 generate_cld 內部） | 9.3.1 | ✅ Wave4-O |
+| 9.3.3 | (合併入 9.3.2) | — | — | ✅ |
 
 ### 9.4 Anti-Anchor leaves-only 濾鏡
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.4.1 | `generate_anti_anchor` (`analyst.py:338`) 的 contradictions 輸入切換為 `get_contradiction_leaves`；父 TC 無子時回退為父自身 | 避免父+子重複送入造成 anti-anchor 重複；反向相容 | 9.3.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.4.1 | `generate_anti_anchor` 加 4 行 comment 指引 caller 用 leaves-only；anti_anchor prompt 不直接吃 contradictions | comment-only guidance | 9.3.1 | ✅ Wave4-O |
 
 ### 9.5 F2 Subsystem Discovery input adapter
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.5.1 | `suggest_subsystems` (`triz_solver.py:337` 附近) 的 context 組裝處，接收 `contradictions` 時若為子 PC 則額外注入 `subsystem_hint` 與 `derived_parameter` 到 prompt 的 `<contradictions>` 區塊 | Prompt 新增「以 subsystem_hint 作為 module 層級強提示」指令；對齊 `Forward_Subsystem_Discovery_Architecture.md §2.1` TRIZ Solver Agent 描述 | 4.1 |
-| 9.5.2 | 驗證 F2 不 crash 於 `related_contradictions` 同時包含父 TC id 與子 PC id | 單測：混合輸入；F2 回傳的 subsystem tree `related_contradictions` 可同時含父子兩 id | 9.5.1 |
-| 9.5.3 | F2 的 `LayeredTrizSolution[]` 消費契約**本版僅預留**，不實作 — 在 `suggest_subsystems` docstring 加 TODO 註明「等 L3 WBS 上線後切換為 LTS 輸入」 | 注釋 + GH issue link | 9.5.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.5.1 | `_enrich_contradiction_lines()` helper + prompt 注入 `[子系統提示:] [物理變數:]` 標記 | +31 lines in triz_solver.py；6 tests | 4.1 | ✅ Wave5-S |
+| 9.5.2 | 混合父子 contradictions 不 crash 測試 | 含在 9.5.1 的 6 tests 中 | 9.5.1 | ✅ Wave5-S |
+| 9.5.3 | `suggest_subsystems` 頂部 TODO(L3 WBS §6.1) 註解 | 指向 `Explore_L3_SF_Parallel_Check_WBS.md §6` | 9.5.1 | ✅ Wave5-S |
 
 ### 9.6 Phase B adoption 相容性
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.6.1 | 掃描 Phase B 相關 code（候選：`backend/app/agents/` 下 SCAMPER / alternatives / adoption；前端 `src/components/create/`）找出「同矛盾跨層互斥檢查」邏輯（若存在） | Grep 報告 + 位置清單；若不存在則記 TODO 並結束此任務 | — |
-| 9.6.2 | 若 9.6.1 發現互斥邏輯：加 `parent_contradiction_id` 分組識別，同一父下的候選**不做互斥**（對齊 `TRIZ_Multi_Solution_Adoption_Strategy.md §2.1` `same_contradiction_intra_layer_conflict: skip`） | 單測覆蓋；若 9.6.1 無發現則本任務跳過 | 9.6.1 |
-| 9.6.3 | `docs/e2e/TRIZ_Multi_Solution_Adoption_Strategy.md` Changelog 加註：「同 `parent_contradiction_id` 的子 PC 為 intra-layer drill-down，Phase B 不做互斥檢查」 | 文件更新 | 9.6.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.6.1 | Phase B code scan：發現 `check_phase_b_conflict` (evaluator.py:204) + `_apply_layered_directives` (evaluator.py:260) + `PhaseBDirective` schema + 既有 227 行測試 | 完整 grep 報告；現有 SKIP/WARN/CHECK 三態邏輯不衝突但有潛在缺口（`contradiction_id` vs `parent_contradiction_id` grouping） | — | ✅ Wave5-T |
+| 9.6.2 | 無需改 code（Phase B + decomposition 尚未整合）；在 `_apply_layered_directives` docstring 加 TODO | TODO 指向 L3 WBS §7 | 9.6.1 | ✅ Wave5-T (TODO only) |
+| 9.6.3 | `TRIZ_Multi_Solution_Adoption_Strategy.md` Changelog v1.1 | `parent_contradiction_id` 跨層不互斥備註 | 9.6.1 | ✅ Wave5-T |
 
 ### 9.7 下游銜接 E2E 驗證
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.7.1 | 延伸 8.2 e-Bike 驗證腳本：接續到 Create 頁，驗證多 PC 各自被 solve 且 suggestions 分群顯示 | 腳本 step 7-12；截圖對照 | 8.2, 9.2 |
-| 9.7.2 | 延伸到 Tab ② (F2 subsystem)：驗證子系統樹的 module 節點出現與 `subsystem_hint` 對應的命名（「齒輪傳動模組」「外殼結構模組」） | 截圖 + 人工檢核；不要求 1:1 精確匹配，語意對齊即可 | 9.5.1 |
-| 9.7.3 | CLD 視覺化驗證：`derived_parameter` 有出現在節點標籤 | 截圖 | 9.3.2 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.7.1 | 延伸 8.2 腳本 Step 7-11：Create 頁分層 solve + hint 驗證 + CLD 節點 + F2 subsystem_hint + stale 防護 | 5 個延伸步驟 + 驗證清單 | 8.2, 9.2 | ✅ Wave6 (docs) |
+| 9.7.2 | (合併入 9.7.1 Step 9) F2 module 節點語意對齊 | — | 9.5.1 | ✅ |
+| 9.7.3 | (合併入 9.7.1 Step 8) CLD `derived_parameter` 節點標籤 | — | 9.3.2 | ✅ |
 
 ---
 

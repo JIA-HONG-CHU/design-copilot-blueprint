@@ -77,5 +77,70 @@ SELECT count(*) FROM contradictions WHERE parent_contradiction_id = '<deleted_tc
 ## 已知限制
 
 - L3 (SF) 尚未實作（deferred to L3 WBS），CLD 目前仍消費所有矛盾文字
-- Create 頁分層 solve（Phase 9.2）尚未實作，Step 6 可能需要手動帶 hint 欄位
-- Phase B adoption 的同父跨層不互斥檢查（Phase 9.6）尚未驗證
+- Phase B adoption 的同父跨層不互斥檢查（Phase 9.6）已 scan 確認不衝突，但完整整合待 L3 WBS
+
+---
+
+## 下游銜接驗證（Phase 9.7 延伸）
+
+### Step 7：Create 頁分層 solve (Phase 9.2)
+
+1. 進入 Create 頁面
+2. 確認矛盾列表中父 TC 下方掛有子 PC 卡片（縮排 + 分離原則色條）
+3. 對子 PC 點擊「求解」
+4. 確認 API 請求帶有 `separation_principle_id` / `separation_category` / `separation_rationale` / `derived_parameter` hint 欄位
+5. 確認回傳 suggestions 的 `separation_principle` 與 hint 一致
+
+**驗證清單**：
+- [ ] 子 PC 卡片在 Create 頁正確分組於父 TC 下方
+- [ ] 子 PC solve 請求含 4 個 hint 欄位（DevTools Network tab 檢查）
+- [ ] suggestions 的 `path` 為 "PC"
+- [ ] 若 LLM 覆寫了 separation_principle（與 hint 不同），console 有 `separation hint override` 日誌
+
+### Step 8：CLD 生成驗證 (Phase 9.3)
+
+1. 在 Explore 頁面觸發 CLD 生成
+2. 檢查 CLD 節點標籤
+
+**驗證清單**：
+- [ ] CLD 節點含子 PC 的 `derived_parameter` 名稱（如「齒輪模數」「殼體密度」），而非只有父 TC 的籠統描述
+- [ ] 父 TC 和子 PC 不同時出現在 CLD（leaves-only filter 生效）
+
+### Step 9：F2 子系統建議驗證 (Phase 9.5)
+
+1. 進入 Create 頁面 Tab ② 子系統定義
+2. 觸發子系統建議
+
+**驗證清單**：
+- [ ] 若 contradictions 含子 PC，prompt 中應出現 `[子系統提示: 齒輪傳動]` 等標記
+- [ ] 產生的子系統樹 module 節點命名與 `subsystem_hint` 語意對齊（「齒輪傳動模組」「外殼結構模組」等）
+- [ ] 若 contradictions 不含子 PC，行為與原來一致（反向相容）
+
+### Step 10：Stale 防護驗證 (Phase 7)
+
+1. 編輯一個已有子 PC 的父 TC — 修改 `improvingParam` 或 `worseningParam`
+2. 儲存後觀察
+
+**驗證清單**：
+- [ ] 子 PC 列表上方出現黃色 `父矛盾參數已更新，建議重新深挖` 警告
+- [ ] 點擊「重新深挖」→ 舊子 PC 被刪除 → 新子 PC 產生
+- [ ] 重新整理頁面後 stale 狀態消失（volatile 設計）
+
+### Step 11：Cascade 刪除驗證 (重複確認)
+
+```sql
+-- 建立測試資料後
+DELETE FROM contradictions WHERE id = '<parent_tc_id>';
+SELECT count(*) FROM contradictions WHERE parent_contradiction_id = '<parent_tc_id>';
+-- 預期：0（FK CASCADE 自動清理）
+```
+
+---
+
+## 更新後的已知限制
+
+- L3 (SF) 尚未實作（deferred to L3 WBS）
+- `solve_triz_layered` orchestrator 尚未實作，Create 頁目前以個別 contradiction 呼叫 solve
+- Phase B 的 `parent_contradiction_id` 跨層分組在 `_apply_layered_directives` 中有 TODO 但尚未啟用
+- supabase db reset 驗證（4.2）需本地 supabase runtime
+- CI 整合（8.1）需建立 `.github/workflows/` — 建議獨立 PR 處理

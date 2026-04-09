@@ -7,7 +7,13 @@ export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, errorId: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { error, errorId: crypto.randomUUID() };
+    // crypto.randomUUID() is only available in secure contexts (HTTPS / localhost).
+    // Fall back to a timestamp-based id on HTTP non-localhost dev hosts.
+    const errorId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `err-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    return { error, errorId };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {

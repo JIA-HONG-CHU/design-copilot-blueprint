@@ -39,6 +39,15 @@ interface ContradictionRow {
   sf_field: string | null;
   sf_interaction: string | null;
   sf_completeness: string | null;
+  // PC decomposition columns (migration 009)
+  parent_contradiction_id: string | null;
+  derived_parameter: string | null;
+  subsystem_hint: string | null;
+  separation_principle_id: string | null;
+  separation_category: string | null;
+  separation_rationale: string | null;
+  pc_attribute_a: string | null;
+  pc_attribute_not_a: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +72,14 @@ const mapRow = (r: ContradictionRow): Contradiction => ({
   sfField: r.sf_field ?? null,
   sfInteraction: r.sf_interaction ?? null,
   sfCompleteness: r.sf_completeness ?? null,
+  parentContradictionId: r.parent_contradiction_id ?? null,
+  derivedParameter: r.derived_parameter ?? null,
+  subsystemHint: r.subsystem_hint ?? null,
+  separationPrincipleId: r.separation_principle_id ?? null,
+  separationCategory: (r.separation_category as Contradiction['separationCategory']) ?? null,
+  separationRationale: r.separation_rationale ?? null,
+  pcAttributeA: r.pc_attribute_a ?? null,
+  pcAttributeNotA: r.pc_attribute_not_a ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });

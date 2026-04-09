@@ -179,6 +179,11 @@ export interface SolveTrizLayeredRequest {
   sf_field?: string | null;
   quick_mode?: boolean;
   force_l2?: boolean;
+  // Hint fields for child PC solve (Phase 9.1 / 9.2)
+  separation_principle_id?: string | null;
+  separation_category?: string | null;
+  separation_rationale?: string | null;
+  derived_parameter?: string | null;
 }
 
 export interface SolveTrizLayeredResponse {

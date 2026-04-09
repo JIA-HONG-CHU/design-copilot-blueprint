@@ -29,6 +29,15 @@ export interface Contradiction {
   sfField: string | null;
   sfInteraction: string | null;  // useful / harmful / insufficient / missing
   sfCompleteness: string | null;  // complete / incomplete / harmful_complete
+  // PC Decomposition fields (migration 009) — populated for child PCs under a parent TC
+  parentContradictionId: string | null;
+  derivedParameter: string | null;
+  subsystemHint: string | null;
+  separationPrincipleId: string | null;
+  separationCategory: 'time' | 'space' | 'condition' | 'whole_part' | null;
+  separationRationale: string | null;
+  pcAttributeA: string | null;
+  pcAttributeNotA: string | null;
   createdAt: string;
   updatedAt: string;
 }

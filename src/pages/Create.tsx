@@ -84,6 +84,7 @@ import {
   useDeleteAlternative,
 } from "@/hooks/api";
 import { useContradictions } from "@/hooks/api/useContradictions";
+import type { Contradiction } from "@/types/contradiction";
 import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
@@ -239,6 +240,8 @@ export default function Create() {
   // so each contradiction maps to exactly one LayeredTrizSolution card. Only
   // populated when `featureFlags.trizLayeredMode` is on.
   const [layeredSolutions, setLayeredSolutions] = useState<Record<string, LayeredTrizSolution>>({});
+  // 9.2.4: Per-contradiction independent loading state
+  const [solvingIds, setSolvingIds] = useState<Set<string>>(new Set());
   // WP 7.2: per-project quick_mode toggle. Defaults to false.
   const [trizQuickMode, setTrizQuickMode] = useState<boolean>(false);
   const [localSubsystems, setLocalSubsystems] = useState<Subsystem[]>([]);
@@ -381,6 +384,24 @@ export default function Create() {
     });
     return map;
   }, [contradictionsQuery.data]);
+
+  // ── 9.2.1: Group contradictions by parent for tree-aware solve ──
+  const childrenMap = useMemo(() => {
+    const map = new Map<string, Contradiction[]>();
+    for (const c of contradictionsQuery.data ?? []) {
+      if (c.parentContradictionId) {
+        const arr = map.get(c.parentContradictionId) ?? [];
+        arr.push(c);
+        map.set(c.parentContradictionId, arr);
+      }
+    }
+    return map;
+  }, [contradictionsQuery.data]);
+
+  const topLevelContradictions = useMemo(
+    () => (contradictionsQuery.data ?? []).filter(c => !c.parentContradictionId),
+    [contradictionsQuery.data],
+  );
 
   // Group TRIZ solutions by contradiction for display (used in renderTrizConvergence)
   const trizByContradiction = useMemo(() => {
@@ -573,11 +594,29 @@ export default function Create() {
           return (allowed.includes(raw as TrizSeverity) ? raw : 'unknown') as TrizSeverity;
         };
 
+        // 9.2.4: Track per-contradiction loading
+        setSolvingIds(new Set(contrs.map(c => c.id)));
+
         const results: Array<[string, LayeredTrizSolution] | null> = await Promise.all(
           contrs.map(async (c) => {
             try {
               const cType = c.type as 'TC' | 'PC' | 'SF';
               const cAny = c as unknown as Record<string, unknown>;
+
+              // 9.2.2: Build hint fields for child PCs (decomposition data from Explore)
+              const isChildPC = !!c.parentContradictionId;
+              const hintFields = isChildPC ? {
+                separation_principle_id: c.separationPrincipleId ?? undefined,
+                separation_category: c.separationCategory ?? undefined,
+                separation_rationale: c.separationRationale ?? undefined,
+                derived_parameter: c.derivedParameter ?? undefined,
+              } : {};
+
+              // For child PCs, synthesize physical_contradiction from pc_attribute fields
+              const pcDesc = (isChildPC && c.pcAttributeA && c.pcAttributeNotA)
+                ? `${c.derivedParameter ?? ''} 必須 ${c.pcAttributeA} 且必須 ${c.pcAttributeNotA}`
+                : (cType === 'PC' ? c.physicalContradiction : undefined);
+
               const resp = await trizSolveLayered({
                 project_id: id,
                 contradiction_id: c.id,
@@ -585,15 +624,19 @@ export default function Create() {
                 severity: pickSeverity(cAny.severity),
                 improving_param: cType === 'TC' ? c.improvingParam : undefined,
                 worsening_param: cType === 'TC' ? c.worseningParam : undefined,
-                physical_contradiction: cType === 'PC' ? c.physicalContradiction : undefined,
+                physical_contradiction: pcDesc,
                 sf_substance_1: cType === 'SF' ? (cAny.sfSubstance1 as string | undefined) : undefined,
                 sf_substance_2: cType === 'SF' ? (cAny.sfSubstance2 as string | undefined) : undefined,
                 sf_field: cType === 'SF' ? (cAny.sfField as string | undefined) : undefined,
                 quick_mode: trizQuickMode,
+                ...hintFields,
               });
+              // 9.2.4: Remove from loading set as soon as this one completes
+              setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
               return [c.id, resp.layered_solution];
             } catch (err) {
               console.error(`trizSolveLayered failed for ${c.id}:`, err);
+              setSolvingIds(prev => { const next = new Set(prev); next.delete(c.id); return next; });
               return null;
             }
           }),
@@ -644,17 +687,32 @@ export default function Create() {
         const results: TrizSolution[] = [];
         const cType = c.type as "TC" | "PC" | "SF";
 
+        // 9.2.2: Build hint fields for child PCs (decomposition data from Explore)
+        const isChildPC = !!c.parentContradictionId;
+        const hintFields = isChildPC ? {
+          separation_principle_id: c.separationPrincipleId ?? undefined,
+          separation_category: c.separationCategory ?? undefined,
+          separation_rationale: c.separationRationale ?? undefined,
+          derived_parameter: c.derivedParameter ?? undefined,
+        } : {};
+
+        // For child PCs, synthesize physical_contradiction from pc_attribute fields
+        const pcDesc = (isChildPC && c.pcAttributeA && c.pcAttributeNotA)
+          ? `${c.derivedParameter ?? ''} 必須 ${c.pcAttributeA} 且必須 ${c.pcAttributeNotA}`
+          : (cType === "PC" ? c.physicalContradiction : undefined);
+
         const solveResult = await trizSolve({
           project_id: id,
           contradiction_id: c.id,
           natural_description: c.naturalDescription,
           improving_param: cType === "TC" ? c.improvingParam : undefined,
           worsening_param: cType === "TC" ? c.worseningParam : undefined,
-          physical_contradiction: cType === "PC" ? c.physicalContradiction : undefined,
+          physical_contradiction: pcDesc,
           sf_substance_1: cType === "SF" ? (c as Record<string, unknown>).sfSubstance1 as string | undefined : undefined,
           sf_substance_2: cType === "SF" ? (c as Record<string, unknown>).sfSubstance2 as string | undefined : undefined,
           sf_field: cType === "SF" ? (c as Record<string, unknown>).sfField as string | undefined : undefined,
           type: cType,
+          ...hintFields,
         });
 
         for (const s of solveResult.suggestions) {
@@ -1999,14 +2057,80 @@ export default function Create() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {Object.entries(layeredSolutions).map(([cid, lts]) => (
-                  <LayeredSolutionCard
-                    key={cid}
-                    solution={lts}
-                    onAdopt={(mode, layers) => handleLayeredAdopt(lts, mode, layers)}
-                    onForceDeepenL2={() => handleForceDeepenL2(cid)}
-                  />
-                ))}
+                {/* 9.2.3: Group results by parent TC with child PCs indented */}
+                {topLevelContradictions.map(tc => {
+                  const tcSolution = layeredSolutions[tc.id];
+                  const children = childrenMap.get(tc.id) ?? [];
+                  // Skip TCs that have no solution AND no child solutions
+                  if (!tcSolution && children.every(ch => !layeredSolutions[ch.id]) && !solvingIds.has(tc.id) && children.every(ch => !solvingIds.has(ch.id))) return null;
+                  return (
+                    <div key={tc.id} className="space-y-2">
+                      {/* Parent TC header */}
+                      <p className="text-[11px] font-medium text-muted-foreground truncate" title={tc.engineeringStatement || tc.naturalDescription}>
+                        TC: {tc.engineeringStatement || tc.naturalDescription || tc.id.slice(0, 8)}
+                      </p>
+                      {/* TC loading indicator */}
+                      {solvingIds.has(tc.id) && !tcSolution && (
+                        <Card className="border-dashed border animate-pulse"><CardContent className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" />求解中...</CardContent></Card>
+                      )}
+                      {/* TC solve result */}
+                      {tcSolution && (
+                        <LayeredSolutionCard
+                          solution={tcSolution}
+                          onAdopt={(mode, layers) => handleLayeredAdopt(tcSolution, mode, layers)}
+                          onForceDeepenL2={() => handleForceDeepenL2(tc.id)}
+                        />
+                      )}
+                      {/* 9.2.3: Child PC results indented with category color bar */}
+                      {children.map(child => {
+                        const childSolution = layeredSolutions[child.id];
+                        const catColorMap: Record<string, string> = {
+                          time: 'border-l-blue-500',
+                          space: 'border-l-green-500',
+                          condition: 'border-l-orange-500',
+                          whole_part: 'border-l-purple-500',
+                        };
+                        const borderClass = catColorMap[child.separationCategory ?? ''] ?? 'border-l-gray-400';
+                        return (
+                          <div key={child.id} className={cn("ml-8 border-l-4 pl-4", borderClass)}>
+                            <p className="text-[10px] text-muted-foreground mb-1 truncate" title={child.derivedParameter ?? child.naturalDescription}>
+                              PC: {child.derivedParameter ?? child.naturalDescription}{child.separationCategory ? ` (${child.separationCategory})` : ''}
+                            </p>
+                            {solvingIds.has(child.id) && !childSolution && (
+                              <Card className="border-dashed border animate-pulse"><CardContent className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" />求解中...</CardContent></Card>
+                            )}
+                            {childSolution && (
+                              <LayeredSolutionCard
+                                solution={childSolution}
+                                onAdopt={(mode, layers) => handleLayeredAdopt(childSolution, mode, layers)}
+                                onForceDeepenL2={() => handleForceDeepenL2(child.id)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {/* Render standalone contradictions (no parent, not a parent themselves) that have solutions */}
+                {Object.entries(layeredSolutions)
+                  .filter(([cid]) => {
+                    const c = contradictionsList.find(x => x.id === cid);
+                    if (!c) return true; // unknown contradiction, show anyway
+                    // Already rendered as a top-level TC or as a child
+                    if (!c.parentContradictionId && topLevelContradictions.some(tc => tc.id === cid)) return false;
+                    if (c.parentContradictionId) return false;
+                    return true;
+                  })
+                  .map(([cid, lts]) => (
+                    <LayeredSolutionCard
+                      key={cid}
+                      solution={lts}
+                      onAdopt={(mode, layers) => handleLayeredAdopt(lts, mode, layers)}
+                      onForceDeepenL2={() => handleForceDeepenL2(cid)}
+                    />
+                  ))
+                }
                 <AiButton aiVariant="outline" size="sm" loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} className="text-xs">
                   重新產出分層診斷
                 </AiButton>
@@ -2043,9 +2167,21 @@ export default function Create() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {/* Show solutions grouped by contradiction */}
-              {sortedTrizEntries.map(([cId, solutions]) => (
-                <Card key={cId} className="border-l-[3px] border-l-blue-400">
+              {/* 9.2.3: Show solutions grouped by parent TC → child PCs */}
+              {sortedTrizEntries.map(([cId, solutions]) => {
+                const c = contradictionsList.find(x => x.id === cId);
+                // Skip child PCs at top level — they are rendered under their parent
+                if (c?.parentContradictionId) return null;
+                const children = childrenMap.get(cId) ?? [];
+                const catColorMap: Record<string, string> = {
+                  time: 'border-l-blue-500',
+                  space: 'border-l-green-500',
+                  condition: 'border-l-orange-500',
+                  whole_part: 'border-l-purple-500',
+                };
+                return (
+                <div key={cId} className="space-y-2">
+                <Card className="border-l-[3px] border-l-blue-400">
                   <CardContent className="p-4 space-y-3">
                     <p className="text-xs font-medium text-muted-foreground truncate" title={contradictionMap.get(cId) ?? cId}>
                       {contradictionMap.get(cId) ?? cId}
@@ -2090,7 +2226,49 @@ export default function Create() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                {/* 9.2.3: Child PC results indented under parent TC */}
+                {children.map(child => {
+                  const childSolutions = trizByContradiction.get(child.id) ?? [];
+                  if (childSolutions.length === 0) return null;
+                  const borderClass = catColorMap[child.separationCategory ?? ''] ?? 'border-l-gray-400';
+                  return (
+                    <div key={child.id} className={cn("ml-8 border-l-4 pl-4", borderClass)}>
+                      <p className="text-[10px] text-muted-foreground mb-1 truncate" title={child.derivedParameter ?? child.naturalDescription}>
+                        PC: {child.derivedParameter ?? child.naturalDescription}{child.separationCategory ? ` (${child.separationCategory})` : ''}
+                      </p>
+                      <Card className="border-l-[3px] border-l-violet-400">
+                        <CardContent className="p-4 space-y-2">
+                          {childSolutions.map((ts) => {
+                            const statusInfo = STATUS_LABELS[ts.status] || STATUS_LABELS.pending;
+                            return (
+                              <div key={ts.id} className="flex items-start gap-2 p-2.5 rounded-md bg-muted/20 border">
+                                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge className={cn("text-[10px]", PATH_COLORS[ts.path] || 'bg-muted')}>{ts.path}</Badge>
+                                    <Badge variant="outline" className="text-[10px]">{ts.principleName}</Badge>
+                                    <Badge className={cn("text-[10px]", statusInfo.cls)}>{statusInfo.label}</Badge>
+                                  </div>
+                                  <p className="text-xs leading-relaxed">{ts.suggestion}</p>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  {ts.status !== 'adopted' && (
+                                    <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2" onClick={() => setTrizStatus(ts.id, 'adopted')}>採用</Button>
+                                  )}
+                                  {ts.status !== 'skipped' && (
+                                    <Button variant="ghost" size="sm" className="h-7 text-[10px] px-2 text-muted-foreground" onClick={() => setTrizStatus(ts.id, 'skipped')}>跳過</Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  );
+                })}
+                </div>
+                );
+              })}
               <AiButton aiVariant="outline" size="sm" loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} className="text-xs">
                 重新生成 TRIZ 候選
               </AiButton>

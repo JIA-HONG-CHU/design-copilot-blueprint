@@ -529,6 +529,11 @@ export interface TrizSolveRequest {
   sf_substance_2?: string | null;
   sf_field?: string | null;
   type?: "TC" | "PC" | "SF";
+  // Hint fields for child PC solve (Phase 9.1 / 9.2)
+  separation_principle_id?: string | null;
+  separation_category?: string | null;
+  separation_rationale?: string | null;
+  derived_parameter?: string | null;
 }
 
 export interface TrizSuggestionResult {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import type { ExploreContradiction, ContradictionType } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { useAiOperationGuard } from "@/hooks/useAiOperationGuard";
+import { DecomposedChildrenList } from "./DecomposedChildrenList";
 
 interface ContradictionTabProps {
   contradictions: ExploreContradiction[];
@@ -45,9 +46,28 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
   const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(projectId) });
 
-  const tcList = contradictions.filter((c) => c.type === 'TC');
-  const pcList = contradictions.filter((c) => c.type === 'PC');
-  const sfList = contradictions.filter((c) => c.type === 'SF');
+  // 6.1 — Group contradictions into parent TCs + child PCs
+  const childrenMap = useMemo(() => {
+    const map = new Map<string, ExploreContradiction[]>();
+    for (const c of contradictions) {
+      if (c.parentContradictionId) {
+        const arr = map.get(c.parentContradictionId) ?? [];
+        arr.push(c);
+        map.set(c.parentContradictionId, arr);
+      }
+    }
+    return map;
+  }, [contradictions]);
+
+  // Top-level: only contradictions without a parent
+  const topLevelContradictions = useMemo(
+    () => contradictions.filter(c => !c.parentContradictionId),
+    [contradictions]
+  );
+
+  const tcList = topLevelContradictions.filter((c) => c.type === 'TC');
+  const pcList = topLevelContradictions.filter((c) => c.type === 'PC');
+  const sfList = topLevelContradictions.filter((c) => c.type === 'SF');
   const confirmedCount = contradictions.filter((c) => c.status === 'confirmed').length;
 
   const getParamLabel = (paramId: number | null) => {
@@ -158,6 +178,16 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     invalidate();
     toast.success('矛盾及關聯 TRIZ 解法已刪除');
   };
+
+  // 6.4 — Edit handler for child PC (reuses existing inline edit UX)
+  const handleEditChildPC = useCallback((pc: ExploreContradiction) => {
+    handleStartEdit(pc);
+  }, []);
+
+  // 6.4 — Delete handler for child PC (reuses existing confirmation dialog)
+  const handleDeleteChildPC = useCallback((pcId: string) => {
+    setDeleteConfirmId(pcId);
+  }, []);
 
   const handleAddManual = async (type: ContradictionType) => {
     const now = new Date().toISOString();
@@ -691,7 +721,18 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         {/* Cards */}
         {list.length > 0 ? (
           <div className="space-y-3">
-            {list.map(renderCard)}
+            {list.map((c) => (
+              <div key={c.id}>
+                {renderCard(c)}
+                {/* 6.1 — Nested child PCs (from TC→multi-PC decomposition) */}
+                <DecomposedChildrenList
+                  children={childrenMap.get(c.id) ?? []}
+                  parentId={c.id}
+                  onEditPC={handleEditChildPC}
+                  onDeletePC={handleDeleteChildPC}
+                />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="text-center py-8 bg-muted/30 rounded-lg border border-dashed">

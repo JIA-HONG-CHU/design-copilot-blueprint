@@ -885,6 +885,33 @@ def _format_violations_for_retry(
     return "\n".join(lines)
 
 
+def _enrich_contradiction_lines(
+    contradictions: list,
+) -> list[str]:
+    """9.5.1 — Enrich contradiction context with child PC decomposition data.
+
+    Each item in *contradictions* may be:
+    - a plain ``str`` (legacy flat format) — passed through as-is
+    - a ``dict`` with at least ``natural_description`` (or ``description``) and
+      optionally ``subsystem_hint`` / ``derived_parameter`` — enriched with
+      bracketed tags so the LLM can anchor subsystem naming.
+
+    Returns a list of ``"- <line>"`` strings ready for prompt injection.
+    """
+    lines: list[str] = []
+    for c in contradictions:
+        if isinstance(c, dict):
+            line = c.get("natural_description") or c.get("description", str(c))
+            if c.get("subsystem_hint"):
+                line += f" [子系統提示: {c['subsystem_hint']}]"
+            if c.get("derived_parameter"):
+                line += f" [物理變數: {c['derived_parameter']}]"
+            lines.append(f"- {line}")
+        else:
+            lines.append(f"- {c}")
+    return lines
+
+
 def _serialize_layered_triz_for_f2_prompt(
     solutions: list[LayeredTrizSolution],
 ) -> list[str]:
@@ -946,6 +973,12 @@ def _serialize_layered_triz_for_f2_prompt(
 
 
 def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse:
+    # TODO(L3 WBS §6.1): When L3 WBS ships, this function's input should
+    # switch from flat contradictions to LayeredTrizSolution[]. The subsystem_hint
+    # enrichment below is a lightweight adapter; the full L3 WBS will replace it
+    # with direct LTS consumption.
+    # See: docs/e2e/module/Explore_L3_SF_Parallel_Check_WBS.md §6
+
     # Build a project-scoped resolver so RD overrides for THIS project surface
     # in the prompt vocabulary alongside global learned components and the
     # seed JSON. Web lookup is excluded from the prompt summary because it is
@@ -961,8 +994,15 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     contradiction_lines: list[str] = []
     if req.layered_triz_solutions:
         contradiction_lines.extend(_serialize_layered_triz_for_f2_prompt(req.layered_triz_solutions))
-    contradiction_lines.extend(f"- {c}" for c in req.contradictions)
+    contradiction_lines.extend(_enrich_contradiction_lines(req.contradictions))
     contradictions_block = "\n".join(contradiction_lines) or "（無）"
+
+    # 9.5.1 — Prompt instruction: guide LLM to use subsystem hints when present
+    subsystem_hint_instruction = (
+        "\n如果矛盾文字包含 [子系統提示: ...] 標記，"
+        "請將該提示作為 module 層級節點的強建議（優先使用該命名）。"
+    )
+    contradictions_block += subsystem_hint_instruction
 
     base_prompt = SUBSYSTEM_SUGGESTION.format(
         mission=req.mission,

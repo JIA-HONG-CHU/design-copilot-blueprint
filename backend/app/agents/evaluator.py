@@ -266,6 +266,13 @@ def _apply_layered_directives(req: ConvergenceScanRequest) -> tuple[list, list[s
         whose `name` lists all adopted layers, so the LLM doesn't
         double-count the same LTS across layers when cross-checking.
       - `notes`: human-readable log lines describing what the directive did.
+
+    TODO(L3-WBS §7): When Phase B conflict checking is fully implemented,
+    grouping must also respect `parent_contradiction_id` — child PCs
+    decomposed from a parent TC share the same causal chain and should NOT
+    be treated as competing/conflicting alternatives.
+    Ref: TRIZ_Multi_Solution_Adoption_Strategy.md §2.1
+         same_contradiction_intra_layer_conflict: skip
     """
     notes: list[str] = []
     if not req.layered_directives:

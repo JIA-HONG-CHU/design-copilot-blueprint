@@ -427,3 +427,14 @@ ConceptRoute:
 - `MUST_Rulebook_Template.md` MUST/WANT 篩選規則
 - TRIZ Knowledge Base: `04_separation_principles.md`（分離原則）、`03_40_principles.md`（40 原理）
 - Jiang et al. (2025) *AutoTRIZ — Automating engineering innovation with TRIZ and large language models*
+
+---
+
+## Changelog
+
+### v1.1（2026-04-09）— parent_contradiction_id 跨層不互斥備註
+
+- 同一 `parent_contradiction_id` 下的子 PC 為 L1→L2 intra-layer drill-down 結果
+- Phase B 掃描時不應將同父下的候選視為互斥衝突（`same_contradiction_intra_layer_conflict: skip`）
+- 此備註由 `docs/e2e/module/Explore_TC_to_MultiPC_Decomposition_WBS.md` §9.6 產出
+- **實作狀態**：Phase B 完整實作延後至 L3 WBS（`Explore_L3_SF_Parallel_Check_WBS.md` §7）

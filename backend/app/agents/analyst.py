@@ -23,6 +23,7 @@ from app.prompts.analyst import (
     SOCRATIC_AUTO_TAG,
     CLD_GENERATION,
     ANTI_ANCHOR_GENERATION,
+    SOCRATIC_INSIGHT_EXTRACTION,
     CONTRADICTION_FORMALIZATION,
     ASSUMPTION_EXTRACTION,
     UNKNOWN_FACTOR_DISCOVERY,
@@ -266,13 +267,39 @@ def auto_tag_socratic(req: SocraticAutoTagRequest) -> SocraticAutoTagResponse:
     return SocraticAutoTagResponse(**data)
 
 
+def _extract_socratic_insights(socraticAnswers: list[str]) -> str:
+    """Extract Socratic Q&A and return a bullet list string."""
+    if not socraticAnswers:
+        return "No additional insights available."
+
+    prompt = SOCRATIC_INSIGHT_EXTRACTION.format(
+        socraticAnswers="\n".join(f"- {a}" for a in socraticAnswers)
+    )
+
+    raw = call_llm_json(ANALYST_SYSTEM, prompt)
+    data = json.loads(raw)
+    insights = data.get("insights", [])
+
+    if not insights:
+        return "No additional insights available."
+
+    return "\n".join(f"- {ins}" for ins in insights)
+
+
 def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
+    # Step 1: Refine Socratic Insights
+    socratic_insights = _extract_socratic_insights(
+        getattr(req, "socraticAnswers", None) or []
+    )
+
+    # Step 2: Assemble prompt
     prompt = CLD_GENERATION.format(
         contradictions="\n".join(f"- {c}" for c in req.contradictions),
         assumptions="\n".join(f"- {a}" for a in req.assumptions),
         mission=req.mission or "（未提供）",
         constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
         kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+        socratic_insights=socratic_insights,
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
@@ -280,11 +307,18 @@ def generate_cld(req: CldGenerationRequest) -> CldGenerationResponse:
 
 
 def formalize_contradiction(req: ContradictionFormalizeRequest) -> ContradictionFormalizeResponse:
+    # Step 1: Refine Socratic Insights
+    socratic_insights = _extract_socratic_insights(
+        getattr(req, "socraticAnswers", None) or []
+    )
+
+    # Step 2: Assemble prompt
     prompt = CONTRADICTION_FORMALIZATION.format(
         natural_description=req.natural_description,
         mission=req.mission or "（未提供）",
         constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
         kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+        socratic_insights=socratic_insights,
     )
     raw = call_llm_json(ANALYST_SYSTEM, prompt)
     data = json.loads(raw)
@@ -303,7 +337,7 @@ def formalize_contradiction(req: ContradictionFormalizeRequest) -> Contradiction
             data["type"] = "PC"
             data["improving_param"] = None
             data["worsening_param"] = None
-            # Ensure PC fields are populated
+             # Ensure PC fields are populated
             if not data.get("physical_contradiction"):
                 data["physical_contradiction"] = data.get("engineering_statement", "")
 
@@ -326,6 +360,7 @@ def extract_assumptions(req: AssumptionExtractRequest) -> AssumptionExtractRespo
     data = json.loads(raw)
     return AssumptionExtractResponse(**data)
 
+
 def _flatten_to_str(value) -> str:
     """When LLM returns a dict, it merges them into a string."""
     if isinstance(value, str):
@@ -334,6 +369,7 @@ def _flatten_to_str(value) -> str:
         return " | ".join(f"{k.replace('_', ' ').capitalize()}: {v}" 
                           for k, v in value.items())
     return str(value)
+
 
 def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
     prompt = ANTI_ANCHOR_GENERATION.format(

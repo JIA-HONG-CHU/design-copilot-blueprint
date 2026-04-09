@@ -115,16 +115,16 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 ## 7.0 前端：區塊 A — 三層樹 + 介面契約
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 7.1 | **SubsystemHierarchyView**（或同等）：System→Module→Component 可摺疊；契約掛在 **module** 節點（§6.4） | 與 1.3 檢查清單一致 | 2.2 |
-| 7.2 | **六維欄位**展示與編輯策略（create-ux-spec：唯讀/可編輯與 `updateSubsystem()`） | 儲存後狀態符合 §8.1 `RDEdited` | 7.1 |
-| 7.3 | **spatial 區塊**：bbox、mass_g、mounting_pattern（唯讀為主；數字來源由 resolver 決定） | 與 API 欄位 1:1 | 7.1 |
-| 7.4 | **confidence badge** + **reference_source** hover（完整字串 + 更新時間，UX §Spatial Confidence） | 色票表與 spec 一致；無混用於 overlay 配色 | 1.2, 7.3 | ✅ `SpatialConfidenceBadge.tsx` |
-| 7.5 | **「我來給數字」** → 呼叫 UC3；成功後局部 refetch 或樂觀更新 | E2E：llm_estimate → override → badge 變深綠語意 | 4.1, 7.4 |
-| 7.6 | **「推升至 learned」**（Tab ② 入口，若與 ④ 批次分開則共用 service） | 成功/失敗 toast；權限錯誤處理 | 5.1, 7.4 |
-| 7.7 | **確認** 解鎖 Tab ③（create-ux-spec；§8.1 `RDConfirmed`） | 未確認時 SCAMPER tab disabled + 原因提示 | 7.2, 8.x 流程 |
-| 7.8 | **手動新增**子系統表單（名稱、層級、理由、矛盾、鄰居）與 `createSubsystem()` | 表單驗證與 API 對齊 | 7.1 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 7.1 | **SubsystemHierarchyView**（或同等）：System→Module→Component 可摺疊；契約掛在 **module** 節點（§6.4） | 與 1.3 檢查清單一致 | 2.2 | ✅ (既有) |
+| 7.2 | **六維欄位**展示與編輯策略（create-ux-spec：唯讀/可編輯與 `updateSubsystem()`） | 儲存後狀態符合 §8.1 `RDEdited` | 7.1 | ✅ (既有) |
+| 7.3 | **spatial 區塊**：bbox、mass_g、mounting_pattern（唯讀為主；數字來源由 resolver 決定） | 與 API 欄位 1:1 | 7.1 | ⬜ (Wave 3: 整合進 Hierarchy) |
+| 7.4 | **confidence badge** + **reference_source** hover（完整字串 + 更新時間，UX §Spatial Confidence） | 色票表與 spec 一致；無混用於 overlay 配色 | 1.2, 7.3 | ✅ `SpatialConfidenceBadge.tsx` (元件完成，Wave 3 整合) |
+| 7.5 | **「我來給數字」** → 呼叫 UC3；成功後局部 refetch 或樂觀更新 | E2E：llm_estimate → override → badge 變深綠語意 | 4.1, 7.4 | ⬜ Wave 3 |
+| 7.6 | **「推升至 learned」**（Tab ② 入口，若與 ④ 批次分開則共用 service） | 成功/失敗 toast；權限錯誤處理 | 5.1, 7.4 | ⬜ Wave 3 |
+| 7.7 | **確認** 解鎖 Tab ③（create-ux-spec；§8.1 `RDConfirmed`） | 未確認時 SCAMPER tab disabled + 原因提示 | 7.2, 8.x 流程 | ✅ (Create.tsx `canProceedFromSubsystem` gate) |
+| 7.8 | **手動新增**子系統表單（名稱、層級、理由、矛盾、鄰居）與 `createSubsystem()` | 表單驗證與 API 對齊 | 7.1 | ✅ (既有) |
 
 ---
 

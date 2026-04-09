@@ -868,6 +868,82 @@ export function scamperSubsystemSuggest(body: SubsystemSuggestRequest) {
   return request<SubsystemSuggestResponse>("/scamper/subsystem-suggestions", body, { timeoutMs: 300_000 });
 }
 
+// ─── Spatial Overlay / Override / Learned ──────────────────────────────────
+//
+// Matches the backend contracts in:
+//   - backend/app/routers/scamper.py    → POST /scamper/spatial-overlay
+//   - backend/app/routers/spatial.py    → POST /spatial/component-overrides
+//                                       → POST /spatial/learned-components
+// The request/response shapes below mirror the Pydantic models in
+// backend/app/models/schemas.py (SpatialOverlayRequest, ComponentOverrideRequest,
+// LearnedComponentPromoteRequest, and their *Response counterparts).
+//
+// NOTE: the backend overlay endpoint takes a nested `overlay` dict
+// (`{zones: {name: {x_mm, ...}}, mass_budget_g: {key: cap}}`), NOT the flat
+// arrays the SpatialOverlayDialog produces. Callers (see Create.tsx
+// handleOverlaySubmit) are responsible for translating between the dialog
+// payload and this request shape.
+//
+// `PackageMap` and `BBox` are both re-exported from the SCAMPER block above
+// (`export type { ..., PackageMap, BBox, ... }`) so they're already in scope
+// within this file.
+
+export interface SpatialOverlayRequest {
+  project_id: string;
+  subsystems: unknown[];
+  overlay: {
+    zones?: Record<string, { x_mm: number; y_mm: number; z_mm: number; anchor?: string }>;
+    mass_budget_g?: Record<string, number>;
+  };
+}
+
+export interface SpatialOverlayResponse {
+  package_map: PackageMap;
+}
+
+export function scamperSpatialOverlay(body: SpatialOverlayRequest) {
+  return request<SpatialOverlayResponse>("/scamper/spatial-overlay", body, { timeoutMs: 60_000 });
+}
+
+export interface SpatialComponentOverrideRequest {
+  project_id: string;
+  component_key: string;
+  category?: string;
+  bbox: BBox;
+  mass_g?: number;
+  note?: string;
+}
+
+export interface SpatialComponentOverrideResponse {
+  saved: boolean;
+  component_key: string;
+}
+
+export function spatialComponentOverride(body: SpatialComponentOverrideRequest) {
+  return request<SpatialComponentOverrideResponse>("/spatial/component-overrides", body);
+}
+
+export interface SpatialLearnedComponentRequest {
+  key: string;
+  category: string;
+  bbox: BBox;
+  mass_g?: number;
+  origin?: string;
+  origin_project_id?: string;
+  source_url?: string;
+  source_text?: string;
+}
+
+export interface SpatialLearnedComponentResponse {
+  saved: boolean;
+  key: string;
+  confirmed_count: number;
+}
+
+export function spatialLearnedComponent(body: SpatialLearnedComponentRequest) {
+  return request<SpatialLearnedComponentResponse>("/spatial/learned-components", body);
+}
+
 // ─── SCAMPER Feedback Contradictions ───────────────────────────────────────
 
 export interface ScamperFeedbackRequest {

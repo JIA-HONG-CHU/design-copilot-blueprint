@@ -17,7 +17,8 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { toast } from "sonner";
 import {
   ArrowLeft, Check, Plus, Sparkles, Loader2, AlertTriangle,
-  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, ChevronRight, Pencil, Trash2
+  ArrowRight, Flag, CheckCircle, XCircle, ChevronLeft, ChevronRight, Pencil, Trash2,
+  Shapes
 } from "lucide-react";
 import { AiButton } from "@/components/ui/ai-button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -86,8 +87,9 @@ import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay } from "@/lib/api";
 import type { MustCriterionResult } from "@/lib/api";
+import type { PackageMap } from "@/types/generated/subsystem";
 import { useSubsystemSuggestion } from "@/hooks/api/useSubsystemSuggestion";
 import { useProject } from "@/hooks/api/useProjects";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
@@ -96,6 +98,9 @@ import { MissionContext } from "@/components/create/MissionContext";
 import { CreateStepper } from "@/components/create/CreateStepper";
 import { KnowledgeRefsPanel } from "@/components/create/KnowledgeRefsPanel";
 import { SubsystemHierarchyView } from "@/components/create/SubsystemHierarchyView";
+import { PackageMapPanel } from "@/components/create/PackageMapPanel";
+import { SpatialOverlayDialog } from "@/components/create/SpatialOverlayDialog";
+import type { OverlayPayload, OverlayResult } from "@/components/create/SpatialOverlayDialog";
 import { LayoutGrid, List } from "lucide-react";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
 import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
@@ -271,6 +276,14 @@ export default function Create() {
   const [ssFormLevel, setSsFormLevel] = useState<SubsystemLevel>("module");
   const [ssFormParentId, setSsFormParentId] = useState<string | null>(null);
   const suggestSubsystems = useSubsystemSuggestion(id);
+
+  // Wave 2: package_map comes back from the subsystem suggestion mutation
+  // alongside `subsystems[]`. Only the subsystem tree is persisted to
+  // Supabase today, so we stash the ephemeral PackageMap in component state
+  // and display it via PackageMapPanel. Cleared whenever a fresh suggestion
+  // is requested.
+  const [packageMap, setPackageMap] = useState<PackageMap | null>(null);
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
   // Loading state — true while any query is loading
   const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
@@ -748,7 +761,8 @@ export default function Create() {
     suggestSubsystems.mutate(
       { mission: briefMission || "", contradictions: contradictionDescs },
       {
-        onSuccess: ({ created }) => {
+        onSuccess: ({ created, packageMap: pm }) => {
+          setPackageMap(pm ?? null);
           toast.success(`AI 建議了 ${created} 個子系統（含層級結構）`);
         },
         onError: (err) => {
@@ -757,6 +771,52 @@ export default function Create() {
         },
       },
     );
+  };
+
+  /**
+   * Wave 2: What-if spatial overlay handler for SpatialOverlayDialog.
+   *
+   * Bridges two shape mismatches between FE and backend:
+   *  1. The dialog produces flat arrays (`zones: [{name, bbox_mm, ...}]`,
+   *     `module_mass_budgets: [{name, max_mass_g}]`). The backend expects a
+   *     nested `overlay` dict keyed by name:
+   *       { zones: { name: {x_mm, y_mm, z_mm, anchor} },
+   *         mass_budget_g: { name: max_mass_g } }
+   *  2. The backend wraps the result in `{package_map: PackageMap}` whereas
+   *     the dialog expects the PackageMap fields inline. We unwrap and
+   *     coerce nullable `svg` / `overlay_violations` to their non-null
+   *     OverlayResult counterparts.
+   *
+   * Dialog is "stateless relative to main discovery" by contract, so we do
+   * NOT update `packageMap` here — the main map keeps showing discovery
+   * output, and overlay results live inside the dialog.
+   */
+  const handleOverlaySubmit = async (payload: OverlayPayload): Promise<OverlayResult> => {
+    if (!id) throw new Error("missing project id");
+    const zonesDict: Record<string, { x_mm: number; y_mm: number; z_mm: number; anchor: string }> = {};
+    for (const z of payload.zones) {
+      zonesDict[z.name] = {
+        x_mm: z.bbox_mm[0],
+        y_mm: z.bbox_mm[1],
+        z_mm: z.bbox_mm[2],
+        anchor: z.name,
+      };
+    }
+    const massBudget: Record<string, number> = {};
+    for (const b of payload.module_mass_budgets) {
+      massBudget[b.name] = b.max_mass_g;
+    }
+    const resp = await scamperSpatialOverlay({
+      project_id: id,
+      subsystems: (payload.subsystems ?? []) as unknown[],
+      overlay: { zones: zonesDict, mass_budget_g: massBudget },
+    });
+    const pm = resp.package_map;
+    return {
+      ...pm,
+      overlay_violations: pm.overlay_violations ?? [],
+      svg: pm.svg ?? "",
+    };
   };
 
   const toggleScamperAdopt = (svId: string) => {
@@ -951,7 +1011,22 @@ export default function Create() {
     setCurrentStep(step);
     setActiveTrack(track !== undefined ? track : inferTrack(step));
   };
+  // Wave 2: Tab ③ SCAMPER unlock gate.
+  // §8.1 RDConfirmed state machine from Forward_Subsystem_Discovery_Architecture.md
+  // requires at least one RD-confirmed subsystem before SCAMPER can operate —
+  // SCAMPER variant generation keys off `subsystems.filter(s => s.confirmed)`
+  // (see renderScamper() below), so leaving this gate open produces an empty
+  // 7-action grid with a confusing empty-state.
+  const canProceedFromSubsystem = subsystems.some(s => s.confirmed);
+
   const goNext = () => {
+    // Gate: block step 2 → 3 until at least one subsystem is confirmed.
+    // Also mirrored on the footer button's `disabled` prop; this guard is
+    // the defence-in-depth fallback in case the button is bypassed.
+    if (currentStep === 2 && !canProceedFromSubsystem) {
+      toast.error("請至少確認一個子系統後再進入 SCAMPER");
+      return;
+    }
     if (activeTrack === "reverse") {
       // Reverse (step 0) → jump to Decision Hub
       navigateTo(4, null);
@@ -1814,7 +1889,33 @@ export default function Create() {
             );
           })
         )}
+        {/* Wave 2: Package Map (discovery output) + What-if overlay trigger. */}
+        <section className="mt-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Package Map（空間包絡）</h3>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setOverlayOpen(true)}
+              className="gap-1"
+            >
+              <Shapes className="h-3.5 w-3.5" />
+              試算車架包絡
+            </Button>
+          </div>
+          <PackageMapPanel packageMap={packageMap} />
+        </section>
+
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[2] ?? []} />
+
+        {/* Wave 2: What-if Overlay dialog. Stateless relative to the main
+            Package Map — onSubmit does NOT update `packageMap` state. */}
+        <SpatialOverlayDialog
+          open={overlayOpen}
+          onOpenChange={setOverlayOpen}
+          subsystems={subsystems}
+          onSubmit={handleOverlaySubmit}
+        />
       </div>
     );
   }
@@ -2565,9 +2666,19 @@ export default function Create() {
           {ZONE_LABELS[STEPS[currentStep].zone].badge}
         </span>
         {currentStep < 6 ? (
-          <Button onClick={goNext}>
-            下一步 <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={goNext}
+              disabled={currentStep === 2 && !canProceedFromSubsystem}
+            >
+              下一步 <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+            {currentStep === 2 && !canProceedFromSubsystem && (
+              <span className="text-[10px] text-muted-foreground">
+                請至少確認一個子系統後再進入 SCAMPER
+              </span>
+            )}
+          </div>
         ) : (
           <div />
         )}

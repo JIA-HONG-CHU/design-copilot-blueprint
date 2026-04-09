@@ -300,16 +300,27 @@ the Socratic question or analysis step that produced it.
 <assumptions>
 {assumptions}
 </assumptions>
+
+<clarified_insights>
+The following insights were derived from Socratic questioning with the problem owner.
+They may reveal system boundaries, constraint sources, risk tolerance, and evaluation
+ambiguity that should be reflected as causal nodes or edges in the CLD.
+
+{socratic_insights}
+</clarified_insights>
 </context>
 
 <instructions>
 1. Create nodes — one per variable, id as a short English abbreviation.
+   - Consider whether clarified insights reveal hidden variables that should become nodes
+     (e.g., labeling consensus, deployment stage, ground truth stability).
 2. Create edges — mark polarity:
    - `+` same-direction (A↑ → B↑)
    - `−` opposite-direction (A↑ → B↓)
 3. Identify reinforcing loops (R) and balancing loops (B).
 4. Mark breakpoints — system leverage points where an intervention could break a vicious cycle.
-5. For each edge, cite which contradiction or assumption is the evidence source \
+   - Use clarified insights to prioritize breakpoints (e.g., if risk tolerance is high, deprioritize that node).
+5. For each edge, cite which contradiction, assumption, or insight is the evidence source \
 (use the id or code provided in the input). This enables traceability from CLD \
 relationships back to their originating Socratic Q&A or analysis.
 </instructions>
@@ -491,6 +502,43 @@ Each field: 50–150 words.
 # Contradiction Formalization
 # ---------------------------------------------------------------------------
 
+SOCRATIC_INSIGHT_EXTRACTION = """\
+<task>
+From the following Socratic Q&A pairs about an engineering project, extract ONLY
+insights that directly affect how we identify and classify technical contradictions.
+</task>
+
+<qa_pairs>
+{socraticAnswers}
+</qa_pairs>
+
+<focus>
+Extract insights about:
+- System boundary: what is the tool, product, environment, and their roles
+- Constraint nature: which requirements are hard/non-negotiable, imposed by whom
+- Hidden assumptions about system capability and their evidence strength
+- Risk tolerance: deployment stage, consequence severity if requirements not met
+- Evaluation ambiguity: unclear definitions, unstable ground truth, labeling issues
+</focus>
+
+<rules>
+- Output 3-6 bullet points, each one concise sentence
+- Use the project's original language (Chinese or English as appropriate)
+- Skip: action plans, repeated info, vague opinions without engineering relevance
+- Each bullet must be something that could change how you classify a contradiction as TC vs PC vs SF
+</rules>
+
+<output_format>
+Return a JSON object:
+{{
+  "insights": [
+    "...",
+    "..."
+  ]
+}}
+</output_format>
+"""
+
 CONTRADICTION_FORMALIZATION = """\
 <task>
 Convert the following natural-language contradiction or problem into a TRIZ-standard formal representation.
@@ -505,6 +553,14 @@ Classify it into one of three types: TC (Technical Contradiction), PC (Physical 
 <known_kpis>
 {kpis}
 </known_kpis>
+
+<clarified_insights>
+The following insights were derived from structured Socratic questioning with the problem owner.
+Use them to better understand system boundaries, constraint severity, hidden assumptions,
+and evaluation ambiguity. These should influence your contradiction classification.
+
+{socratic_insights}
+</clarified_insights>
 </context>
 
 <input>
@@ -512,28 +568,33 @@ Classify it into one of three types: TC (Technical Contradiction), PC (Physical 
 </input>
 
 <instructions>
-1. Produce an engineering statement describing the contradiction/problem in one sentence.
-2. Classify the type using these rules:
+1. Read the clarified insights carefully — they may reveal that:
+   - The real contradiction is different from what the natural description suggests
+   - A parameter trade-off (TC) is actually an opposing-demand problem (PC) or interaction problem (SF)
+   - Ground truth instability or undefined criteria are the root cause, not model capability
+2. Produce an engineering statement describing the contradiction/problem in one sentence.
+3. Classify the type using these rules:
    - **TC** (Technical Contradiction): two different parameters conflict — improving one worsens another.
    - **PC** (Physical Contradiction): one parameter must simultaneously satisfy opposing demands.
    - **SF** (Su-Field Problem): a substance-field interaction is incomplete, harmful, or insufficient.
      Use SF when the problem is about a system interaction that is missing, too weak, or produces
      undesirable effects — rather than a parameter trade-off.
-3. For TC:
+4. For TC:
    - Map BOTH improving and worsening parameters to TRIZ 39 engineering parameters (1–39).
    - Both improving_param AND worsening_param MUST be non-null integers (1–39).
    - If you cannot confidently map to two distinct parameters, do NOT classify as TC — reclassify as PC or SF instead.
-4. For PC:
+5. For PC:
    - Extract the required attribute (pc_attribute_a): the property the system needs.
    - Extract the opposing attribute (pc_attribute_not_a): the contradictory property the system also needs.
    - Each attribute should be a concise phrase (e.g., "高計算深度", "低計算量"), NOT a full sentence.
    - Store the full description in physical_contradiction.
-5. For SF:
+6. For SF:
    - Identify S1 (tool substance that acts), S2 (product substance acted upon), F (field type).
    - Classify sf_interaction: "useful" | "harmful" | "insufficient" | "missing".
    - Classify sf_completeness: "complete" | "incomplete" | "harmful_complete".
    - Set improving_param, worsening_param, physical_contradiction, pc_attribute_a, pc_attribute_not_a to null.
-6. Assign a confidence score (0–1) for the mapping quality.
+7. Assign a confidence score (0–1) for the mapping quality.
+   - Lower confidence if clarified insights reveal ambiguity in problem definition or evaluation criteria.
 </instructions>
 
 <output_schema>

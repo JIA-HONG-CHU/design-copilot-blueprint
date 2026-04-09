@@ -393,15 +393,18 @@ export function useConvertUnknownToAssumption(projectId: string | undefined) {
 // useTrackExperiments — SELECT experiments by assumption_code
 // ---------------------------------------------------------------------------
 
-export function useTrackExperiments(assumptionCode: string | undefined) {
+export function useTrackExperiments(assumptionCode: string | undefined, projectId: string | undefined) {
   const query = useSupabaseQuery<ExperimentRow[]>({
     table: 'experiments',
-    queryKey: queryKeys.experiments.byAssumptionCode(assumptionCode),
-    filters: assumptionCode
-      ? [{ column: 'assumption_code', operator: 'eq', value: assumptionCode }]
+    queryKey: queryKeys.experiments.byAssumptionCode(projectId, assumptionCode),
+    filters: assumptionCode && projectId
+      ? [
+          { column: 'assumption_code', operator: 'eq', value: assumptionCode },
+          { column: 'project_id', operator: 'eq', value: projectId },
+        ]
       : [],
     orderBy: { column: 'created_at', ascending: true },
-    enabled: !!assumptionCode,
+    enabled: !!assumptionCode && !!projectId,
   });
 
   return {
@@ -444,7 +447,7 @@ export function useCreateTrackExperiment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.projectId, variables.assumptionCode),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.track.assumptions(variables.projectId),
@@ -483,13 +486,11 @@ export function useUpdateTrackExperiment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.projectId, variables.assumptionCode),
       });
-      if (variables.projectId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.track.assumptions(variables.projectId),
-        });
-      }
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.track.assumptions(variables.projectId),
+      });
     },
     onError: () => {
       toast.error('更新實驗失敗');
@@ -500,7 +501,7 @@ export function useUpdateTrackExperiment() {
 export function useDeleteTrackExperiment() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { id: string; assumptionCode: string; projectId?: string }>({
+  return useMutation<void, Error, { id: string; assumptionCode: string; projectId: string }>({
     mutationFn: async ({ id }) => {
       const { error } = await supabase
         .from('experiments')
@@ -511,13 +512,11 @@ export function useDeleteTrackExperiment() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.experiments.byAssumptionCode(variables.assumptionCode),
+        queryKey: queryKeys.experiments.byAssumptionCode(variables.projectId, variables.assumptionCode),
       });
-      if (variables.projectId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.track.assumptions(variables.projectId),
-        });
-      }
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.track.assumptions(variables.projectId),
+      });
       toast.success('實驗已刪除');
     },
     onError: (error) => {

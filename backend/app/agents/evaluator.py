@@ -28,6 +28,7 @@ from app.models.schemas import (
     MustEvaluationResponse,
     PreCadAnalyzeRequest,
     PreCadAnalyzeResponse,
+    SpatialTrace,
     WantSeedRequest,
     WantSeedResponse,
     ValidationPassportRequest,
@@ -109,13 +110,53 @@ def _format_spatial_evidence(package) -> str:
     return "\n".join(lines)
 
 
+def _build_spatial_trace(package, source: str) -> SpatialTrace:
+    """Flatten a PackageMap into the compact SpatialTrace the FE renders.
+
+    Clash pairs are collapsed into undirected unique tuples — PackageMap lists
+    each clash once per endpoint, so we deduplicate here (A↔B appears once).
+    """
+    if package is None or not package.nodes:
+        return SpatialTrace(source=source)  # type: ignore[arg-type]
+
+    seen: set[tuple[str, str]] = set()
+    pairs: list[tuple[str, str]] = []
+    for node in package.nodes:
+        for other in node.clashes:
+            key = tuple(sorted((node.name, other)))
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append((key[0], key[1]))
+
+    return SpatialTrace(
+        total_mass_g=package.required.total_mass_g,
+        total_bbox_mm=tuple(package.required.total_bbox_mm),  # type: ignore[arg-type]
+        clash_pairs=pairs,
+        module_count=len(package.nodes),
+        notes=list(package.notes),
+        source=source,  # type: ignore[arg-type]
+    )
+
+
 def analyze_pre_cad(req: PreCadAnalyzeRequest) -> PreCadAnalyzeResponse:
     # Compute the deterministic spatial validator output up front, if the
     # caller supplied subsystems. The result feeds the prompt as evidence and
     # also overrides the LLM's spatial_score on the way back.
     from app.services.spatial_validator import discover_package
 
-    package = discover_package(req.subsystems) if req.subsystems else None
+    package = None
+    validator_errored = False
+    if req.subsystems:
+        try:
+            package = discover_package(req.subsystems)
+        except Exception:  # pragma: no cover - defensive
+            # Validator crashed (unexpected). Record the fact so the trace can
+            # surface 'llm_fallback' to the UI instead of silently trusting
+            # the LLM's guess.
+            validator_errored = True
+            package = None
+
     spatial_evidence = _format_spatial_evidence(package)
     deterministic_spatial = _spatial_score_from_validator(package)
 
@@ -129,14 +170,30 @@ def analyze_pre_cad(req: PreCadAnalyzeRequest) -> PreCadAnalyzeResponse:
     data = json.loads(raw)
     response = PreCadAnalyzeResponse(**data)
 
-    # Override the LLM's spatial score with the validator's arithmetic when
-    # we have evidence. The LLM's narrative `analysis` is preserved.
-    # `overall_pass` is a computed field on the response model, so it will
-    # automatically reflect the new score at serialization time — no manual
-    # recompute needed here.
-    if deterministic_spatial > 0:
-        response.spatial_score = deterministic_spatial
-        response.package_map = package
+    # Deterministic override: whenever the caller supplied subsystems, the
+    # validator — not the LLM — owns `spatial_score`. Three sub-cases:
+    #   1. validator produced a scored PackageMap  → use that score
+    #   2. validator returned empty (no spatial)   → neutral fallback of 3
+    #      (middle of 1–5) so the LLM's guess cannot sneak through; notes
+    #      make clear why.
+    #   3. validator raised                        → neutral 3 + source=llm_fallback
+    #      so the FE can warn "trace unavailable, score is a neutral fallback".
+    if req.subsystems:
+        if deterministic_spatial > 0:
+            response.spatial_score = deterministic_spatial
+            response.package_map = package
+            response.spatial_trace = _build_spatial_trace(package, source="validator")
+        elif validator_errored:
+            response.spatial_score = 3  # neutral; see note above
+            response.spatial_trace = _build_spatial_trace(None, source="llm_fallback")
+        else:
+            # Subsystems present but no spatial data in them → empty PackageMap
+            response.spatial_score = 3  # neutral; see note above
+            response.spatial_trace = _build_spatial_trace(None, source="empty")
+    else:
+        # No subsystems at all → legacy LLM-only scoring path. Still attach
+        # an empty trace so downstream code can detect the absence uniformly.
+        response.spatial_trace = _build_spatial_trace(None, source="empty")
 
     return response
 

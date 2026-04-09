@@ -3,6 +3,8 @@
 Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
@@ -963,6 +965,26 @@ class PreCadAnalyzeRequest(BaseModel):
     subsystems: list["SuggestedSubsystem"] = Field(default_factory=list)
 
 
+class SpatialTrace(BaseModel):
+    """Compact trace of WHY the Pre-CAD spatial_score has its value.
+
+    Produced by the Pre-CAD evaluator from the deterministic spatial validator
+    output (not from the LLM). Rendered by the FE in a hover-card so RD can see
+    the underlying arithmetic (bbox, mass, clashes) behind the score.
+
+    `source` encodes provenance:
+      - "validator"    — score/trace came from a non-empty PackageMap
+      - "empty"        — no subsystems or validator returned empty PackageMap
+      - "llm_fallback" — validator raised; trace carries empty lists
+    """
+    total_mass_g: float = 0.0
+    total_bbox_mm: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    clash_pairs: list[tuple[str, str]] = Field(default_factory=list)
+    module_count: int = 0
+    notes: list[str] = Field(default_factory=list)
+    source: Literal["validator", "llm_fallback", "empty"] = "empty"
+
+
 class PreCadAnalyzeResponse(BaseModel):
     """5D AI scores and analysis."""
     # Ignore any LLM-supplied `overall_pass` — it is now computed server-side
@@ -980,6 +1002,10 @@ class PreCadAnalyzeResponse(BaseModel):
     # Lets the FE display the same package map RD already saw at F2 alongside
     # the pre-CAD scores.
     package_map: PackageMap | None = None
+    # Deterministic trace of the spatial_score, built from the validator's
+    # PackageMap (never from the LLM). Optional to avoid breaking legacy
+    # callers that don't expect the field.
+    spatial_trace: "SpatialTrace | None" = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

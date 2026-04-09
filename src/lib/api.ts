@@ -970,6 +970,20 @@ export interface PreCadAnalyzeRequest {
   constraints?: string[];
 }
 
+/**
+ * Deterministic trace of why `spatial_score` has its value.
+ * Produced from the spatial validator's PackageMap on the backend, never
+ * from the LLM. See backend/app/models/schemas.py::SpatialTrace.
+ */
+export interface SpatialTrace {
+  total_mass_g: number;
+  total_bbox_mm: [number, number, number];
+  clash_pairs: [string, string][];
+  module_count: number;
+  notes: string[];
+  source: "validator" | "llm_fallback" | "empty";
+}
+
 export interface PreCadAnalyzeResponse {
   spatial_score: number;
   cost_score: number;
@@ -979,6 +993,8 @@ export interface PreCadAnalyzeResponse {
   overall_pass: boolean;
   analysis: string;
   evidence_references?: EvidenceReference[];
+  /** Optional deterministic trace of the spatial_score. */
+  spatial_trace?: SpatialTrace | null;
 }
 
 export function preCadAnalyze(rid: string, body: PreCadAnalyzeRequest) {

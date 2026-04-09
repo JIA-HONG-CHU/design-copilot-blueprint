@@ -17,6 +17,8 @@ import { useConstraints } from "@/hooks/api";
 import { Solution } from "@/types/solution";
 import { ReviewDimension, SolutionReview } from "@/types/preCadReview";
 import { ContradictionSeverity } from "@/types/contradiction";
+import { SpatialTraceHover } from "@/components/precad/SpatialTraceHover";
+import type { SpatialTrace } from "@/lib/api";
 
 // Constraint feasibility — from DB constraints table
 const feasibilityStatusConfig = {
@@ -427,6 +429,18 @@ const PreCadReview = () => {
                       <div className="flex items-center gap-2">
                         {getRatingIcon(dim.rating)}
                         <span>{dim.label}</span>
+                        {dim.id === "space" && (
+                          // WBS 10.3: hover-card trace for the deterministic
+                          // spatial_score. `spatial_trace` is not yet wired
+                          // into this manual review UI (which uses RadioGroup
+                          // ratings instead of a numeric API score), so until
+                          // an API-backed score row lands here we render the
+                          // component in its "no trace" state as a marker.
+                          <SpatialTraceHover
+                            trace={(null as SpatialTrace | null)}
+                            score={0}
+                          />
+                        )}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-3 pt-2">

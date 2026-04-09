@@ -92,8 +92,8 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 | 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
 |---------|--------|-------------------|------|
-| 3.1 | **L1–L4** 查詢鏈（rd_override / learned / web / seed）與降級（§5、§9） | 各層獨立測試；超時 fail-fast 行為可配置 | 1.2 |
-| 3.2 | 引用 key 不存在 → **confidence 降為 estimate**（§7.1） | 斷言測試 | 3.1 |
+| 3.1 | **L1–L4** 查詢鏈（rd_override / learned / web / seed）與降級（§5、§9） | 各層獨立測試；超時 fail-fast 行為可配置 | 1.2 | ✅ (既有 test_spatial_validator.py) |
+| 3.2 | 引用 key 不存在 → **confidence 降為 estimate**（§7.1） | 斷言測試 | 3.1 | ✅ gap-filled by test_subsystem_integration.py (rd_override/learned/seed) |
 | 3.3 | **`discover_package`**：flatten、AABB clash、required envelope、notes（§5） | 與架構聲明之測試覆蓋一致；輸出含 UX 所需 `total_mass_g`、`total_bbox_mm` | 2.1 |
 | 3.4 | **`render_package_map_svg`**：XY / XZ 正交視圖資料餵給 FE（UX 區塊 B） | 快照測試或 golden SVG | 3.3 |
 | 3.5 | **Discovery 不 blocking**：無 spatial 時友善退化（UX「失敗時」、架構 validator 失敗策略） | API 錯誤碼與 FE 提示文案一致 | 3.3 |
@@ -104,8 +104,8 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 | 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
 |---------|--------|-------------------|------|
-| 4.1 | **POST `/spatial/component-overrides`** upsert `project_component_overrides`（§7.2） | DB migration（若需）；權限＝專案成員 | 1.1 |
-| 4.2 | 下次 UC1 **L1 命中** override（§8.2） | 整合測試：override 後 `reference_source` 為 `rd_override:<key>` | 4.1, 3.1 |
+| 4.1 | **POST `/spatial/component-overrides`** upsert `project_component_overrides`（§7.2） | DB migration（若需）；權限＝專案成員 | 1.1 | ✅ (既有) |
+| 4.2 | 下次 UC1 **L1 命中** override（§8.2） | 整合測試：override 後 `reference_source` 為 `rd_override:<key>` | 4.1, 3.1 | ✅ end-to-end fake Supabase round-trip |
 
 ---
 
@@ -113,8 +113,8 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 | 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
 |---------|--------|-------------------|------|
-| 5.1 | **POST `/spatial/learned-components`** insert/update `confirmed_count`（§7.3） | 與 UX「推升至 learned」、④ Pre-CAD 批次推升共用同一實作或明確 wrapper | 4.1 |
-| 5.2 | 金鑰衝突、重複推升 idempotent 行為定義 | API 文件 + 測試 | 5.1 |
+| 5.1 | **POST `/spatial/learned-components`** insert/update `confirmed_count`（§7.3） | 與 UX「推升至 learned」、④ Pre-CAD 批次推升共用同一實作或明確 wrapper | 4.1 | ✅ (既有) |
+| 5.2 | 金鑰衝突、重複推升 idempotent 行為定義 | API 文件 + 測試 | 5.1 | ✅ duplicate key→bump confirmed_count, bbox first-seen canonical |
 
 ---
 

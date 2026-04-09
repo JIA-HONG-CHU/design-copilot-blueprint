@@ -10,7 +10,7 @@
  */
 
 import { useState, type JSX } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ExploreContradiction } from '@/types/explore';
 import type { SeparationCategory } from '@/lib/triz/separationPrinciples';
@@ -29,6 +29,10 @@ export interface DecomposedChildrenListProps {
   onDeletePC?: (pcId: string) => void;
   /** Whether the list is expanded by default. Default true. */
   defaultExpanded?: boolean;
+  /** When true, show a yellow banner indicating parent TC has changed. */
+  stale?: boolean;
+  /** Callback to re-run PC decomposition for this parent. */
+  onReDecompose?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +61,8 @@ export function DecomposedChildrenList({
   onEditPC,
   onDeletePC,
   defaultExpanded = true,
+  stale,
+  onReDecompose,
 }: DecomposedChildrenListProps): JSX.Element | null {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -92,6 +98,20 @@ export function DecomposedChildrenList({
         )}
         <span>已深挖 {sorted.length} 個物理矛盾</span>
       </button>
+      {stale && (
+        <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>父矛盾參數已更新，建議重新深挖</span>
+          {onReDecompose && (
+            <button
+              onClick={onReDecompose}
+              className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline"
+            >
+              重新深挖
+            </button>
+          )}
+        </div>
+      )}
       <div className={cn('space-y-2', !expanded && 'hidden')}>
         {sorted.map((child) => (
           <DecomposedPCCard

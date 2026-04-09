@@ -5,6 +5,7 @@ Ref: AI_Agent_Architecture.md §1.1 Analyst Agent
 
 import json
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +422,11 @@ def decompose_tc_to_pcs(req: ContradictionDecomposeRequest) -> ContradictionDeco
       7. Return ContradictionDecomposeResponse. Wrap EVERYTHING in try/except —
          on any failure return triggered=True, decomposed_pcs=[], reasoning=error.
     """
+    logger.info(
+        "decompose_tc_to_pcs: project=%s parent=%s severity=%s",
+        req.project_id, req.parent_contradiction_id, req.severity,
+    )
+
     # Step 1: L1 critic decides whether drill-down is warranted.
     # Build a minimal ContradictionFormalizeResponse stub from the request —
     # the critic only reads engineering_statement / improving_param / worsening_param.
@@ -442,13 +448,15 @@ def decompose_tc_to_pcs(req: ContradictionDecomposeRequest) -> ContradictionDeco
             enable_llm_critic=False,  # cheaper: rule layer only inside decomposition
         )
     except Exception as exc:  # noqa: BLE001 — error isolation per WBS §3.3
-        logger.exception("L1 critic failed inside decompose_tc_to_pcs")
+        logger.exception("decompose_tc_to_pcs: L1 critic failed project=%s parent=%s", req.project_id, req.parent_contradiction_id)
         return ContradictionDecomposeResponse(
             triggered=True,
             trigger_reason=f"critic failed: {exc}",
             decomposed_pcs=[],
             reasoning=f"Decomposition failed: critic error {exc}",
         )
+
+    logger.info("decompose_tc_to_pcs: critic triggered=%s reason=%s", triggered, reason)
 
     if not triggered:
         return ContradictionDecomposeResponse(
@@ -479,7 +487,10 @@ def decompose_tc_to_pcs(req: ContradictionDecomposeRequest) -> ContradictionDeco
             separation_principles_context=build_separation_principle_id_context(),
         )
 
+        t0 = time.monotonic()
         raw = call_llm_json(ANALYST_SYSTEM, prompt)
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        logger.info("decompose_tc_to_pcs: LLM call elapsed=%dms", elapsed_ms)
         data = json.loads(raw)
 
         raw_pcs = data.get("decomposed_pcs", []) or []
@@ -509,14 +520,19 @@ def decompose_tc_to_pcs(req: ContradictionDecomposeRequest) -> ContradictionDeco
             seen_params.add(pc.derived_parameter)
             validated_pcs.append(pc)
 
-        return ContradictionDecomposeResponse(
+        response = ContradictionDecomposeResponse(
             triggered=True,
             trigger_reason=reason,
             decomposed_pcs=validated_pcs,
             reasoning=llm_reasoning,
         )
+        logger.info(
+            "decompose_tc_to_pcs: result triggered=%s pcs=%d reasoning=%.100s",
+            response.triggered, len(response.decomposed_pcs), response.reasoning,
+        )
+        return response
     except Exception as exc:  # noqa: BLE001 — error isolation per WBS §3.3
-        logger.exception("decompose_tc_to_pcs failed")
+        logger.exception("decompose_tc_to_pcs: failed project=%s parent=%s", req.project_id, req.parent_contradiction_id)
         return ContradictionDecomposeResponse(
             triggered=True,
             trigger_reason=reason,

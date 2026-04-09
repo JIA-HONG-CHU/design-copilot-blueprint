@@ -42,6 +42,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addingType, setAddingType] = useState<ContradictionType | null>(null);
   const [revertConfirmId, setRevertConfirmId] = useState<string | null>(null);
+  const [staleParentIds, setStaleParentIds] = useState<Set<string>>(new Set());
   const pendingEditIdRef = useRef<string | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.contradictions.byProject(projectId) });
@@ -155,6 +156,18 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
       toast.error(`更新失敗：${error.message}`);
       return;
     }
+
+    // 7.1 — Mark children as stale if parent TC params changed
+    const savedId = editingId;
+    const original = contradictions.find(c => c.id === savedId);
+    if (original && childrenMap.has(savedId) && (
+      editForm.improvingParam !== original.improvingParam ||
+      editForm.worseningParam !== original.worseningParam ||
+      editForm.engineeringStatement !== original.engineeringStatement
+    )) {
+      setStaleParentIds(prev => new Set(prev).add(savedId));
+    }
+
     setEditingId(null);
     setEditForm({});
     invalidate();
@@ -188,6 +201,39 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const handleDeleteChildPC = useCallback((pcId: string) => {
     setDeleteConfirmId(pcId);
   }, []);
+
+  // 7.2 — Re-decompose: delete old children, re-run decomposition, clear stale flag
+  const handleReDecompose = useCallback(async (parentTc: ExploreContradiction) => {
+    // 1. Delete existing children
+    const existingChildren = childrenMap.get(parentTc.id) ?? [];
+    for (const child of existingChildren) {
+      await supabase.from('contradictions').delete().eq('id', child.id);
+    }
+    // 2. Re-run decomposition with force=true to skip dedup
+    const fakeResult: ContradictionFormalizeResponse = {
+      type: 'TC',
+      engineering_statement: parentTc.engineeringStatement ?? '',
+      improving_param: parentTc.improvingParam ?? null,
+      worsening_param: parentTc.worseningParam ?? null,
+      physical_contradiction: null,
+      pc_attribute_a: null,
+      pc_attribute_not_a: null,
+      sf_substance_1: null,
+      sf_substance_2: null,
+      sf_field: null,
+      sf_interaction: null,
+      sf_completeness: null,
+      confidence: 1,
+    };
+    await maybeAutoDecomposeTC(parentTc.id, fakeResult, true);
+    // 3. Clear stale flag
+    setStaleParentIds(prev => {
+      const next = new Set(prev);
+      next.delete(parentTc.id);
+      return next;
+    });
+    invalidate();
+  }, [childrenMap, invalidate]);
 
   const handleAddManual = async (type: ContradictionType) => {
     const now = new Date().toISOString();
@@ -235,6 +281,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
   const maybeAutoDecomposeTC = async (
     parentRowId: string,
     formalizeResponse: ContradictionFormalizeResponse,
+    force = false, // 7.2: skip dedup when re-decomposing
   ): Promise<number> => {
     try {
       if (formalizeResponse.type !== 'TC') return 0;
@@ -243,13 +290,15 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
         return 0;
       }
 
-      // 5.5 — Dedup guard: skip if parent already has children
-      const existingChildren = contradictions.filter(
-        (c) => c.parentContradictionId === parentRowId,
-      );
-      if (existingChildren.length > 0) {
-        console.debug('[pc-decompose] parent has children, skipping');
-        return 0;
+      // 5.5 — Dedup guard: skip if parent already has children (unless force)
+      if (!force) {
+        const existingChildren = contradictions.filter(
+          (c) => c.parentContradictionId === parentRowId,
+        );
+        if (existingChildren.length > 0) {
+          console.debug('[pc-decompose] parent has children, skipping');
+          return 0;
+        }
       }
 
       // 5.2 — Auto call backend /decompose
@@ -730,6 +779,8 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
                   parentId={c.id}
                   onEditPC={handleEditChildPC}
                   onDeletePC={handleDeleteChildPC}
+                  stale={staleParentIds.has(c.id)}
+                  onReDecompose={() => handleReDecompose(c)}
                 />
               </div>
             ))}

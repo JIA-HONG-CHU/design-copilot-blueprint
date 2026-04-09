@@ -65,9 +65,9 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 ## 2.0 後端：UC1 子系統建議管線
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 2.1 | `suggest_subsystems` 編排：`summarize_for_prompt` → LLM → `_resolve_spatial_via_layers` → `discover_package`（§7.1） | 單元測試 + 整合測試；失敗時行為符合 §4.1（validator 掛了仍回樹） | 1.x |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 2.1 | `suggest_subsystems` 編排：`summarize_for_prompt` → LLM → `_resolve_spatial_via_layers` → `discover_package`（§7.1） | 單元測試 + 整合測試；失敗時行為符合 §4.1（validator 掛了仍回樹） | 1.x | ✅ (triz_solver.py:337/390/397) |
 | 2.2 | **POST `/scamper/subsystem-suggestions`** 請求/回應 schema 與 UX 表「區塊 A/B」欄位對齊 | OpenAPI 或同等契約；含 `package_map`、SVG 字串或 URL 策略 | 2.1 |
 | 2.3 | 矛盾與節點 **`related_contradictions`** 貫穿（§6.4.4） | 回傳 JSON 可驗證；供第三眼追溯使用 | 2.2 |
 | 2.4 | 與 **Supabase `subsystems`** 寫入策略對齊（§7.1 FE 寫表—若實作改由後端寫入需一致） | 明確「誰寫庫」序時圖；無雙寫競態 | 2.2 |
@@ -130,12 +130,12 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 ## 8.0 前端：區塊 B — Package Map 面板
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 8.1 | **Package Map SVG** 嵌入（俯視 XY + 側視 XZ）；**clash** 紅色標示（UX 區塊 B） | 與 3.4 產出格式約定（inline SVG vs URL） | 3.4, 2.2 |
-| 8.2 | **總質量、最小封殼**（`required.total_mass_g`、`total_bbox_mm`）唯讀區 | 單元測試：空資料隱藏或占位符符合 UX | 8.1 |
-| 8.3 | **Notes** 清單（validator 提示） | 無資料時不報錯 | 8.1 |
-| 8.4 | **Discovery 與 Overlay 視覺分離**（UX §Discovery vs Overlay） | Code review 檢查：不得共用同一 SVG 元件預設配色 | 8.1, 9.2 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 8.1 | **Package Map SVG** 嵌入（俯視 XY + 側視 XZ）；**clash** 紅色標示（UX 區塊 B） | 與 3.4 產出格式約定（inline SVG vs URL） | 3.4, 2.2 | ✅ `PackageMapPanel.tsx` |
+| 8.2 | **總質量、最小封殼**（`required.total_mass_g`、`total_bbox_mm`）唯讀區 | 單元測試：空資料隱藏或占位符符合 UX | 8.1 | ✅ |
+| 8.3 | **Notes** 清單（validator 提示） | 無資料時不報錯 | 8.1 | ✅ |
+| 8.4 | **Discovery 與 Overlay 視覺分離**（UX §Discovery vs Overlay） | Code review 檢查：不得共用同一 SVG 元件預設配色 | 8.1, 9.2 | ✅ (slate palette) |
 
 ---
 

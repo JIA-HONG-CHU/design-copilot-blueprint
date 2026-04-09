@@ -141,11 +141,11 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 ## 9.0 前端：區塊 C — What-if Overlay
 
-| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
-|---------|--------|-------------------|------|
-| 9.1 | **二級按鈕**「試算車架包絡」預設摺疊；開啟對話框/抽屜（UX 區塊 C） | a11y：focus trap、ESC 關閉 | — |
-| 9.2 | Zone / mass budget 表單 → **POST spatial-overlay** → **紅/橘/綠** fits/tight/clash SVG | 關閉對話框後 discovery 主圖不變 | 6.1, 8.4 |
-| 9.3 | **overlay_violations** 清單與 **清除 Overlay**（僅本地 state 還原） | 與 spec 一致 | 9.2 |
+| 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
+|---------|--------|-------------------|------|------|
+| 9.1 | **二級按鈕**「試算車架包絡」預設摺疊；開啟對話框/抽屜（UX 區塊 C） | a11y：focus trap、ESC 關閉 | — | ✅ `SpatialOverlayDialog.tsx` (Radix Dialog) |
+| 9.2 | Zone / mass budget 表單 → **POST spatial-overlay** → **紅/橘/綠** fits/tight/clash SVG | 關閉對話框後 discovery 主圖不變 | 6.1, 8.4 | ✅ (parent-injected onSubmit) |
+| 9.3 | **overlay_violations** 清單與 **清除 Overlay**（僅本地 state 還原） | 與 spec 一致 | 9.2 | ✅ |
 
 ---
 

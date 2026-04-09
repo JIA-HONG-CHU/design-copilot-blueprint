@@ -1,10 +1,24 @@
 # 子系統介面開發 WBS（Create · Tab ②）
 
-> **版本**：1.0 | **日期**：2026-04-08  
-> **範圍**：正向分析 E2E 內 **Tab ② 子系統定義**（F2 + F2.5）之 **介面契約、Spatial Discovery、Package Map、Overlay、RD override / learned** 的前後端開發與驗證。  
-> **對齊文件**：  
-> - `docs/diagrams/create-ux-spec.md` v6（區塊 A/B/C、API 觸發、視覺規範）  
+> **版本**：1.0 | **日期**：2026-04-08 | **狀態**：Draft · 部分進行中 | **Owner**：Create FE + Subsystem Backend
+> **範圍**：正向分析 E2E 內 **Tab ② 子系統定義**（F2 + F2.5）之 **介面契約、Spatial Discovery、Package Map、Overlay、RD override / learned** 的前後端開發與驗證。
+> **對齊文件**：
+> - `docs/diagrams/create-ux-spec.md` v6（區塊 A/B/C、API 觸發、視覺規範）
 > - `docs/e2e/module/Forward_Subsystem_Discovery_Architecture.md` v2.1（容器、元件、資料模型、UC1–UC7、狀態機；§3.1 F1→F2 分層契約）
+
+---
+
+## 使用者決策（已凍結）
+
+| # | 項目 | 決策 | 備註 |
+|---|------|------|------|
+| 1 | 三層樹階層 | **System → Module → Component**，契約僅掛 **module** 節點 | 對齊架構 §6.4；與 F1 TRIZ 的 L1/L2/L3 命名完全隔離 |
+| 2 | Spatial 真值來源 | **Layered Resolver L1–L4**（rd_override → learned → web → seed） | 引用 key 不存在 → confidence 降為 estimate |
+| 3 | Discovery 失敗策略 | **non-blocking**：validator 掛了仍回樹，FE 友善退化 | 對齊架構 §4.1 |
+| 4 | Package Map 渲染 | **後端輸出 SVG**（XY + XZ 正交視圖），FE 僅嵌入 | `render_package_map_svg` 為真值；inline SVG vs URL 於 2.2 定稿 |
+| 5 | RD override 入口 | **UC3 `POST /spatial/component-overrides`** upsert 至 `project_component_overrides` | 下次 UC1 L1 命中；`reference_source=rd_override:<key>` |
+| 6 | Discovery 與 Overlay 視覺分離 | 不共用同一 SVG 元件預設配色；Overlay 僅於對話框內呈現 | UX §Discovery vs Overlay |
+| 7 | Tab ③ 解鎖閘 | **Tab ② RD 確認** 後方可進入 SCAMPER | 未確認時 Tab ③ disabled + 原因提示 |
 
 ---
 
@@ -121,8 +135,8 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 | 7.2 | **六維欄位**展示與編輯策略（create-ux-spec：唯讀/可編輯與 `updateSubsystem()`） | 儲存後狀態符合 §8.1 `RDEdited` | 7.1 | ✅ (既有) |
 | 7.3 | **spatial 區塊**：bbox、mass_g、mounting_pattern（唯讀為主；數字來源由 resolver 決定） | 與 API 欄位 1:1 | 7.1 | ⬜ (Wave 3: 整合進 Hierarchy) |
 | 7.4 | **confidence badge** + **reference_source** hover（完整字串 + 更新時間，UX §Spatial Confidence） | 色票表與 spec 一致；無混用於 overlay 配色 | 1.2, 7.3 | ✅ `SpatialConfidenceBadge.tsx` (元件完成，Wave 3 整合) |
-| 7.5 | **「我來給數字」** → 呼叫 UC3；成功後局部 refetch 或樂觀更新 | E2E：llm_estimate → override → badge 變深綠語意 | 4.1, 7.4 | ⬜ Wave 3 |
-| 7.6 | **「推升至 learned」**（Tab ② 入口，若與 ④ 批次分開則共用 service） | 成功/失敗 toast；權限錯誤處理 | 5.1, 7.4 | ⬜ Wave 3 |
+| 7.5 | **「我來給數字」** → 呼叫 UC3；成功後局部 refetch 或樂觀更新 | E2E：llm_estimate → override → badge 變深綠語意 | 4.1, 7.4 | ✅ `SpatialOverrideDialog.tsx` + Create.tsx 快取 invalidation |
+| 7.6 | **「推升至 learned」**（Tab ② 入口，若與 ④ 批次分開則共用 service） | 成功/失敗 toast；權限錯誤處理 | 5.1, 7.4 | ✅ `PromoteToLearnedDialog.tsx` |
 | 7.7 | **確認** 解鎖 Tab ③（create-ux-spec；§8.1 `RDConfirmed`） | 未確認時 SCAMPER tab disabled + 原因提示 | 7.2, 8.x 流程 | ✅ (Create.tsx `canProceedFromSubsystem` gate) |
 | 7.8 | **手動新增**子系統表單（名稱、層級、理由、矛盾、鄰居）與 `createSubsystem()` | 表單驗證與 API 對齊 | 7.1 | ✅ (既有) |
 
@@ -169,6 +183,61 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 | 11.3 | FE：**關鍵使用者流程** E2E（Suggest → Map → Override → Confirm → SCAMPER enabled） | 錄影或 trace 存 artifact | 7.x, 8.x |
 | 11.4 | 可觀測性：UC1 各 phase 耗時、Tavily/LLM 失敗率 metric | Dashboard 或 log 欄位約定 | 2.1 |
 | 11.5 | 本 WBS 與 **create-ux-spec / Forward_Subsystem** 對照表維護 | 版本升級時更新「對齊文件對應表」 | 全案 |
+
+---
+
+## 依賴圖（關鍵路徑）
+
+```
+1.1 型別凍結 ──┬─► 2.1 suggest_subsystems (✅) ──► 2.2 API schema ──► 2.3 related_contradictions ──► 2.4 寫庫策略
+               │
+               ├─► 3.1 L1–L4 resolver ──► 3.2 estimate 降級 ──► 3.3 discover_package ──► 3.4 SVG 渲染 ──► 3.5 退化策略
+               │                                                        │
+               ├─► 4.1 override API ──► 4.2 L1 命中驗證                   │
+               │          │                                               │
+               │          └─► 5.1 learned API ──► 5.2 idempotent          │
+               │                                                          │
+               └─► 6.1 overlay API ──► 6.2 zone schema                    │
+                                                                          │
+7.1 tree (✅) ──► 7.2 六維 (✅) ──► 7.3 spatial (✅ inline) ──► 7.4 confidence badge (元件✅) ──► 7.5 override UI (✅) ──► 7.6 learned UI (✅) ──► 7.7 解鎖閘 (✅)
+                                                                          │
+8.1 Package Map (✅) ──► 8.2 總質量封殼 (✅) ──► 8.3 notes (✅) ──► 8.4 視覺分離 (✅)
+                                                                          │
+9.1 Overlay 對話框 (✅) ──► 9.2 fits/tight/clash (✅) ──► 9.3 violations (✅)
+                                                                          │
+10.1 F3 SCAMPER 讀契約 ──► 10.2 Pre-CAD spatial_score ──► 10.3 trace UI ──► 10.4 Tab ① 銜接
+                                                                          │
+11.1 單測 ──► 11.2 契約測 ──► 11.3 E2E ──► 11.4 可觀測性 ──► 11.5 對照表 ◄─┘
+```
+
+關鍵路徑：**1.1 → 2.2 → 3.3 → 3.4 → 7.3 → 7.5 → 7.7 → 10.1 → 11.3**（UC1 → Package Map → override → 解鎖 → SCAMPER enabled）
+
+---
+
+## 風險與緩解
+
+| 風險 | 影響 | 緩解 |
+|------|------|------|
+| Validator (`discover_package`) 失敗造成 Tab ② 全頁卡住 | RD 無法確認、下游 SCAMPER 無法解鎖 | 3.5 non-blocking 降級；UX 顯示「Package Map 暫不可用」，樹與契約仍可編輯 |
+| Resolver 降級到 seed 後 confidence 無法回復 | Pre-CAD `spatial_score` 失真 | 3.2 confidence 語意標示 `estimate`；7.4 badge 顯著提示 RD 覆寫 |
+| Discovery 與 Overlay 視覺混淆 | RD 把假設值當真值 | 6.1 Overlay **不修改**原始 discovery；8.4 Code review 禁用相同配色；9.1 對話框隔離 |
+| RD override 後 cache 未刷新，UC1 仍回舊值 | override 無效體感 | 4.2 整合測試斷言 `reference_source=rd_override:<key>`；7.5 成功後局部 refetch |
+| 雙寫競態：FE 與後端都寫 `subsystems` | 資料不一致 | 2.4 明確「誰寫庫」序時圖；採單一寫入方 |
+| Learned components idempotent 行為未定義導致 `confirmed_count` 爆衝 | 資料汙染 | 5.2 API 文件 + 測試鎖定金鑰衝突行為 |
+| Pre-CAD 評分與 Tab ② 所見 Package 不一致 | RD 信任崩潰 | 10.2 deterministic 輸入來自 validator；10.3 trace UI 可追溯 |
+
+---
+
+## 完成判準（Definition of Done）
+
+- [ ] 所有 P0 / P1 任務包單測 + 契約測 + E2E 全綠（11.1 / 11.2 / 11.3）
+- [ ] e-Bike 案例：UC1 → Package Map → override → 推升 learned → 確認 → SCAMPER tab enabled 於本地可錄製完整 E2E
+- [ ] Tab ② 每個 module 節點皆可展開 **六維契約**（對鄰居）與 **spatial 區塊**
+- [ ] `confidence` badge 色票與 UX §Spatial Confidence 1:1；hover 顯示完整 `reference_source` + 更新時間
+- [ ] Discovery 主圖與 Overlay SVG 在 code review 中確認不共用預設配色
+- [ ] 未確認 Tab ② 時 SCAMPER tab 為 disabled 且顯示原因
+- [ ] Pre-CAD `spatial_score` 與 Tab ② 所見 `total_mass_g` / `total_bbox_mm` 一致
+- [ ] Validator 注入失敗時 Tab ② 仍可編輯樹與契約（non-blocking 降級驗證）
 
 ---
 

@@ -18,6 +18,7 @@ import {
   Component as ComponentIcon,
 } from "lucide-react";
 import type { Subsystem } from "@/types/create";
+import type { SpatialEstimate } from "@/types/generated/subsystem";
 import { InterfaceContractsPanel } from "./InterfaceContractsPanel";
 
 interface SubsystemHierarchyViewProps {
@@ -26,6 +27,10 @@ interface SubsystemHierarchyViewProps {
   onToggle: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Wave 3 (WBS 7.5) — open RD inline override dialog for a neighbour spatial estimate. */
+  onOverrideSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
+  /** Wave 3 (WBS 7.6) — open promote-to-learned dialog for a neighbour spatial estimate. */
+  onPromoteSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
 }
 
 /** 遞迴樹節點：繼承 Subsystem 所有欄位 + 遞迴 children */
@@ -91,8 +96,12 @@ function buildTree(subsystems: Subsystem[]): SubsystemTreeNode[] {
 // ── Component List (Level 3) ──
 function ComponentList({
   components,
+  onOverrideSpatial,
+  onPromoteSpatial,
 }: {
   components: SubsystemTreeNode[];
+  onOverrideSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
+  onPromoteSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
 }) {
   if (components.length === 0) return null;
 
@@ -124,6 +133,8 @@ function ComponentList({
               <InterfaceContractsPanel
                 contracts={c.interfaceContracts}
                 level="component"
+                onOverride={(nb, sp) => onOverrideSpatial?.(c.id, nb, sp)}
+                onPromote={(nb, sp) => onPromoteSpatial?.(c.id, nb, sp)}
               />
             </div>
           ))}
@@ -146,6 +157,8 @@ function ModuleCard({
   onToggle,
   onEdit,
   onDelete,
+  onOverrideSpatial,
+  onPromoteSpatial,
 }: {
   module: SubsystemTreeNode;
   components: SubsystemTreeNode[];
@@ -153,6 +166,8 @@ function ModuleCard({
   onToggle: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onOverrideSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
+  onPromoteSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
 }) {
   const srcCfg = SOURCE_CONFIG[module.source] ?? SOURCE_CONFIG.ai;
 
@@ -211,12 +226,18 @@ function ModuleCard({
           )}
 
           {/* Components — collapsed */}
-          <ComponentList components={components} />
+          <ComponentList
+            components={components}
+            onOverrideSpatial={onOverrideSpatial}
+            onPromoteSpatial={onPromoteSpatial}
+          />
 
           {/* Interface Contracts — collapsed */}
           <InterfaceContractsPanel
             contracts={module.interfaceContracts}
             level="module"
+            onOverride={(nb, sp) => onOverrideSpatial?.(module.id, nb, sp)}
+            onPromote={(nb, sp) => onPromoteSpatial?.(module.id, nb, sp)}
           />
         </div>
 
@@ -249,12 +270,16 @@ function SystemCard({
   onToggle,
   onEdit,
   onDelete,
+  onOverrideSpatial,
+  onPromoteSpatial,
 }: {
   system: SubsystemTreeNode;
   contradictionMap: Map<string, string>;
   onToggle: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onOverrideSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
+  onPromoteSpatial?: (subsystemId: string, neighbour: string, spatial: SpatialEstimate) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -312,6 +337,8 @@ function SystemCard({
               <InterfaceContractsPanel
                 contracts={system.interfaceContracts}
                 level="system"
+                onOverride={(nb, sp) => onOverrideSpatial?.(system.id, nb, sp)}
+                onPromote={(nb, sp) => onPromoteSpatial?.(system.id, nb, sp)}
               />
             </div>
           </button>
@@ -332,6 +359,8 @@ function SystemCard({
                   onToggle={onToggle}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onOverrideSpatial={onOverrideSpatial}
+                  onPromoteSpatial={onPromoteSpatial}
                 />
               );
             })}
@@ -353,6 +382,8 @@ function SystemCard({
                     <InterfaceContractsPanel
                       contracts={c.interfaceContracts}
                       level="component"
+                      onOverride={(nb, sp) => onOverrideSpatial?.(c.id, nb, sp)}
+                      onPromote={(nb, sp) => onPromoteSpatial?.(c.id, nb, sp)}
                     />
                   </div>
                 ))}
@@ -372,6 +403,8 @@ export function SubsystemHierarchyView({
   onToggle,
   onEdit,
   onDelete,
+  onOverrideSpatial,
+  onPromoteSpatial,
 }: SubsystemHierarchyViewProps) {
   const tree = buildTree(subsystems);
 
@@ -397,6 +430,8 @@ export function SubsystemHierarchyView({
           onToggle={onToggle}
           onEdit={onEdit}
           onDelete={onDelete}
+          onOverrideSpatial={onOverrideSpatial}
+          onPromoteSpatial={onPromoteSpatial}
         />
       ))}
     </div>

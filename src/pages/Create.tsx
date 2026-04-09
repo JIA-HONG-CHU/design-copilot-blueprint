@@ -87,7 +87,10 @@ import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay, spatialComponentOverride, spatialLearnedComponent } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/hooks/api/useQueryConfig";
+import type { SpatialEstimate, BBox } from "@/types/generated/subsystem";
 import type { MustCriterionResult } from "@/lib/api";
 import type { PackageMap } from "@/types/generated/subsystem";
 import { useSubsystemSuggestion } from "@/hooks/api/useSubsystemSuggestion";
@@ -101,6 +104,8 @@ import { SubsystemHierarchyView } from "@/components/create/SubsystemHierarchyVi
 import { PackageMapPanel } from "@/components/create/PackageMapPanel";
 import { SpatialOverlayDialog } from "@/components/create/SpatialOverlayDialog";
 import type { OverlayPayload, OverlayResult } from "@/components/create/SpatialOverlayDialog";
+import { SpatialOverrideDialog } from "@/components/create/SpatialOverrideDialog";
+import { PromoteToLearnedDialog } from "@/components/create/PromoteToLearnedDialog";
 import { LayoutGrid, List } from "lucide-react";
 import ConvergenceGraph from "@/components/solution/ConvergenceGraph";
 import { useConvergenceLoop } from "@/hooks/useConvergenceLoop";
@@ -284,6 +289,22 @@ export default function Create() {
   // is requested.
   const [packageMap, setPackageMap] = useState<PackageMap | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
+
+  // Wave 3 (WBS 7.5 / 7.6) — RD inline override + promote-to-learned dialogs.
+  // Both are opened from any SpatialBlock action button inside the subsystem
+  // hierarchy view; the targets carry just enough context (subsystem id,
+  // neighbour name, current spatial estimate) for the dialogs to prefill.
+  const [overrideTarget, setOverrideTarget] = useState<{
+    subsystemId: string;
+    neighbour: string;
+    spatial: SpatialEstimate;
+  } | null>(null);
+  const [promoteTarget, setPromoteTarget] = useState<{
+    subsystemId: string;
+    neighbour: string;
+    spatial: SpatialEstimate;
+  } | null>(null);
+  const queryClient = useQueryClient();
 
   // Loading state — true while any query is loading
   const isLoading = antiAnchorQuery.isLoading || trizQuery.isLoading || subsystemsQuery.isLoading || scamperQuery.isLoading || alternativesQuery.isLoading;
@@ -817,6 +838,99 @@ export default function Create() {
       overlay_violations: pm.overlay_violations ?? [],
       svg: pm.svg ?? "",
     };
+  };
+
+  /**
+   * Wave 3 helpers (WBS 7.5 / 7.6) — derive a stable component / learned key
+   * from the current node + neighbour, with a sensible canonical fallback.
+   *
+   * Strategy:
+   *   1. If the spatial estimate carries a `reference_source` with one of the
+   *      known prefixes (`rd_override:`, `learned:`, `seed:`, `web:`), strip
+   *      the prefix and reuse that suffix — this is the same key the layered
+   *      resolver already uses, so the override / learned write hits the same
+   *      slot the next Suggest call will look up.
+   *   2. Otherwise (LLM estimate, or no source) fall back to a normalized
+   *      `${owner}__${neighbour}` slug. Both halves are lowercased and
+   *      stripped of whitespace / non-alphanum, joined by `__`.
+   */
+  const deriveSpatialKey = (
+    ownerName: string,
+    neighbour: string,
+    spatial: SpatialEstimate,
+  ): string => {
+    const src = spatial.reference_source ?? "";
+    const KNOWN_PREFIXES = ["rd_override:", "learned:", "seed:", "web:"];
+    for (const p of KNOWN_PREFIXES) {
+      if (src.startsWith(p)) {
+        const tail = src.slice(p.length).trim();
+        if (tail) return tail;
+      }
+    }
+    const norm = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+    return `${norm(ownerName)}__${norm(neighbour)}`;
+  };
+
+  const handleOverrideSubmit = async (payload: {
+    component_key: string;
+    bbox: BBox;
+    mass_g: number;
+    category?: string;
+    note?: string;
+  }) => {
+    if (!id) throw new Error("missing project id");
+    try {
+      await spatialComponentOverride({
+        project_id: id,
+        component_key: payload.component_key,
+        category: payload.category,
+        bbox: payload.bbox,
+        mass_g: payload.mass_g,
+        note: payload.note,
+      });
+      toast.success(`已寫入 override：${payload.component_key}`);
+      // Refetch the subsystem tree so the next Suggest sees rd_confirmed.
+      queryClient.invalidateQueries({ queryKey: queryKeys.subsystems.all });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`寫入 override 失敗：${msg}`);
+      throw err;
+    }
+  };
+
+  const handlePromoteSubmit = async (payload: {
+    key: string;
+    bbox: BBox;
+    mass_g: number;
+    category?: string;
+    origin?: string;
+    origin_project_id?: string;
+    source_url?: string;
+    source_text?: string;
+  }) => {
+    try {
+      await spatialLearnedComponent({
+        key: payload.key,
+        // Backend schema treats `category` as required (default "" allowed).
+        category: payload.category ?? "",
+        bbox: payload.bbox,
+        mass_g: payload.mass_g,
+        origin: payload.origin,
+        origin_project_id: payload.origin_project_id ?? id,
+        source_url: payload.source_url,
+        source_text: payload.source_text,
+      });
+      toast.success(`已推升至 learned：${payload.key}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.subsystems.all });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`推升至 learned 失敗：${msg}`);
+      throw err;
+    }
   };
 
   const toggleScamperAdopt = (svId: string) => {
@@ -1847,6 +1961,12 @@ export default function Create() {
             onToggle={toggleSubsystem}
             onEdit={startEditSubsystem}
             onDelete={deleteSubsystem}
+            onOverrideSpatial={(sid, nb, sp) =>
+              setOverrideTarget({ subsystemId: sid, neighbour: nb, spatial: sp })
+            }
+            onPromoteSpatial={(sid, nb, sp) =>
+              setPromoteTarget({ subsystemId: sid, neighbour: nb, spatial: sp })
+            }
           />
         ) : (
           subsystems.map((ss) => {
@@ -1916,6 +2036,55 @@ export default function Create() {
           subsystems={subsystems}
           onSubmit={handleOverlaySubmit}
         />
+
+        {/* Wave 3 (WBS 7.5) — RD inline override dialog. */}
+        {overrideTarget && (() => {
+          const owner = subsystems.find((s) => s.id === overrideTarget.subsystemId);
+          const ownerName = owner?.name ?? overrideTarget.subsystemId;
+          const componentKey = deriveSpatialKey(
+            ownerName,
+            overrideTarget.neighbour,
+            overrideTarget.spatial,
+          );
+          return (
+            <SpatialOverrideDialog
+              open={!!overrideTarget}
+              onOpenChange={(o) => !o && setOverrideTarget(null)}
+              initial={{
+                componentKey,
+                displayName: `${ownerName} ↔ ${overrideTarget.neighbour}`,
+                currentBbox: overrideTarget.spatial.bbox ?? null,
+                currentMassG: overrideTarget.spatial.mass_g ?? null,
+              }}
+              onSubmit={handleOverrideSubmit}
+            />
+          );
+        })()}
+
+        {/* Wave 3 (WBS 7.6) — Promote-to-learned dialog. */}
+        {promoteTarget && (() => {
+          const owner = subsystems.find((s) => s.id === promoteTarget.subsystemId);
+          const ownerName = owner?.name ?? promoteTarget.subsystemId;
+          const learnedKey = deriveSpatialKey(
+            ownerName,
+            promoteTarget.neighbour,
+            promoteTarget.spatial,
+          );
+          return (
+            <PromoteToLearnedDialog
+              open={!!promoteTarget}
+              onOpenChange={(o) => !o && setPromoteTarget(null)}
+              initial={{
+                key: learnedKey,
+                displayName: `${ownerName} ↔ ${promoteTarget.neighbour}`,
+                currentBbox: promoteTarget.spatial.bbox ?? null,
+                currentMassG: promoteTarget.spatial.mass_g ?? null,
+                originProjectId: id,
+              }}
+              onSubmit={handlePromoteSubmit}
+            />
+          );
+        })()}
       </div>
     );
   }

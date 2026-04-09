@@ -3,7 +3,8 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { ChevronRight, Link2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ChevronRight, Link2, Pencil, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   InterfaceContract,
@@ -27,11 +28,17 @@ interface InterfaceContractsPanelProps {
   contracts?: InterfaceContractMap | null;
   /** Optional hint for panel sizing — system level cards tend to need a wider grid. */
   level?: "system" | "module" | "component";
+  /** Wave 3 (WBS 7.5) — RD inline override on a per-neighbour spatial estimate. */
+  onOverride?: (neighbour: string, spatial: SpatialEstimate) => void;
+  /** Wave 3 (WBS 7.6) — promote estimate to org-wide learned components. */
+  onPromote?: (neighbour: string, spatial: SpatialEstimate) => void;
 }
 
 export function InterfaceContractsPanel({
   contracts,
   level = "module",
+  onOverride,
+  onPromote,
 }: InterfaceContractsPanelProps) {
   if (!contracts || Object.keys(contracts).length === 0) return null;
 
@@ -55,6 +62,8 @@ export function InterfaceContractsPanel({
               target={target}
               contract={contract}
               level={level}
+              onOverride={onOverride}
+              onPromote={onPromote}
             />
           ))}
         </div>
@@ -71,10 +80,14 @@ function ContractCard({
   target,
   contract,
   level,
+  onOverride,
+  onPromote,
 }: {
   target: string;
   contract: InterfaceContract;
   level: "system" | "module" | "component";
+  onOverride?: (neighbour: string, spatial: SpatialEstimate) => void;
+  onPromote?: (neighbour: string, spatial: SpatialEstimate) => void;
 }) {
   const populated = INTERFACE_CONTRACT_DIMS.filter(
     (d) => contract[d.key] && contract[d.key].trim() !== "",
@@ -114,7 +127,14 @@ function ContractCard({
             </div>
           )}
 
-          {hasSpatial && <SpatialBlock spatial={contract.spatial!} />}
+          {hasSpatial && (
+            <SpatialBlock
+              spatial={contract.spatial!}
+              targetNeighbour={target}
+              onOverride={onOverride}
+              onPromote={onPromote}
+            />
+          )}
         </>
       )}
     </div>
@@ -148,7 +168,17 @@ const CONFIDENCE_STYLE: Record<
   },
 };
 
-function SpatialBlock({ spatial }: { spatial: SpatialEstimate }) {
+function SpatialBlock({
+  spatial,
+  targetNeighbour,
+  onOverride,
+  onPromote,
+}: {
+  spatial: SpatialEstimate;
+  targetNeighbour?: string;
+  onOverride?: (neighbour: string, spatial: SpatialEstimate) => void;
+  onPromote?: (neighbour: string, spatial: SpatialEstimate) => void;
+}) {
   const bbox = spatial.bbox;
   const bboxText = bbox
     ? `${fmt(bbox.x_mm)}×${fmt(bbox.y_mm)}×${fmt(bbox.z_mm)} mm`
@@ -165,30 +195,77 @@ function SpatialBlock({ spatial }: { spatial: SpatialEstimate }) {
     ? "LLM 估計"
     : CONFIDENCE_STYLE[confidence]?.label ?? confidence;
 
+  // Wave 3 visibility rules (WBS 7.5 / 7.6):
+  //  - "我來給數字" — show whenever the value is not yet RD-confirmed (i.e.
+  //    LLM estimate, library, web/seed estimate). RD override always wins.
+  //  - "推升至 learned" — only when there's already a non-LLM grounded
+  //    estimate (web/seed/etc.) AND it's not already learned. We hide if the
+  //    source begins with `learned:` (already in the L2 table) or starts
+  //    with `llm_estimate` (no real grounding to promote).
+  const canOverride =
+    !!onOverride && targetNeighbour != null && (isLlmEstimate || confidence !== "rd_confirmed");
+  const canPromote =
+    !!onPromote &&
+    targetNeighbour != null &&
+    confidence === "estimate" &&
+    !source.startsWith("llm_estimate") &&
+    !source.startsWith("learned:");
+
   return (
     <div
-      className="mt-2 pt-2 border-t border-dashed border-border/60 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]"
+      className="mt-2 pt-2 border-t border-dashed border-border/60 space-y-1.5"
       title={source ? `reference_source: ${source}` : undefined}
     >
-      <span className="font-mono text-muted-foreground">📐 {bboxText}</span>
-      <span className="font-mono text-muted-foreground">⚖ {massText}</span>
-      <span
-        className={cn(
-          "px-1.5 py-0.5 rounded border font-semibold",
-          confCls,
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+        <span className="font-mono text-muted-foreground">📐 {bboxText}</span>
+        <span className="font-mono text-muted-foreground">⚖ {massText}</span>
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded border font-semibold",
+            confCls,
+          )}
+        >
+          {confLabel}
+        </span>
+        {source && !isLlmEstimate && (
+          <span className="text-muted-foreground truncate max-w-[220px]" title={source}>
+            src: {source.length > 32 ? `${source.slice(0, 32)}…` : source}
+          </span>
         )}
-      >
-        {confLabel}
-      </span>
-      {source && !isLlmEstimate && (
-        <span className="text-muted-foreground truncate max-w-[220px]" title={source}>
-          src: {source.length > 32 ? `${source.slice(0, 32)}…` : source}
-        </span>
-      )}
-      {spatial.mounting_pattern && (
-        <span className="text-muted-foreground">
-          · mount: {spatial.mounting_pattern}
-        </span>
+        {spatial.mounting_pattern && (
+          <span className="text-muted-foreground">
+            · mount: {spatial.mounting_pattern}
+          </span>
+        )}
+      </div>
+
+      {(canOverride || canPromote) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {canOverride && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px] gap-1"
+              onClick={() => onOverride?.(targetNeighbour!, spatial)}
+            >
+              <Pencil className="h-3 w-3" />
+              我來給數字
+            </Button>
+          )}
+          {canPromote && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px] gap-1"
+              onClick={() => onPromote?.(targetNeighbour!, spatial)}
+            >
+              <TrendingUp className="h-3 w-3" />
+              推升至 learned
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

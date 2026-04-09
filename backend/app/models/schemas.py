@@ -976,8 +976,16 @@ class SpatialEstimate(BaseModel):
     bbox: BBox | None = None
     mass_g: float | None = None
     mounting_pattern: str = ""           # e.g. "M6x4 @ 50mm PCD"
-    reference_source: str = ""           # "ref_lib:<key>" | "llm_estimate" | "rd_override"
-    confidence: str = "estimate"         # "library" | "estimate" | "rd_confirmed"
+    # Canonical prefixes (locked by test_reference_source_lint.py):
+    #   rd_override:<key> | learned:<key> | web:<query> | seed:<key> | llm_estimate
+    # The layered resolver (app/services/spatial_lookup.py) emits the first four;
+    # llm_estimate is the caller-side fallback when no layer resolves. Empty
+    # string is allowed at construction time but the agent always fills it.
+    reference_source: str = ""
+    # Strict enum — LLM / legacy callers emitting e.g. "Library" or "high"
+    # will raise ValidationError (desired: drift must be loud). rd_confirmed
+    # is RESERVED for RD inline override writes; see Three_Tier_Tree_Review_Checklist.md.
+    confidence: Literal["library", "estimate", "rd_confirmed"] = "estimate"
     rationale: str = ""                  # one-line justification when llm_estimate
 
 
@@ -1030,7 +1038,11 @@ class PackageMap(BaseModel):
 
 class SuggestedSubsystem(BaseModel):
     name: str
-    level: str = "module"  # system | module | component
+    # Strict three-level enum — LLM emitting "sub-module" / "Component" /
+    # "system-level" will raise ValidationError. Matches the TS Literal at
+    # src/types/generated/subsystem.ts SubsystemLevel. See
+    # Three_Tier_Tree_Review_Checklist.md § 樹階層.
+    level: Literal["system", "module", "component"] = "module"
     reason: str = ""
     related_contradictions: list[str] = Field(default_factory=list)
     children: list["SuggestedSubsystem"] = Field(default_factory=list)
@@ -1321,3 +1333,103 @@ class KnowledgeWritebackResponse(BaseModel):
 # so we rebuild the model here once all symbols are in scope. Without this,
 # Pydantic v2 may fail to resolve the string annotation at validation time.
 ScamperRequest.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# LayeredTrizSolution — aggregate of L1 (TC) / L2 (PC) / L3 (SF) analyses
+# Ref: docs/e2e/module/Forward_TRIZ_Solver_Architecture.md §6.7 / §10
+# Ref: docs/e2e/module/Forward_Subsystem_Discovery_Architecture.md §3.1 (F1→F2 contract)
+#
+# NOTE: L3 (Su-Field) is deferred to a separate WBS
+# (docs/e2e/module/Explore_L3_SF_Parallel_Check_WBS.md). In this version,
+# `l3` is always None and `l3_status` is "deferred_to_external_wbs".
+# Downstream consumers MUST check l3_status, not just `l3 is None`.
+# ---------------------------------------------------------------------------
+
+class SeparationCandidate(BaseModel):
+    """Ranked candidate for PC separation type (time/space/condition/whole_part)."""
+    type: Literal["time", "space", "condition", "whole_part"]
+    rationale: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class DeepenLink(BaseModel):
+    """ARIZ spirit: the TC → PC drill-down contract.
+
+    Ref: Forward_TRIZ_Solver_Architecture.md §6.7
+    """
+    from_layer: Literal["L1_surface"] = "L1_surface"
+    from_tc_pair: tuple[int, int] | None = None  # (improving, worsening) if known
+    derived_physical_parameter: str
+    contradiction_statement: str
+    separation_type_candidates: list[SeparationCandidate] = Field(default_factory=list)
+
+
+class L1Surface(BaseModel):
+    """L1 phenomenon layer: TC surface analysis."""
+    type: Literal["TC"] = "TC"
+    layer_role: Literal["phenomenon"] = "phenomenon"
+    improving_param: int | None = None
+    worsening_param: int | None = None
+    engineering_statement: str = ""
+    candidate_principles: list[int] = Field(default_factory=list)
+    suggestions: list[dict] = Field(default_factory=list)  # TrizSuggestion-compatible
+    depth_indicator: str = ""  # e.g. "trade-off 改良"
+
+
+class L2RootCause(BaseModel):
+    """L2 essence layer: PC root-cause analysis.
+
+    May have multiple derived parameters if the TC decomposes into multiple PCs.
+    """
+    type: Literal["PC"] = "PC"
+    layer_role: Literal["root_cause"] = "root_cause"
+    deepen_links: list[DeepenLink] = Field(default_factory=list)
+    suggestions: list[dict] = Field(default_factory=list)  # TrizSuggestion-compatible
+
+
+class L3StructuralCheck(BaseModel):
+    """L3 structural lens: SF analysis. Deferred to L3 WBS in this version."""
+    type: Literal["SF"] = "SF"
+    layer_role: Literal["structural_lens"] = "structural_lens"
+    s1: str = ""
+    s2: str = ""
+    field: str = ""
+    system_state: str = ""  # incomplete | effective | harmful | insufficient
+    matched_solutions: list[dict] = Field(default_factory=list)
+
+
+class DifferentialAnalysis(BaseModel):
+    """Cross-layer comparison & recommended route. Deferred to L3 WBS."""
+    l1_vs_l2: str = ""
+    l2_vs_l3: str = ""
+    recommended_route: str = ""
+    fallback_route: str = ""
+
+
+class LayeredTrizSolution(BaseModel):
+    """Aggregate of L1 / L2 / L3 analyses for one contradiction.
+
+    Ref: Forward_TRIZ_Solver_Architecture.md §10
+    Ref: Forward_Subsystem_Discovery_Architecture.md §3.1 (F1→F2 contract)
+    """
+    id: str                 # e.g. "LTS-<uuid>"
+    contradiction_id: str   # parent TC contradiction id
+
+    l1: L1Surface
+    l2: L2RootCause | None = None
+    l3: L3StructuralCheck | None = None
+
+    # L3 lifecycle marker — this version always emits "deferred_to_external_wbs".
+    # Downstream (F2 Subsystem Discovery) must check this before treating
+    # l3=None as corruption.
+    l3_status: Literal[
+        "deferred_to_external_wbs",
+        "computed",
+        "skipped_by_critic",
+    ] = "deferred_to_external_wbs"
+
+    deepen_link: DeepenLink | None = None  # convenience pointer to L2's primary deepen_link
+    differential_analysis: DifferentialAnalysis | None = None
+
+    adopted_route: str | None = None  # filled by Phase B adoption later

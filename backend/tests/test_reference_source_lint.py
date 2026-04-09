@@ -148,6 +148,77 @@ def test_schema_confidence_enum_is_exactly_three_values() -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# Schema behavioural guards — the text checks above catch typos in source,
+# but they don't prove the Pydantic model actually REJECTS bad values. These
+# tests instantiate the model and assert ValidationError fires on drift.
+# (Added after Socratic audit: Finding A / Finding B.)
+# ---------------------------------------------------------------------------
+
+
+def test_spatial_estimate_rejects_unknown_confidence() -> None:
+    """Construction with an unknown confidence string must raise. This is
+    what `Literal[...]` guarantees; a plain `str` would silently accept."""
+    from pydantic import ValidationError
+
+    from app.models.schemas import SpatialEstimate
+
+    # Happy paths — sanity.
+    for ok in ("library", "estimate", "rd_confirmed"):
+        SpatialEstimate(confidence=ok)
+
+    # Drift cases — must raise.
+    for bad in ("Library", "high", "unknown", "LLM_estimate", ""):
+        with pytest.raises(ValidationError):
+            SpatialEstimate(confidence=bad)
+
+
+def test_suggested_subsystem_rejects_unknown_level() -> None:
+    """level must be exactly one of the three canonical values. LLM emitting
+    'sub-module' or 'Component' (case-mismatch) used to slip through the
+    previous `str` typing and hit the FE, which has a stricter Literal."""
+    from pydantic import ValidationError
+
+    from app.models.schemas import SuggestedSubsystem
+
+    for ok in ("system", "module", "component"):
+        SuggestedSubsystem(name="X", level=ok)
+
+    for bad in ("System", "Module", "sub-module", "system-level", ""):
+        with pytest.raises(ValidationError):
+            SuggestedSubsystem(name="X", level=bad)
+
+
+# ---------------------------------------------------------------------------
+# Stale-prefix regression guard — Finding D from Socratic audit.
+# `ref_lib:` was an early-version prefix that no longer exists anywhere in
+# the resolver. An earlier comment on `SpatialEstimate.reference_source`
+# kept referencing it, which misled readers learning the vocabulary.
+# ---------------------------------------------------------------------------
+
+
+def test_schemas_does_not_reference_deprecated_ref_lib_prefix() -> None:
+    """No comment, field doc, or literal in schemas.py should mention
+    `ref_lib`. That prefix was removed when the layered resolver replaced
+    the static JSON library — any surviving mention is stale doc drift."""
+    schemas_text = (BACKEND_ROOT / "models" / "schemas.py").read_text(encoding="utf-8")
+    assert "ref_lib" not in schemas_text, (
+        "schemas.py still mentions the deprecated 'ref_lib' prefix. "
+        "Replace with the canonical five-prefix list: rd_override, learned, "
+        "web, seed, llm_estimate."
+    )
+
+
+def test_spatial_lookup_does_not_reference_deprecated_ref_lib_prefix() -> None:
+    """Same guard for the resolver module — the one place most likely to
+    accumulate doc drift as new backends are added and old ones renamed."""
+    text = (BACKEND_ROOT / "services" / "spatial_lookup.py").read_text(encoding="utf-8")
+    assert "ref_lib" not in text, (
+        "spatial_lookup.py still mentions 'ref_lib'. That prefix no longer "
+        "exists; use rd_override / learned / web / seed."
+    )
+
+
 def test_prompt_mentions_llm_emittable_confidence_values() -> None:
     """The LLM prompt must describe the confidence values the LLM is
     *allowed to emit* (`library`, `estimate`). `rd_confirmed` is a

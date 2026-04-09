@@ -120,7 +120,7 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 | 7.1 | **SubsystemHierarchyView**（或同等）：System→Module→Component 可摺疊；契約掛在 **module** 節點（§6.4） | 與 1.3 檢查清單一致 | 2.2 |
 | 7.2 | **六維欄位**展示與編輯策略（create-ux-spec：唯讀/可編輯與 `updateSubsystem()`） | 儲存後狀態符合 §8.1 `RDEdited` | 7.1 |
 | 7.3 | **spatial 區塊**：bbox、mass_g、mounting_pattern（唯讀為主；數字來源由 resolver 決定） | 與 API 欄位 1:1 | 7.1 |
-| 7.4 | **confidence badge** + **reference_source** hover（完整字串 + 更新時間，UX §Spatial Confidence） | 色票表與 spec 一致；無混用於 overlay 配色 | 1.2, 7.3 |
+| 7.4 | **confidence badge** + **reference_source** hover（完整字串 + 更新時間，UX §Spatial Confidence） | 色票表與 spec 一致；無混用於 overlay 配色 | 1.2, 7.3 | ✅ `SpatialConfidenceBadge.tsx` |
 | 7.5 | **「我來給數字」** → 呼叫 UC3；成功後局部 refetch 或樂觀更新 | E2E：llm_estimate → override → badge 變深綠語意 | 4.1, 7.4 |
 | 7.6 | **「推升至 learned」**（Tab ② 入口，若與 ④ 批次分開則共用 service） | 成功/失敗 toast；權限錯誤處理 | 5.1, 7.4 |
 | 7.7 | **確認** 解鎖 Tab ③（create-ux-spec；§8.1 `RDConfirmed`） | 未確認時 SCAMPER tab disabled + 原因提示 | 7.2, 8.x 流程 |

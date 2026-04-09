@@ -854,6 +854,49 @@ export function contradictionFormalize(body: ContradictionFormalizeRequest) {
   return request<ContradictionFormalizeResponse>(`/contradictions/${body.contradiction_id}/formalize`, body);
 }
 
+// ─── Contradiction PC Decomposition (L2 WBS 5.1) ───────────────────────────
+
+export interface DecomposedPCPayload {
+  derived_parameter: string;
+  subsystem_hint: string;
+  physical_contradiction: string;
+  pc_attribute_a: string;
+  pc_attribute_not_a: string;
+  separation_principle_id: string;
+  separation_category: 'time' | 'space' | 'condition' | 'whole_part';
+  separation_rationale: string;
+  confidence: number;
+}
+
+export interface ContradictionDecomposeRequest {
+  project_id: string;
+  parent_contradiction_id: string;
+  engineering_statement: string;
+  improving_param?: number | null;
+  worsening_param?: number | null;
+  severity?: string;
+  mission?: string;
+  constraints?: string[];
+  kpis?: string[];
+  socraticAnswers?: string[];
+  candidate_principles?: number[];
+  rd_manual?: boolean;
+}
+
+export interface ContradictionDecomposeResponse {
+  triggered: boolean;
+  trigger_reason: string;
+  decomposed_pcs: DecomposedPCPayload[];
+  reasoning: string;
+}
+
+export function contradictionDecompose(
+  cid: string,
+  body: ContradictionDecomposeRequest,
+) {
+  return request<ContradictionDecomposeResponse>(`/contradictions/${cid}/decompose`, body);
+}
+
 // ─── Assumption Extraction ─────────────────────────────────────────────────
 
 export interface AssumptionExtractRequest {

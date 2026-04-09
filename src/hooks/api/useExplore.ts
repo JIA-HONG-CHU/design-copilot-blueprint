@@ -78,19 +78,30 @@ interface ExploreContradictionRow {
   sf_field: string | null;
   sf_interaction: string | null;
   sf_completeness: string | null;
+  // Added by migration 009: PC Decomposition
+  parent_contradiction_id?: string | null;
+  derived_parameter?: string | null;
+  subsystem_hint?: string | null;
+  separation_principle_id?: string | null;
+  separation_category?: string | null;
+  separation_rationale?: string | null;
+  pc_attribute_a?: string | null;
+  pc_attribute_not_a?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const mapExploreContradictionRow = (r: ExploreContradictionRow): ExploreContradiction => {
-  let pcA: string | null = null;
-  let pcNotA: string | null = null;
-  if (r.physical_contradiction) {
+  // Prefer the dedicated columns added by migration 009; fall back to
+  // splitting the legacy `physical_contradiction` string ("A | NOT A").
+  let pcA: string | null = r.pc_attribute_a ?? null;
+  let pcNotA: string | null = r.pc_attribute_not_a ?? null;
+  if ((pcA === null || pcNotA === null) && r.physical_contradiction) {
     const parts = r.physical_contradiction.split(' | ');
     if (parts.length === 2) {
-      pcA = parts[0].trim() || null;
-      pcNotA = parts[1].trim() || null;
-    } else {
+      pcA = pcA ?? (parts[0].trim() || null);
+      pcNotA = pcNotA ?? (parts[1].trim() || null);
+    } else if (pcA === null) {
       pcA = r.physical_contradiction;
     }
   }

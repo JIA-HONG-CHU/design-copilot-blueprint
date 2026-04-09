@@ -48,6 +48,13 @@ export interface ExploreContradiction {
   source: 'ai' | 'manual';
   createdAt: string;
   updatedAt: string;
+  // Added by L2 WBS 4.4 (PC Decomposition — mirrors migration 009 columns)
+  parentContradictionId?: string | null;
+  derivedParameter?: string | null;
+  subsystemHint?: string | null;
+  separationPrincipleId?: string | null;
+  separationCategory?: 'time' | 'space' | 'condition' | 'whole_part' | null;
+  separationRationale?: string | null;
 }
 
 // CLD types

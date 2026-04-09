@@ -411,6 +411,15 @@ export type Database = {
           sf_field: string | null
           sf_interaction: string | null
           sf_completeness: string | null
+          // Added by migration 009: PC Decomposition
+          parent_contradiction_id: string | null
+          derived_parameter: string | null
+          subsystem_hint: string | null
+          separation_principle_id: string | null
+          separation_category: string | null
+          separation_rationale: string | null
+          pc_attribute_a: string | null
+          pc_attribute_not_a: string | null
           created_at: string
           updated_at: string
         }
@@ -432,6 +441,15 @@ export type Database = {
           sf_field?: string | null
           sf_interaction?: string | null
           sf_completeness?: string | null
+          // Added by migration 009: PC Decomposition
+          parent_contradiction_id?: string | null
+          derived_parameter?: string | null
+          subsystem_hint?: string | null
+          separation_principle_id?: string | null
+          separation_category?: string | null
+          separation_rationale?: string | null
+          pc_attribute_a?: string | null
+          pc_attribute_not_a?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -453,6 +471,15 @@ export type Database = {
           sf_field?: string | null
           sf_interaction?: string | null
           sf_completeness?: string | null
+          // Added by migration 009: PC Decomposition
+          parent_contradiction_id?: string | null
+          derived_parameter?: string | null
+          subsystem_hint?: string | null
+          separation_principle_id?: string | null
+          separation_category?: string | null
+          separation_rationale?: string | null
+          pc_attribute_a?: string | null
+          pc_attribute_not_a?: string | null
           created_at?: string
           updated_at?: string
         }

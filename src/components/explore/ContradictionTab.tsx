@@ -13,7 +13,8 @@ import { AiButton } from "@/components/ui/ai-button";
 import { trizParameters } from "@/data/trizParameters";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
-import { contradictionFormalize } from "@/lib/api";
+import { contradictionFormalize, contradictionDecompose } from "@/lib/api";
+import type { ContradictionFormalizeResponse } from "@/lib/api";
 import { DEFAULT_SEVERITY } from "@/types/contradiction";
 import type { ExploreContradiction, ContradictionType } from "@/types/explore";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -195,6 +196,77 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
     }
   }, [contradictions]);
 
+  // ── Auto PC decomposition (L2 WBS 5.2-5.5) ───────────────────────────
+  // After a formalize call returns type === 'TC', auto-trigger the backend
+  // /contradictions/{cid}/decompose endpoint and batch-insert any child PCs
+  // into Supabase. Entire flow is silent on failure so it never disrupts
+  // the outer AI re-identify flow.
+
+  const maybeAutoDecomposeTC = async (
+    parentRowId: string,
+    formalizeResponse: ContradictionFormalizeResponse,
+  ): Promise<number> => {
+    try {
+      if (formalizeResponse.type !== 'TC') return 0;
+      if (!formalizeResponse.engineering_statement) {
+        console.warn('[pc-decompose] missing engineering_statement, skipping');
+        return 0;
+      }
+
+      // 5.5 — Dedup guard: skip if parent already has children
+      const existingChildren = contradictions.filter(
+        (c) => c.parentContradictionId === parentRowId,
+      );
+      if (existingChildren.length > 0) {
+        console.debug('[pc-decompose] parent has children, skipping');
+        return 0;
+      }
+
+      // 5.2 — Auto call backend /decompose
+      const decomposeResponse = await contradictionDecompose(parentRowId, {
+        project_id: projectId,
+        parent_contradiction_id: parentRowId,
+        engineering_statement: formalizeResponse.engineering_statement,
+        improving_param: formalizeResponse.improving_param,
+        worsening_param: formalizeResponse.worsening_param,
+        mission: mission ?? '',
+        constraints: constraints ?? [],
+        kpis: kpis ?? [],
+        socraticAnswers: socraticAnswers ?? [],
+      });
+
+      if (!decomposeResponse.triggered || decomposeResponse.decomposed_pcs.length === 0) {
+        console.warn('[pc-decompose] critic not triggered:', decomposeResponse.trigger_reason);
+        return 0;
+      }
+
+      // 5.3 — Batch insert children
+      const childRows = decomposeResponse.decomposed_pcs.map((pc) => ({
+        project_id: projectId,
+        parent_contradiction_id: parentRowId,
+        type: 'PC',
+        natural_description: pc.physical_contradiction,
+        physical_contradiction: pc.physical_contradiction,
+        pc_attribute_a: pc.pc_attribute_a,
+        pc_attribute_not_a: pc.pc_attribute_not_a,
+        derived_parameter: pc.derived_parameter,
+        subsystem_hint: pc.subsystem_hint,
+        separation_principle_id: pc.separation_principle_id,
+        separation_category: pc.separation_category,
+        separation_rationale: pc.separation_rationale,
+        severity: 'minor',
+        resolved: false,
+      }));
+      const { error: insertErr } = await supabase.from('contradictions').insert(childRows);
+      if (insertErr) throw insertErr;
+
+      return decomposeResponse.decomposed_pcs.length;
+    } catch (err) {
+      console.warn('[pc-decompose] auto-decompose failed:', err);
+      return 0;
+    }
+  };
+
   // ── AI re-identify (per type) ─────────────────────────────────────────
 
   const handleAiReidentify = (type: ContradictionType) => {
@@ -208,6 +280,7 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
 
       if (targets.length > 0) {
         let count = 0;
+        let totalDecomposed = 0;
         for (const c of targets) {
           try {
             const result = await contradictionFormalize({
@@ -235,10 +308,15 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
               })
               .eq('id', c.id);
             count++;
+            // L2 WBS 5.2-5.5 — auto PC decomposition for TC results
+            totalDecomposed += await maybeAutoDecomposeTC(c.id, result);
           } catch { /* continue */ }
         }
         invalidate();
         toast.success(`AI 已形式化 ${count} 個 ${type} 矛盾`);
+        if (totalDecomposed > 0) {
+          toast.success(`已自動深挖出 ${totalDecomposed} 個物理矛盾`);
+        }
       } else {
         // Create new contradiction of this specific type
         const typeLabel = type === 'TC' ? 'technical' : type === 'PC' ? 'physical' : 'su-field';
@@ -286,8 +364,14 @@ export function ContradictionTab({ contradictions, onUpdateContradictions, hasAn
           })
           .eq('id', draft.id);
 
+        // L2 WBS 5.2-5.5 — auto PC decomposition for newly-created TC
+        const decomposedCount = await maybeAutoDecomposeTC(draft.id, result);
+
         invalidate();
         toast.success(`AI 已識別新 ${type} 矛盾`);
+        if (decomposedCount > 0) {
+          toast.success(`已自動深挖出 ${decomposedCount} 個物理矛盾`);
+        }
       }
     } catch (err) {
       console.error('AI re-identify failed:', err);

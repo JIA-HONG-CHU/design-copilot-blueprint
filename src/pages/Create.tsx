@@ -88,7 +88,12 @@ import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
-import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay, spatialComponentOverride, spatialLearnedComponent } from "@/lib/api";
+import { antiAnchorGenerate, trizSolve, trizSolveLayered, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay, spatialComponentOverride, spatialLearnedComponent } from "@/lib/api";
+import type { LayeredTrizSolution, TrizSeverity, AdoptedLayerId } from "@/types/layeredTriz";
+import { LayeredSolutionCard } from "@/components/create/LayeredSolutionCard";
+import type { AdoptionMode } from "@/components/create/LayeredSolutionCard";
+import type { LayeredConceptRouteMeta, LayeredLayerSnapshot } from "@/types/conceptRoute";
+import { featureFlags } from "@/config/featureFlags";
 import { hashContracts, isContractDriftedSinceConfirm } from "@/lib/subsystemHash";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
@@ -230,6 +235,12 @@ export default function Create() {
   // ── Derived data from queries (with local overrides for optimistic UI) ──
   const [localRoutes, setLocalRoutes] = useState<AntiAnchorRoute[]>([]);
   const [localTrizSolutions, setLocalTrizSolutions] = useState<TrizSolution[]>([]);
+  // v7 (WP 7.2/7.3/8.x/9.5): layered drill-down state. Keyed by contradiction_id
+  // so each contradiction maps to exactly one LayeredTrizSolution card. Only
+  // populated when `featureFlags.trizLayeredMode` is on.
+  const [layeredSolutions, setLayeredSolutions] = useState<Record<string, LayeredTrizSolution>>({});
+  // WP 7.2: per-project quick_mode toggle. Defaults to false.
+  const [trizQuickMode, setTrizQuickMode] = useState<boolean>(false);
   const [localSubsystems, setLocalSubsystems] = useState<Subsystem[]>([]);
   const [localScamperVariants, setLocalScamperVariants] = useState<ScamperVariant[]>([]);
   const [localAlternatives, setLocalAlternatives] = useState<Alternative[]>([]);
@@ -254,6 +265,31 @@ export default function Create() {
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null);
   const [comparedAltIds, setComparedAltIds] = useState<Set<string>>(new Set());
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  // Phase B is now manually triggered from the Decision Hub (Step 4),
+  // NOT auto-triggered when Phase A converges. This prevents the infinite
+  // loop caused by TC/PC/SF solutions from the same contradiction conflicting.
+
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
+
+  // v7 WP 10.6: build `layered_directives` from adopted layered ConceptRoutes.
+  // When Phase B runs, the backend scanner uses these to SKIP intra-LTS
+  // cross-layer pairs (same lts_id + same contradiction_id) and WARN on cross-
+  // LTS redundancy, per `check_phase_b_conflict` in evaluator.py.
+  const layeredDirectives = useMemo(() => {
+    return conceptRoutes
+      .filter((r) => r.layered && r.layered.adoptedLayers.length > 0)
+      .map((r) => ({
+        alternative_id: r.id,
+        lts_id: r.layered!.ltsId,
+        adopted_layers: r.layered!.adoptedLayers,
+        same_contradiction_intra_layer_conflict:
+          r.layered!.phaseBDirective.sameContradictionIntraLayerConflict,
+        cross_contradiction_conflict:
+          r.layered!.phaseBDirective.crossContradictionConflict,
+      }));
+  }, [conceptRoutes]);
+
   const convergenceLoop = useConvergenceLoop({
     projectId: id,
     contradictions: contradictionsQuery.data ?? [],
@@ -267,13 +303,8 @@ export default function Create() {
     mission: briefMission,
     constraints: constraintStrings,
     kpis: kpiStrings,
+    layeredDirectives,
   });
-  // Phase B is now manually triggered from the Decision Hub (Step 4),
-  // NOT auto-triggered when Phase A converges. This prevents the infinite
-  // loop caused by TC/PC/SF solutions from the same contradiction conflicting.
-
-  const [reviewConfirmed, setReviewConfirmed] = useState(false);
-  const [conceptRoutes, setConceptRoutes] = useState<ConceptRoute[]>([]);
   const [subsystemView, setSubsystemView] = useState<"diagram" | "list">("diagram");
   const [showAddSubsystemForm, setShowAddSubsystemForm] = useState(false);
   const [editingSubsystemId, setEditingSubsystemId] = useState<string | null>(null);
@@ -375,21 +406,39 @@ export default function Create() {
     });
   }, [trizByContradiction]);
 
-  // Detect same-contradiction multi-path warnings for Decision Hub
-  const sameContradictionWarnings = useMemo(() => {
-    const byContradiction = new Map<string, Alternative[]>();
+  // v7 (WP 10.5): Decision Hub cross-alternative warnings.
+  //
+  // Legacy v6 flagged "same-contradiction multi-path" as a risk because
+  // TC/PC/SF were treated as mutually-exclusive solvers. v7 turns that into a
+  // drill-down diagnosis: multiple layers of the SAME `LayeredTrizSolution`
+  // (same lts_id) are the INTENDED adoption pattern and must NOT warn — only
+  // DIFFERENT LTS ids resolving the same contradiction indicate redundancy.
+  // See `backend/app/agents/evaluator.py::check_phase_b_conflict`.
+  const crossLtsRedundancyWarnings = useMemo(() => {
+    const byContradiction = new Map<string, { alt: Alternative; ltsId: string | null }[]>();
     for (const alt of alternatives) {
       for (const cid of alt.keyAssumptionIds) {
         if (!byContradiction.has(cid)) byContradiction.set(cid, []);
-        byContradiction.get(cid)!.push(alt);
+        // Find the ConceptRoute that backs this alternative (if any) so we
+        // can read its LTS id. Legacy single/composite routes return null.
+        const route = conceptRoutes.find((r) => r.id === alt.id || r.layered?.ltsId === alt.id);
+        const ltsId = route?.layered?.ltsId ?? null;
+        byContradiction.get(cid)!.push({ alt, ltsId });
       }
     }
     const warnings: { contradictionId: string; alts: Alternative[] }[] = [];
-    for (const [cid, alts] of byContradiction.entries()) {
-      if (alts.length > 1) warnings.push({ contradictionId: cid, alts });
+    for (const [cid, entries] of byContradiction.entries()) {
+      if (entries.length <= 1) continue;
+      // Count distinct non-null LTS ids. Entries sharing one LTS = drill-down → SKIP.
+      // Entries with null LTS (legacy) default to legacy behaviour: flag.
+      const distinctLtsIds = new Set(entries.map((e) => e.ltsId).filter((x): x is string => x !== null));
+      const legacyCount = entries.filter((e) => e.ltsId === null).length;
+      const isIntraLtsOnly = distinctLtsIds.size <= 1 && legacyCount === 0;
+      if (isIntraLtsOnly) continue; // all same LTS → drill-down, no warning
+      warnings.push({ contradictionId: cid, alts: entries.map((e) => e.alt) });
     }
     return warnings;
-  }, [alternatives]);
+  }, [alternatives, conceptRoutes]);
 
   const getMustValues = (a: Alternative) => MUST_KEYS.map((k) => a.mustScores[k] ?? null);
 
@@ -510,6 +559,72 @@ export default function Create() {
       return;
     }
     setAiLoading((p) => ({ ...p, trizGen: true }));
+
+    // ── v7 branch: layered drill-down mode ────────────────────────────────
+    // When `featureFlags.trizLayeredMode` is on, bypass the legacy per-path
+    // generation loop and call `trizSolveLayered` per contradiction. Results
+    // are stored in `layeredSolutions` keyed by contradiction_id and rendered
+    // by the LayeredSolutionCard stack in renderTrizConvergence.
+    if (featureFlags.trizLayeredMode) {
+      try {
+        setLayeredSolutions({});
+        const pickSeverity = (raw: unknown): TrizSeverity => {
+          const allowed: TrizSeverity[] = ['fatal', 'major', 'minor', 'unknown'];
+          return (allowed.includes(raw as TrizSeverity) ? raw : 'unknown') as TrizSeverity;
+        };
+
+        const results: Array<[string, LayeredTrizSolution] | null> = await Promise.all(
+          contrs.map(async (c) => {
+            try {
+              const cType = c.type as 'TC' | 'PC' | 'SF';
+              const cAny = c as unknown as Record<string, unknown>;
+              const resp = await trizSolveLayered({
+                project_id: id,
+                contradiction_id: c.id,
+                natural_description: c.naturalDescription,
+                severity: pickSeverity(cAny.severity),
+                improving_param: cType === 'TC' ? c.improvingParam : undefined,
+                worsening_param: cType === 'TC' ? c.worseningParam : undefined,
+                physical_contradiction: cType === 'PC' ? c.physicalContradiction : undefined,
+                sf_substance_1: cType === 'SF' ? (cAny.sfSubstance1 as string | undefined) : undefined,
+                sf_substance_2: cType === 'SF' ? (cAny.sfSubstance2 as string | undefined) : undefined,
+                sf_field: cType === 'SF' ? (cAny.sfField as string | undefined) : undefined,
+                quick_mode: trizQuickMode,
+              });
+              return [c.id, resp.layered_solution];
+            } catch (err) {
+              console.error(`trizSolveLayered failed for ${c.id}:`, err);
+              return null;
+            }
+          }),
+        );
+
+        const map: Record<string, LayeredTrizSolution> = {};
+        let ok = 0;
+        for (const r of results) {
+          if (r) {
+            map[r[0]] = r[1];
+            ok++;
+          }
+        }
+        setLayeredSolutions(map);
+        if (ok === 0) {
+          toast.error('TRIZ 分層求解全部失敗');
+        } else if (ok < contrs.length) {
+          toast.warning(`${ok}/${contrs.length} 條矛盾產出分層診斷`);
+        } else {
+          toast.success(`已為 ${ok} 條矛盾產出分層 drill-down 診斷`);
+        }
+      } catch (err) {
+        console.error('Layered TRIZ generation failed:', err);
+        toast.error('TRIZ 分層求解失敗');
+      } finally {
+        setAiLoading((p) => ({ ...p, trizGen: false }));
+      }
+      return;
+    }
+    // ── end layered branch ────────────────────────────────────────────────
+
     try {
       // Reset: delete all existing TRIZ solutions for this project, then clear local state
       const { error: delErr } = await supabase
@@ -591,6 +706,162 @@ export default function Create() {
       toast.error("TRIZ 解法生成失敗");
     } finally {
       setAiLoading((p) => ({ ...p, trizGen: false }));
+    }
+  };
+
+  // ── v7 (WP 9.2/9.4/9.5): layered adoption handlers ────────────────────
+  // When RD clicks [採納推薦路線] / [自訂組合] / [只採 L1 快速路線] on a
+  // LayeredSolutionCard, produce a `type='layered'` ConceptRoute and push it
+  // into the local `conceptRoutes` state. Supabase persistence (WP 11.6) is
+  // still pending migration apply; for now the route lives in FE memory and
+  // flows through the decision hub for Phase B cross-check.
+  const handleLayeredAdopt = (
+    solution: LayeredTrizSolution,
+    mode: AdoptionMode,
+    layers: AdoptedLayerId[],
+  ) => {
+    const availableLayers: AdoptedLayerId[] = ['L1'];
+    if (solution.l2_root_cause && solution.l2_root_cause.status === 'ran') availableLayers.push('L2');
+    if (solution.l3_structural_check.status === 'ran') availableLayers.push('L3');
+
+    // WP 10.3/10.4: build per-layer snapshots so the decision hub can render
+    // second/third eye content without re-fetching the LTS from backend.
+    const layerSnapshots: LayeredLayerSnapshot[] = [];
+    const l1 = solution.l1_surface;
+    layerSnapshots.push({
+      layer: 'L1',
+      depthIndicator: l1.depth_indicator,
+      mechanismSummary: l1.suggestions[0]?.suggestion ?? '(無具體建議)',
+      suggestionCount: l1.suggestions.length,
+      principleHits: l1.candidate_principles,
+      evidenceLevelFloor: l1.evidence_level_floor,
+      effortHint: 'low',
+      assumptions: l1.critic_reason ? [`critic: ${l1.critic_reason}`] : [],
+    });
+    const l2 = solution.l2_root_cause;
+    if (l2 && l2.status === 'ran') {
+      const topSep = l2.deepen_link?.separation_type_candidates[0];
+      layerSnapshots.push({
+        layer: 'L2',
+        depthIndicator: l2.depth_indicator,
+        mechanismSummary: l2.suggestions[0]?.suggestion ?? '(無 L2 建議)',
+        suggestionCount: l2.suggestions.length,
+        principleHits: [],
+        evidenceLevelFloor: l2.evidence_level_floor,
+        effortHint: 'medium-high',
+        assumptions: l2.trigger_reason ? [`trigger: ${l2.trigger_reason}`] : [],
+        deepenLink: l2.deepen_link
+          ? {
+              derivedParameter: l2.deepen_link.derived_physical_parameter,
+              contradictionStatement: l2.deepen_link.contradiction_statement,
+              separationType: topSep
+                ? `${topSep.type} (${topSep.confidence.toFixed(2)})`
+                : '(未指定)',
+            }
+          : undefined,
+      });
+    }
+    const l3 = solution.l3_structural_check;
+    layerSnapshots.push({
+      layer: 'L3',
+      depthIndicator: l3.depth_indicator,
+      mechanismSummary: l3.suggestions[0]?.suggestion ?? '(無 L3 建議)',
+      suggestionCount: l3.suggestions.length,
+      principleHits: [],
+      evidenceLevelFloor: l3.evidence_level_floor,
+      effortHint: 'medium',
+      assumptions: l3.matched_standard_solutions.length > 0
+        ? [`Su-Field matched: ${l3.matched_standard_solutions.join(', ')}`]
+        : [],
+      bridgeText: {
+        supportsL1: l3.supports_l1,
+        supportsL2: l3.supports_l2,
+        standaloneValue: l3.standalone_value,
+      },
+    });
+
+    // Build the concise differential highlight — first non-empty field wins.
+    const diff = solution.differential_analysis;
+    const highlight =
+      diff.l2_vs_l3.synergy ||
+      diff.l1_vs_l2.on_solving_degree ||
+      diff.l1_vs_l3.orthogonality ||
+      '';
+
+    const layeredMeta: LayeredConceptRouteMeta = {
+      ltsId: solution.id,
+      adoptedLayers: layers,
+      availableLayers,
+      recommendedRoute: solution.differential_analysis.recommended_route.primary || '',
+      fallbackRoute: solution.differential_analysis.recommended_route.fallback || '',
+      recommendedRationale: solution.differential_analysis.recommended_route.rationale || '',
+      adoptionMode: mode,
+      phaseBDirective: {
+        sameContradictionIntraLayerConflict:
+          solution.phase_b_directive.same_contradiction_intra_layer_conflict,
+        crossContradictionConflict: solution.phase_b_directive.cross_contradiction_conflict,
+      },
+      layerSnapshots,
+      differentialHighlight: highlight,
+    };
+
+    // v7 WP 9.3: single-layer auto-downgrade.
+    // If the RD picked only ONE layer via custom mode, downgrade type to
+    // `single` (or `composite` when L1 contains ≥ 2 adopted principles).
+    // We still keep `layered` meta attached so Phase B can trace back to
+    // the LTS id for intra-LTS SKIP; that's the critical requirement.
+    let routeType: ConceptRoute['type'] = 'layered';
+    if (layers.length === 1) {
+      const onlyLayer = layers[0];
+      if (onlyLayer === 'L1' && solution.l1_surface.suggestions.length >= 2) {
+        routeType = 'composite';
+      } else {
+        routeType = 'single';
+      }
+    }
+
+    const route: ConceptRoute = {
+      id: `CR-${solution.id}-${Date.now().toString(36)}`,
+      type: routeType,
+      composition: [],
+      compositionRationale:
+        solution.differential_analysis.recommended_route.rationale ||
+        `${routeType === 'layered' ? 'M6 drill-down' : 'layer subset'} 採納 ${layers.join('+')}`,
+      antiPatternWarnings: [],
+      // Always keep layered meta so cross-LTS WARN + intra-LTS SKIP tracing
+      // can work regardless of type downgrade.
+      layered: layeredMeta,
+      createdAt: new Date().toISOString(),
+    };
+
+    setConceptRoutes((prev) => [...prev, route]);
+    const modeLabel = routeType === 'layered' ? '分層' : routeType === 'composite' ? '合併' : '單一';
+    toast.success(
+      `已採納${modeLabel}路線 ${route.id}（${layers.join('+')}）→ 候選池 ${conceptRoutes.length + 1} 條`,
+    );
+  };
+
+  const handleForceDeepenL2 = async (contradictionId: string) => {
+    if (!id) return;
+    const contrs = (contradictionsQuery.data ?? []).filter((c) => c.id === contradictionId);
+    if (contrs.length === 0) return;
+    const c = contrs[0];
+    const cAny = c as unknown as Record<string, unknown>;
+    try {
+      const resp = await trizSolveLayered({
+        project_id: id,
+        contradiction_id: c.id,
+        natural_description: c.naturalDescription,
+        severity: (cAny.severity as TrizSeverity) || 'major', // force major to guarantee L2
+        improving_param: c.improvingParam,
+        worsening_param: c.worseningParam,
+        force_l2: true,
+      });
+      setLayeredSolutions((prev) => ({ ...prev, [c.id]: resp.layered_solution }));
+      toast.success(`已強制深挖 L2 for ${c.id}`);
+    } catch (err) {
+      console.error('force_l2 failed:', err);
+      toast.error('L2 深挖失敗');
     }
   };
 
@@ -1688,7 +1959,61 @@ export default function Create() {
           />
         )}
 
-        {/* ── Section A: Three-path candidate generation ── */}
+        {/* ── Section A: TRIZ candidate generation ── */}
+        {featureFlags.trizLayeredMode ? (
+          <div className="space-y-3" data-testid="triz-layered-section">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold">分層 Drill-Down 診斷（L1 現象 / L2 根因 / L3 結構）</h3>
+                <p className="text-xs text-muted-foreground">
+                  對每條矛盾同時產出 L1 (TC) 表象解、L2 (PC) 根因解（條件觸發）與 L3 (SF) 結構旁路。
+                  差異面板建議採納路線，RD 選擇 `採納推薦` / `自訂組合` / `只採 L1`。
+                </p>
+              </div>
+              <label className="flex items-center gap-1.5 text-[11px] shrink-0">
+                <input
+                  type="checkbox"
+                  checked={trizQuickMode}
+                  onChange={(e) => setTrizQuickMode(e.target.checked)}
+                  className="h-3 w-3"
+                />
+                quick_mode（minor 跳 L2）
+              </label>
+            </div>
+
+            {Object.keys(layeredSolutions).length === 0 ? (
+              <Card className="border-dashed border-2 border-primary/30">
+                <CardContent className="p-6 text-center space-y-3">
+                  <div className="mx-auto w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {contradictionsList.length === 0
+                      ? '前置條件：需先完成矛盾識別'
+                      : `已識別 ${contradictionsList.length} 條矛盾，可產出分層 drill-down 診斷`}
+                  </p>
+                  <AiButton loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} disabled={!canStart}>
+                    {aiLoading.trizGen ? '分層求解中...' : 'AI 產出分層 drill-down 診斷'}
+                  </AiButton>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(layeredSolutions).map(([cid, lts]) => (
+                  <LayeredSolutionCard
+                    key={cid}
+                    solution={lts}
+                    onAdopt={(mode, layers) => handleLayeredAdopt(lts, mode, layers)}
+                    onForceDeepenL2={() => handleForceDeepenL2(cid)}
+                  />
+                ))}
+                <AiButton aiVariant="outline" size="sm" loading={!!aiLoading.trizGen} onClick={handleAiGenTriz} className="text-xs">
+                  重新產出分層診斷
+                </AiButton>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">三路徑候選生成（TC / PC / SF）</h3>
           <p className="text-xs text-muted-foreground">
@@ -1772,6 +2097,7 @@ export default function Create() {
             </div>
           )}
         </div>
+        )}
 
         <Separator />
 
@@ -2359,17 +2685,22 @@ export default function Create() {
           </div>
         </div>
 
-        {/* ── Same-contradiction multi-path warnings ── */}
-        {sameContradictionWarnings.length > 0 && (
+        {/* ── v7 (WP 10.5): Cross-LTS redundancy warning ──
+            Legacy "same-contradiction multi-path" warning retired. Intra-LTS
+            drill-down combinations (e.g. L1+L2+L3 of the same LTS) are now
+            the INTENDED pattern and no longer flagged. This block only fires
+            when the SAME contradiction is adopted via DIFFERENT LTS ids,
+            which indicates redundant work rather than physical incompatibility. */}
+        {crossLtsRedundancyWarnings.length > 0 && (
           <Card className="border-amber-300 bg-amber-50/30">
             <CardContent className="p-3 space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                <p className="text-xs font-medium text-amber-700">同矛盾多路徑警告</p>
+                <p className="text-xs font-medium text-amber-700">跨 LTS 重複採納提示</p>
               </div>
-              {sameContradictionWarnings.map((w) => (
+              {crossLtsRedundancyWarnings.map((w) => (
                 <p key={w.contradictionId} className="text-[10px] text-amber-600">
-                  矛盾 {contradictionMap.get(w.contradictionId) ?? w.contradictionId.slice(0, 8)} 被 {w.alts.length} 個方案同時解決 — TC/PC/SF 是不同問題表述，同時 adopt 可能衝突
+                  矛盾 {contradictionMap.get(w.contradictionId) ?? w.contradictionId.slice(0, 8)} 被 {w.alts.length} 個採納方案同時解決，但它們來自不同的 LayeredTrizSolution — 屬於重複工作而非衝突，建議只保留一條。
                 </p>
               ))}
             </CardContent>
@@ -2477,7 +2808,8 @@ export default function Create() {
               <div>
                 <p className="text-sm font-semibold">Phase B 收斂掃描 — 方案交叉檢查</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  檢查 {adoptedCount} 個方案之間是否存在跨矛盾衝突、參數干涉或同矛盾多路徑風險。
+                  檢查 {adoptedCount} 個方案之間是否存在跨矛盾衝突、參數干涉或跨 LTS 重複採納。
+                  （同一 LayeredTrizSolution 的跨層 drill-down 採納會被自動 SKIP，不視為衝突）
                   {convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'converged'
                     ? ' ✓ 掃描完成，可進入 MUST 快篩。'
                     : convergenceLoop.state.phase === 'B' && convergenceLoop.state.status === 'exploring'

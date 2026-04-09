@@ -312,6 +312,7 @@ ambiguity that should be reflected as causal nodes or edges in the CLD.
 
 <instructions>
 1. Create nodes — one per variable, id as a short English abbreviation.
+   - If a contradiction text contains a `derived_parameter` reference (e.g., "gear_module", "shell_density"), use that as the CLD variable name rather than a generic term.
    - Consider whether clarified insights reveal hidden variables that should become nodes
      (e.g., labeling consensus, deployment stage, ground truth stability).
 2. Create edges — mark polarity:
@@ -967,4 +968,196 @@ contradictions, or constraints, but could significantly impact design success.
   ]
 }}
 </output_schema>
+"""
+
+# ---------------------------------------------------------------------------
+# L1 Trade-off Critic (task 2.2) — judges whether TC matrix candidates are
+# merely trade-off compromises (signalling need for PC drill-down).
+# ---------------------------------------------------------------------------
+
+L1_TRADE_OFF_CRITIC = """\
+<task>
+You are a TRIZ methodology critic. Given a Technical Contradiction (TC)
+formalized as "improving param #X vs worsening param #Y", judge whether
+the matrix-lookup candidates are MERELY trade-off compromises (no real
+breakthrough) — which would indicate the TC needs L2 (PC) drill-down.
+</task>
+
+<tc_statement>
+{engineering_statement}
+</tc_statement>
+
+<tc_params>
+Improving: #{improving_param} ({improving_name})
+Worsening: #{worsening_param} ({worsening_name})
+</tc_params>
+
+<candidate_principles>
+{candidate_principles}
+</candidate_principles>
+
+<suggestions>
+{suggestions_text}
+</suggestions>
+
+<judgment_criteria>
+- "trade-off folding" = the candidate principles only produce incremental
+  compromises (X improves 10-15% while Y degrades proportionally) and do
+  not resolve the underlying physical tension
+- "breakthrough" = at least one candidate principle genuinely reframes or
+  eliminates the tension (e.g. via separation, trimming, or resource change)
+</judgment_criteria>
+
+<output_format>
+{{
+  "all_trade_off": true | false,
+  "reason": "<one-sentence explanation>"
+}}
+</output_format>
+"""
+
+# ---------------------------------------------------------------------------
+# TC → Multi-PC Decomposition (task 3.1) — decompose a phenomenon-layer TC
+# into multiple independent PCs at the essence layer, each targeting a
+# distinct physical property in a distinct subsystem.
+# ---------------------------------------------------------------------------
+
+TC_TO_MULTI_PC_DECOMPOSITION = """\
+<task>
+You are a TRIZ ARIZ expert. Given a Technical Contradiction (TC) at the
+phenomenon layer, decompose it into MULTIPLE independent Physical
+Contradictions (PCs) at the essence layer. Each PC must target a DIFFERENT
+physical parameter in a DIFFERENT subsystem.
+</task>
+
+<tc_statement>
+{engineering_statement}
+</tc_statement>
+
+<tc_params>
+Improving: #{improving_param} ({improving_name})
+Worsening: #{worsening_param} ({worsening_name})
+</tc_params>
+
+<mission>
+{mission}
+</mission>
+
+<constraints>
+{constraints}
+</constraints>
+
+<kpis>
+{kpis}
+</kpis>
+
+<clarified_insights>
+{clarified_insights}
+</clarified_insights>
+
+<triz_39_parameters>
+{params_context}
+</triz_39_parameters>
+
+<triz_40_principles>
+{principles_context}
+</triz_40_principles>
+
+<separation_principles>
+{separation_principles_context}
+</separation_principles>
+
+<instructions>
+1. Identify 2-5 DISTINCT physical dimensions where this TC manifests.
+   Each dimension MUST be a different physical parameter in a different
+   subsystem or at a different scale. Do NOT produce synonyms or
+   rewordings of the same contradiction.
+
+2. For EACH identified dimension, construct a Physical Contradiction of
+   the form: "derived_parameter must be A (reason X) AND must be ¬A (reason Y)"
+   at the SAME time, space, and condition.
+
+3. HARD CONSTRAINT — prevent degeneration to N small TCs:
+   - Each `derived_parameter` MUST be a single named physical property
+     (e.g., "齒輪模數", "殼體密度", "接觸面積") that simultaneously needs
+     opposing values A and ¬A.
+   - It MUST NOT be a trade-off between two different 39-parameters
+     (e.g., "重量 vs 扭矩" is a TC not a PC — reject it).
+   - If you cannot express a dimension as a SAME-property mutual exclusion,
+     DO NOT include it. Return fewer PCs rather than pollute the output.
+   - If NO dimension qualifies, return `decomposed_pcs: []`.
+
+4. For each PC, pick ONE separation_principle_id from the 16-item list
+   provided above. The id MUST match exactly (e.g., "space.partition_combine").
+   Provide `separation_category` (time|space|condition|whole_part),
+   `separation_rationale` (1-2 sentences explaining why this principle fits),
+   and a `confidence` score (0-1).
+
+5. Each PC also needs:
+   - `subsystem_hint`: short phrase (e.g., "齒輪傳動", "外殼結構", "電池模組")
+   - `physical_contradiction`: full "X must A and must ¬A" statement
+   - `pc_attribute_a`: concise phrase (e.g., "大模數")
+   - `pc_attribute_not_a`: concise phrase (e.g., "小模數")
+</instructions>
+
+<positive_examples>
+Example 1 (e-Bike gear module, TC: torque vs space):
+{{
+  "derived_parameter": "齒輪模數",
+  "subsystem_hint": "齒輪傳動",
+  "physical_contradiction": "齒輪模數必須大（承受 125 Nm 彎曲應力）且必須小（在 111 mm 外徑內達成 25:1 減速比）",
+  "pc_attribute_a": "大模數",
+  "pc_attribute_not_a": "小模數",
+  "separation_principle_id": "space.partition_combine",
+  "separation_category": "space",
+  "separation_rationale": "行星齒輪結構讓多個小模數齒輪分擔負載，巨觀上達成大模數強度",
+  "confidence": 0.85
+}}
+
+Example 2 (e-Bike housing, TC: rigidity vs weight):
+{{
+  "derived_parameter": "殼體密度",
+  "subsystem_hint": "外殼結構",
+  "physical_contradiction": "殼體必須高密度（抗震剛性）且必須低密度（2500 g 重量限制）",
+  "pc_attribute_a": "高密度剛性",
+  "pc_attribute_not_a": "低密度輕量",
+  "separation_principle_id": "whole_part.composite",
+  "separation_category": "whole_part",
+  "separation_rationale": "高應力區用鋼材、低應力區用碳纖維，局部剛性組合出整體輕量",
+  "confidence": 0.82
+}}
+</positive_examples>
+
+<negative_examples>
+WRONG (trade-off TC disguised as PC):
+{{
+  "derived_parameter": "重量 vs 扭矩",
+  "physical_contradiction": "要重量輕但扭矩大"
+}}
+
+WRONG (synonym duplicate):
+[
+  {{"derived_parameter": "齒輪尺寸大小"}},
+  {{"derived_parameter": "齒輪模數"}}
+]
+</negative_examples>
+
+<output_format>
+{{
+  "decomposed_pcs": [
+    {{
+      "derived_parameter": "...",
+      "subsystem_hint": "...",
+      "physical_contradiction": "...",
+      "pc_attribute_a": "...",
+      "pc_attribute_not_a": "...",
+      "separation_principle_id": "...",
+      "separation_category": "time|space|condition|whole_part",
+      "separation_rationale": "...",
+      "confidence": 0.0-1.0
+    }}
+  ],
+  "reasoning": "<overall decomposition approach, 1-2 sentences>"
+}}
+</output_format>
 """

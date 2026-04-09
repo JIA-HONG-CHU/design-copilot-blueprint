@@ -5,7 +5,7 @@ Maps to the AI Agent Architecture §1.1 Agent roles and §4.4 Artifact states.
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +433,12 @@ class TrizLookupRequest(BaseModel):
     sf_substance_2: str | None = None
     sf_field: str | None = None
     type: str = "TC"  # TC, PC, or SF
+    # Optional hint from Explore-stage PC decomposition (L2 WBS 9.1.1).
+    # When provided, _solve_pc shortcircuits separation selection.
+    separation_principle_id: str | None = None
+    separation_category: str | None = None  # time|space|condition|whole_part
+    separation_rationale: str | None = None
+    derived_parameter: str | None = None
 
 
 class TrizSuggestion(BaseModel):
@@ -554,7 +560,12 @@ class SeparationCandidate(BaseModel):
 class DeepenLink(BaseModel):
     """ARIZ 深挖：從 L1 TC 對推導出 L2 PC 的 (derived_parameter + separation types)."""
     from_layer: Literal["L1_surface"] = "L1_surface"
-    from_tc_pair: tuple[int | None, int | None] = (None, None)
+    # Pydantic 2.12 treats a bare `tuple[...] = (None, None)` literal default as
+    # mutable and silently demotes later-in-class fields to required. Declare
+    # explicitly through Field + default_factory to avoid that corner case.
+    from_tc_pair: tuple[int | None, int | None] = Field(
+        default_factory=lambda: (None, None)
+    )
     derived_physical_parameter: str = ""
     contradiction_statement: str = ""
     separation_type_candidates: list[SeparationCandidate] = Field(default_factory=list)
@@ -800,6 +811,20 @@ class ConvergenceContradictionInput(BaseModel):
     sf_field: str = ""
 
 
+class LayeredAlternativeDirective(BaseModel):
+    """v7 WP 10.6: Per-alternative Phase B directive carried on the scan
+    request. Lets the scanner SKIP intra-LTS cross-layer pairs and WARN on
+    cross-LTS redundancy without re-reading the LTS from DB.
+
+    Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §8.3
+    """
+    alternative_id: str
+    lts_id: str
+    adopted_layers: list[Literal["L1", "L2", "L3"]] = Field(default_factory=list)
+    same_contradiction_intra_layer_conflict: Literal["skip", "check"] = "skip"
+    cross_contradiction_conflict: Literal["skip", "check"] = "check"
+
+
 class ConvergenceScanRequest(BaseModel):
     project_id: str
     alternatives: list[ConvergenceAlternativeInput] = Field(default_factory=list)
@@ -808,6 +833,10 @@ class ConvergenceScanRequest(BaseModel):
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
     phase: str = "B"  # "A" = contradiction-only, "B" = full cross-check
+    # v7 WP 10.6: optional Phase B directives for layered Concept Routes.
+    # Empty list → legacy behaviour (flat mode). Non-empty → scanner pairs
+    # alternatives by lts_id and applies SKIP / WARN / CHECK per §8.3.
+    layered_directives: list[LayeredAlternativeDirective] = Field(default_factory=list)
 
 
 class SecondaryContradiction(BaseModel):
@@ -949,11 +978,26 @@ class AssumptionExtractResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SubsystemSuggestRequest(BaseModel):
-    """Suggest subsystems for SCAMPER analysis."""
+    """Suggest subsystems for SCAMPER analysis.
+
+    v7 (WBS 11.1): When the new `triz_layered_mode` is on, the Create Tab ①
+    passes `layered_triz_solutions` so F2 can bind subsystems to the
+    adopted_route / recommended_route of a LayeredTrizSolution instead of
+    scanning a flat contradiction list. The legacy `contradictions` field is
+    kept for back-compat so existing consumers compile unchanged.
+
+    Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §8.1 / §8.1.1 and
+         docs/e2e/module/Forward_Subsystem_Discovery_Architecture.md §3.1
+    """
     project_id: str
     mission: str
     contradictions: list[str] = Field(default_factory=list)
     existing_subsystems: list[str] = Field(default_factory=list)
+    # v7 M6: optional layered-TRIZ handoff. When present, F2 should prefer
+    # `adopted_route` (or `recommended_route`) on each LTS as the
+    # `related_contradictions` primary binding; when empty, fall back to the
+    # flat `contradictions` list above.
+    layered_triz_solutions: list[LayeredTrizSolution] = Field(default_factory=list)
 
 
 # ---- Spatial Grounding (Discovery Mode) ----------------------------------
@@ -1335,101 +1379,73 @@ class KnowledgeWritebackResponse(BaseModel):
 ScamperRequest.model_rebuild()
 
 
+# NOTE: An earlier scaffold of LayeredTrizSolution / L1Surface / L2RootCause /
+# L3StructuralCheck / DeepenLink / DifferentialAnalysis lived at the bottom of
+# this file and was shadowing the canonical definitions above (lines 511–669,
+# WBS 1.1 / 2.1 / §5 of TRIZ_Layered_DrillDown_Optimization.md). It has been
+# removed in v7 — all Layered TRIZ types are authoritative in the earlier
+# section. Downstream consumers import from `app.models.schemas` unchanged.
+
+
 # ---------------------------------------------------------------------------
-# LayeredTrizSolution — aggregate of L1 (TC) / L2 (PC) / L3 (SF) analyses
-# Ref: docs/e2e/module/Forward_TRIZ_Solver_Architecture.md §6.7 / §10
-# Ref: docs/e2e/module/Forward_Subsystem_Discovery_Architecture.md §3.1 (F1→F2 contract)
-#
-# NOTE: L3 (Su-Field) is deferred to a separate WBS
-# (docs/e2e/module/Explore_L3_SF_Parallel_Check_WBS.md). In this version,
-# `l3` is always None and `l3_status` is "deferred_to_external_wbs".
-# Downstream consumers MUST check l3_status, not just `l3 is None`.
+# TC → Multi-PC Decomposition (L2 WBS task 3.2)
+# Ref: docs/e2e/module/Explore_TC_to_MultiPC_Decomposition_WBS.md
 # ---------------------------------------------------------------------------
 
-class SeparationCandidate(BaseModel):
-    """Ranked candidate for PC separation type (time/space/condition/whole_part)."""
-    type: Literal["time", "space", "condition", "whole_part"]
-    rationale: str
-    confidence: float = Field(ge=0, le=1)
+class DecomposedPC(BaseModel):
+    """A single Physical Contradiction derived from a parent TC.
 
-
-class DeepenLink(BaseModel):
-    """ARIZ spirit: the TC → PC drill-down contract.
-
-    Ref: Forward_TRIZ_Solver_Architecture.md §6.7
+    Each DecomposedPC represents ONE dimension where the TC manifests as a
+    same-property mutual exclusion (A vs ¬A). Multiple DecomposedPCs per TC
+    are expected for complex engineering systems (e.g., e-Bike drive unit
+    typically yields 3-5 PCs covering different subsystems).
     """
-    from_layer: Literal["L1_surface"] = "L1_surface"
-    from_tc_pair: tuple[int, int] | None = None  # (improving, worsening) if known
-    derived_physical_parameter: str
-    contradiction_statement: str
-    separation_type_candidates: list[SeparationCandidate] = Field(default_factory=list)
+    derived_parameter: str = Field(..., description="同一物理屬性 P，例: 齒輪模數")
+    subsystem_hint: str = Field(..., description="所屬子系統，例: 齒輪傳動")
+    physical_contradiction: str = Field(..., description="完整 X must A and must ¬A 陳述")
+    pc_attribute_a: str = Field(..., description="屬性 A 濃縮詞")
+    pc_attribute_not_a: str = Field(..., description="屬性 ¬A 濃縮詞")
+
+    separation_principle_id: str = Field(..., description="16 項 id 之一，例: space.partition_combine")
+    separation_category: Literal["time", "space", "condition", "whole_part"]
+    separation_rationale: str = Field(..., description="為何此分離原則適用（1-2 句）")
+
+    confidence: float = Field(ge=0, le=1, default=0.7)
+
+    @field_validator("separation_principle_id")
+    @classmethod
+    def _validate_separation_id(cls, v: str) -> str:
+        """Ensure id is in the canonical 16-item list."""
+        from app.tools.separation_principles import get_separation_principle
+        if get_separation_principle(v) is None:
+            raise ValueError(
+                f"separation_principle_id '{v}' not in canonical 16-item list. "
+                f"See backend/app/tools/separation_principles.py for valid ids."
+            )
+        return v
 
 
-class L1Surface(BaseModel):
-    """L1 phenomenon layer: TC surface analysis."""
-    type: Literal["TC"] = "TC"
-    layer_role: Literal["phenomenon"] = "phenomenon"
+class ContradictionDecomposeRequest(BaseModel):
+    """Request to decompose a parent TC into multiple child PCs."""
+    project_id: str
+    parent_contradiction_id: str
+    engineering_statement: str
     improving_param: int | None = None
     worsening_param: int | None = None
-    engineering_statement: str = ""
+    severity: str = "minor"
+    mission: str = ""
+    constraints: list[str] = Field(default_factory=list)
+    kpis: list[str] = Field(default_factory=list)
+    socraticAnswers: list[str] = Field(default_factory=list)
+    # Optional: pre-fetched candidate principles from TC solver (for critic rule 2)
     candidate_principles: list[int] = Field(default_factory=list)
-    suggestions: list[dict] = Field(default_factory=list)  # TrizSuggestion-compatible
-    depth_indicator: str = ""  # e.g. "trade-off 改良"
+    # Optional: allow client to force a re-decompose even if critic would say no
+    rd_manual: bool = False
 
 
-class L2RootCause(BaseModel):
-    """L2 essence layer: PC root-cause analysis.
-
-    May have multiple derived parameters if the TC decomposes into multiple PCs.
-    """
-    type: Literal["PC"] = "PC"
-    layer_role: Literal["root_cause"] = "root_cause"
-    deepen_links: list[DeepenLink] = Field(default_factory=list)
-    suggestions: list[dict] = Field(default_factory=list)  # TrizSuggestion-compatible
-
-
-class L3StructuralCheck(BaseModel):
-    """L3 structural lens: SF analysis. Deferred to L3 WBS in this version."""
-    type: Literal["SF"] = "SF"
-    layer_role: Literal["structural_lens"] = "structural_lens"
-    s1: str = ""
-    s2: str = ""
-    field: str = ""
-    system_state: str = ""  # incomplete | effective | harmful | insufficient
-    matched_solutions: list[dict] = Field(default_factory=list)
-
-
-class DifferentialAnalysis(BaseModel):
-    """Cross-layer comparison & recommended route. Deferred to L3 WBS."""
-    l1_vs_l2: str = ""
-    l2_vs_l3: str = ""
-    recommended_route: str = ""
-    fallback_route: str = ""
-
-
-class LayeredTrizSolution(BaseModel):
-    """Aggregate of L1 / L2 / L3 analyses for one contradiction.
-
-    Ref: Forward_TRIZ_Solver_Architecture.md §10
-    Ref: Forward_Subsystem_Discovery_Architecture.md §3.1 (F1→F2 contract)
-    """
-    id: str                 # e.g. "LTS-<uuid>"
-    contradiction_id: str   # parent TC contradiction id
-
-    l1: L1Surface
-    l2: L2RootCause | None = None
-    l3: L3StructuralCheck | None = None
-
-    # L3 lifecycle marker — this version always emits "deferred_to_external_wbs".
-    # Downstream (F2 Subsystem Discovery) must check this before treating
-    # l3=None as corruption.
-    l3_status: Literal[
-        "deferred_to_external_wbs",
-        "computed",
-        "skipped_by_critic",
-    ] = "deferred_to_external_wbs"
-
-    deepen_link: DeepenLink | None = None  # convenience pointer to L2's primary deepen_link
-    differential_analysis: DifferentialAnalysis | None = None
-
-    adopted_route: str | None = None  # filled by Phase B adoption later
+class ContradictionDecomposeResponse(BaseModel):
+    """Response containing critic decision + decomposed PCs."""
+    triggered: bool = Field(..., description="L1 critic 是否觸發深挖")
+    trigger_reason: str = Field(..., description="觸發或未觸發的理由")
+    decomposed_pcs: list[DecomposedPC] = Field(default_factory=list)
+    reasoning: str = Field(default="", description="LLM 產出整體分解策略說明（若有）")

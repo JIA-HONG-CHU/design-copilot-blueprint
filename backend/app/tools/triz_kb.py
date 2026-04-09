@@ -210,6 +210,34 @@ def build_sufield_context(system_state: str | None = None) -> str:
     return f"## Su-Field 76 標準解\n\n{full_text}"
 
     
+@lru_cache(maxsize=1)
+def _load_39_param_name_map() -> dict[int, str]:
+    """Parse 01_39_parameters.md into {id: name} for deepen_link prompts."""
+    raw = load_39_parameters()
+    out: dict[int, str] = {}
+    for line in raw.split("\n"):
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if len(cells) < 2:
+            continue
+        m = re.match(r"^(\d+)$", cells[0])
+        if not m:
+            continue
+        num = int(m.group(1))
+        name = cells[1] if len(cells) > 1 else ""
+        if 1 <= num <= 39 and name:
+            out[num] = name
+    return out
+
+
+def get_param_name(num: int | None) -> str:
+    """Return the Chinese parameter name for a TRIZ 39 parameter id (or '' if unknown)."""
+    if not num:
+        return ""
+    return _load_39_param_name_map().get(int(num), "")
+
+
 def build_triz_pc_context() -> str:
     """Build prompt context for Physical Contradiction resolution.
 

@@ -198,6 +198,54 @@ def analyze_pre_cad(req: PreCadAnalyzeRequest) -> PreCadAnalyzeResponse:
     return response
 
 
+PhaseBDecision = tuple[str, str]  # (decision, reason) where decision ∈ {"SKIP", "CHECK", "WARN"}
+
+
+def check_phase_b_conflict(
+    *,
+    lts_id_a: str | None,
+    contradiction_id_a: str,
+    layer_a: str | None,
+    lts_id_b: str | None,
+    contradiction_id_b: str,
+    layer_b: str | None,
+    directive_same_contradiction_intra_layer: str = "skip",
+    directive_cross_contradiction: str = "check",
+) -> PhaseBDecision:
+    """Structured Phase B conflict checker (v7 §8.3).
+
+    Replaces the legacy "same-contradiction multi-path warning" with the
+    three-state intra-LTS vs cross-contradiction logic:
+
+      1. Same contradiction AND same LTS  → drill-down combination → SKIP
+      2. Same contradiction, different LTS → WARN (redundant work)
+      3. Different contradictions         → CHECK (normal cross-scan)
+
+    The directive values come from `LayeredTrizSolution.phase_b_directive` and
+    normally default to `skip` / `check`. Callers may override per-project.
+
+    Ref:
+      - docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §8.3 Phase B 偽代碼
+      - docs/e2e/module/TRIZ_Layered_Drilldown_Development_WBS.md §6.3
+    """
+    if contradiction_id_a == contradiction_id_b:
+        if lts_id_a and lts_id_b and lts_id_a == lts_id_b:
+            return (
+                "SKIP" if directive_same_contradiction_intra_layer == "skip" else "CHECK",
+                f"intra-LTS cross-layer (L{layer_a} + L{layer_b}) — "
+                f"drill-down combination, directive={directive_same_contradiction_intra_layer}",
+            )
+        return (
+            "WARN",
+            "same contradiction, different LTS ids — possibly redundant work",
+        )
+    return (
+        "SKIP" if directive_cross_contradiction == "skip" else "CHECK",
+        f"cross-contradiction pair ({contradiction_id_a} vs {contradiction_id_b}), "
+        f"directive={directive_cross_contradiction}",
+    )
+
+
 def seed_want_criteria(req: WantSeedRequest) -> WantSeedResponse:
     prompt = WANT_CRITERIA_SEED.format(
         mission=req.mission,
@@ -207,6 +255,57 @@ def seed_want_criteria(req: WantSeedRequest) -> WantSeedResponse:
     raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
     data = json.loads(raw)
     return WantSeedResponse(**data)
+
+
+def _apply_layered_directives(req: ConvergenceScanRequest) -> tuple[list, list[str]]:
+    """v7 WP 10.6: Pre-filter alternatives using layered_directives.
+
+    Returns:
+      - `alternatives_for_prompt`: the list of alternatives to feed to the LLM
+        prompt. For a drill-down group (same lts_id), we keep ONE representative
+        whose `name` lists all adopted layers, so the LLM doesn't
+        double-count the same LTS across layers when cross-checking.
+      - `notes`: human-readable log lines describing what the directive did.
+    """
+    notes: list[str] = []
+    if not req.layered_directives:
+        return list(req.alternatives), notes
+
+    directive_by_id = {d.alternative_id: d for d in req.layered_directives}
+    # Group alternatives by lts_id.
+    groups: dict[str, list] = {}
+    loose: list = []
+    for alt in req.alternatives:
+        d = directive_by_id.get(alt.id)
+        if d is None:
+            loose.append(alt)
+            continue
+        groups.setdefault(d.lts_id, []).append(alt)
+
+    representatives: list = []
+    for lts_id, alts in groups.items():
+        if len(alts) == 1:
+            representatives.append(alts[0])
+            continue
+        # Same LTS with multiple alternatives = drill-down combination.
+        # Honor the directive: if intra-layer SKIP, collapse into one rep.
+        first_directive = directive_by_id[alts[0].id]
+        if first_directive.same_contradiction_intra_layer_conflict == "skip":
+            rep = alts[0].model_copy(deep=True)
+            rep.name = (
+                f"{rep.name} [drill-down {lts_id}: "
+                f"{len(alts)} layers merged]"
+            )
+            representatives.append(rep)
+            notes.append(
+                f"intra-LTS {lts_id}: merged {len(alts)} alternatives into 1 representative (SKIP)"
+            )
+        else:
+            representatives.extend(alts)
+            notes.append(f"intra-LTS {lts_id}: directive=check, kept all {len(alts)}")
+
+    combined = representatives + loose
+    return combined, notes
 
 
 def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
@@ -225,10 +324,19 @@ def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
             mission=mission, constraints=constraints, kpis=kpis,
         )
     else:
-        # Phase B: full alternative × contradiction cross-check
+        # Phase B: full alternative × contradiction cross-check.
+        # v7 WP 10.6: apply layered_directives to SKIP intra-LTS drill-down
+        # pairs before handing the alternative list to the LLM.
+        alternatives_for_prompt, skip_notes = _apply_layered_directives(req)
+        if skip_notes:
+            import logging
+            logging.getLogger(__name__).info(
+                "Phase B: applied %d layered directives: %s",
+                len(req.layered_directives), "; ".join(skip_notes),
+            )
         prompt = CONVERGENCE_SCAN.format(
             alternatives=json.dumps(
-                [a.model_dump() for a in req.alternatives],
+                [a.model_dump() for a in alternatives_for_prompt],
                 ensure_ascii=False, indent=2,
             ),
             contradictions=contradiction_json,

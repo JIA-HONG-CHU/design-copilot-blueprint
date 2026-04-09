@@ -393,11 +393,15 @@ needs flexibility in the same component).
 4. **PC state conflict** — for contradictions of type PC, check if any alternative \
 forces a state that contradicts the physical_contradiction's required dual state.
 
-5. **Same-contradiction multi-path risk** — check if multiple alternatives resolve \
-the SAME original contradiction but via different TRIZ paths (e.g., one via TC matrix, \
-another via PC separation, another via Su-Field). These are fundamentally different \
-problem formulations and are likely physically incompatible. If found, record as a \
-secondary contradiction with severity "major" and reasoning explaining the path conflict.
+5. **Cross-contradiction path conflict** (v7, was "same-contradiction multi-path") — \
+check if two alternatives resolving **different** contradictions impose mutually \
+exclusive physical states on a shared component. \
+**Do NOT flag multiple alternatives on the same contradiction** when they come from \
+the same `layered_triz_solution.id` (LTS id): TC / PC / SF at different layers of \
+one LTS are a drill-down diagnosis, not competing candidates, and their combination \
+is the intended採納 pattern (§8.3 Phase B directive: intra-LTS cross-layer SKIP). \
+Only flag when two alternatives resolve the SAME contradiction via DIFFERENT LTS ids — \
+that indicates redundant work, not incompatibility.
 
 6. **Record secondary contradictions** with:
    - The specific parameters or physical properties in conflict

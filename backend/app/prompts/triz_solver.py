@@ -131,6 +131,64 @@ The "principle_name" field MUST be one of the following exactly:
 </output_schema>
 """
 
+TRIZ_PC_INSTANTIATION_WITH_HINT = """\
+<task>
+You are a TRIZ PC solver. The Explore stage has ALREADY selected a
+separation principle for this Physical Contradiction — your job is to
+generate CONCRETE engineering implementation ideas using that principle.
+Do NOT re-select a different separation type.
+</task>
+
+<physical_contradiction>
+{physical_contradiction}
+</physical_contradiction>
+
+<natural_context>
+{natural_description}
+</natural_context>
+
+<pre_selected_separation>
+Principle id: {separation_principle_id}
+Category: {separation_category}
+Rationale (from Explore critic): {separation_rationale}
+Derived parameter: {derived_parameter}
+</pre_selected_separation>
+
+<triz_40_principles>
+{principles_context}
+</triz_40_principles>
+
+<instructions>
+1. Honour the pre-selected separation principle — do NOT switch to a
+   different time/space/condition/whole_part category.
+2. Generate 3-5 concrete implementation suggestions that operationalise
+   this principle for the specific physical contradiction.
+3. Each suggestion should cite one or more of the 40 TRIZ principles where
+   applicable (principle_number 1-40), and explain HOW the chosen
+   separation principle is realised in physical terms.
+4. If the hint is clearly wrong (e.g., space separation for a dynamic
+   timing problem), you MAY note the concern in the suggestion text, but
+   still use the hinted category for your primary suggestions. A later
+   delta-log step records the disagreement.
+</instructions>
+
+<output_format>
+{{
+  "suggestions": [
+    {{
+      "path": "PC",
+      "principle_number": <int or null>,
+      "principle_name": "<40 principle name or separation strategy>",
+      "separation_principle": "{separation_category}",
+      "suggestion": "<concrete engineering implementation idea>",
+      "affected_modules": [],
+      "secondary_contradictions": []
+    }}
+  ]
+}}
+</output_format>
+"""
+
 # ---------------------------------------------------------------------------
 # Layered Drill-Down (v7) — L1 Critic + L2 Deepen_link + Differential Analysis
 # Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §4.1–§4.4, §5, §7

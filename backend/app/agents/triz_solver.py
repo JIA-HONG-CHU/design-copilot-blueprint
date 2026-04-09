@@ -13,6 +13,7 @@ from app.prompts.triz_solver import (
     TRIZ_SOLVER_SYSTEM,
     TRIZ_TC_INSTANTIATION,
     TRIZ_PC_INSTANTIATION,
+    TRIZ_PC_INSTANTIATION_WITH_HINT,
     SUFIELD_ANALYSIS,
     SCAMPER_TRANSFORM,
     SUBSYSTEM_SUGGESTION,
@@ -26,6 +27,7 @@ from app.tools.triz_kb import (
     build_sufield_context,
     get_param_name,
     lookup_matrix,
+    load_40_principles,
 )
 from app.models.schemas import (
     TrizLookupRequest,
@@ -121,6 +123,13 @@ def _solve_tc(req: TrizLookupRequest) -> TrizLookupResponse:
 
 
 def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
+    if req.separation_principle_id:
+        return _solve_pc_with_hint(req)
+    return _solve_pc_base(req)
+
+
+def _solve_pc_base(req: TrizLookupRequest) -> TrizLookupResponse:
+    """Original PC solver path — selects separation principle from scratch."""
     triz_context = build_triz_pc_context()
 
     prompt = TRIZ_PC_INSTANTIATION.format(
@@ -143,6 +152,71 @@ def _solve_pc(req: TrizLookupRequest) -> TrizLookupResponse:
     return TrizLookupResponse(
         suggestions=suggestions,
     )
+
+
+def _solve_pc_with_hint(req: TrizLookupRequest) -> TrizLookupResponse:
+    """Hint path — Explore already picked a separation principle.
+
+    Uses the lighter TRIZ_PC_INSTANTIATION_WITH_HINT prompt which only
+    injects 40 principles (skips the 16-item separation knowledge base
+    because we already know the answer). Saves ~1000 tokens per call.
+    """
+    # Guard: if the hint id is not in canonical 16, fall back to base path
+    from app.tools.separation_principles import get_separation_principle
+    if get_separation_principle(req.separation_principle_id) is None:
+        logger.warning(
+            "Unknown separation_principle_id %r, falling back to base path",
+            req.separation_principle_id,
+        )
+        return _solve_pc_base(req)
+
+    principles_context = load_40_principles()
+    prompt = TRIZ_PC_INSTANTIATION_WITH_HINT.format(
+        natural_description=req.natural_description,
+        physical_contradiction=req.physical_contradiction or req.natural_description,
+        separation_principle_id=req.separation_principle_id,
+        separation_category=req.separation_category or "",
+        separation_rationale=req.separation_rationale or "",
+        derived_parameter=req.derived_parameter or "",
+        principles_context=principles_context,
+    )
+    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
+    try:
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    suggestions = data.get("suggestions", [])
+    for s in suggestions:
+        if not s.get("path"):
+            s["path"] = "PC"
+
+    # 9.1.4 delta log — compare LLM output vs hint
+    _log_hint_override_delta(
+        expected_category=req.separation_category or "",
+        suggestions=suggestions,
+    )
+
+    return TrizLookupResponse(suggestions=suggestions)
+
+
+def _log_hint_override_delta(expected_category: str, suggestions: list[dict]) -> None:
+    """Log when LLM output's separation_principle differs from the hint category.
+
+    Does not fail or mutate — observability only (L2 WBS 9.1.4).
+    """
+    if not expected_category or not suggestions:
+        return
+    overrides = [
+        s.get("separation_principle")
+        for s in suggestions
+        if s.get("separation_principle") and s.get("separation_principle") != expected_category
+    ]
+    if overrides:
+        logger.info(
+            "separation hint override: expected=%s llm=%s count=%d",
+            expected_category, overrides, len(overrides),
+        )
 
 
 def _solve_sf(req: TrizLookupRequest) -> TrizLookupResponse:
@@ -811,6 +885,66 @@ def _format_violations_for_retry(
     return "\n".join(lines)
 
 
+def _serialize_layered_triz_for_f2_prompt(
+    solutions: list[LayeredTrizSolution],
+) -> list[str]:
+    """v7 WP 11.2: Convert LayeredTrizSolution objects into prompt-ready lines
+    for F2 subsystem discovery.
+
+    Each LTS becomes a single bullet that tells the LLM:
+      - the original contradiction description
+      - which drill-down layers the RD adopted
+      - the adopted mechanism(s) from those layers
+      - the recommended_route label + rationale
+
+    This lets F2 bind subsystems to the **adopted_route** (not just the flat
+    contradiction description), which is the §8.1.1 primary-binding contract.
+    """
+    lines: list[str] = []
+    for lts in solutions:
+        # Honor the differential recommendation as the primary binding signal.
+        recommended = lts.differential_analysis.recommended_route
+        adopted = recommended.adopted_layers or ["L1"]
+        mechanism_bits: list[str] = []
+        if "L1" in adopted and lts.l1_surface.suggestions:
+            top = lts.l1_surface.suggestions[0]
+            mechanism_bits.append(f"L1: {top.principle_name} — {top.suggestion}")
+        if (
+            "L2" in adopted
+            and lts.l2_root_cause is not None
+            and lts.l2_root_cause.status == "ran"
+            and lts.l2_root_cause.suggestions
+        ):
+            top = lts.l2_root_cause.suggestions[0]
+            param = ""
+            if lts.l2_root_cause.deepen_link:
+                param = lts.l2_root_cause.deepen_link.derived_physical_parameter
+            mechanism_bits.append(
+                f"L2: {top.principle_name} (derived param: {param}) — {top.suggestion}"
+            )
+        if "L3" in adopted and lts.l3_structural_check.suggestions:
+            top = lts.l3_structural_check.suggestions[0]
+            state = lts.l3_structural_check.su_field_model.state
+            mechanism_bits.append(
+                f"L3: {top.principle_name} (Su-Field state={state}) — {top.suggestion}"
+            )
+
+        header = (
+            f"[{lts.id} / {lts.contradiction_id}] "
+            f"{lts.contradiction_natural_description or '(no description)'}"
+        )
+        route_label = f"adopted drill-down: {recommended.primary or '+'.join(adopted)}"
+        if recommended.rationale:
+            route_label += f" — {recommended.rationale}"
+        lines.append(
+            header
+            + "\n    "
+            + route_label
+            + ("\n    " + "\n    ".join(mechanism_bits) if mechanism_bits else "")
+        )
+    return lines
+
+
 def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse:
     # Build a project-scoped resolver so RD overrides for THIS project surface
     # in the prompt vocabulary alongside global learned components and the
@@ -820,9 +954,19 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     with phase_timer("uc1.summarize", project_id=req.project_id):
         library_summary = resolver.summarize_for_prompt(project_id=req.project_id)
 
+    # v7 WP 11.2: merge layered_triz_solutions into the contradiction prompt
+    # block. Flat `contradictions` strings remain the back-compat fallback;
+    # LTS-derived lines are prepended so the LLM sees the adopted drill-down
+    # route first when it's available.
+    contradiction_lines: list[str] = []
+    if req.layered_triz_solutions:
+        contradiction_lines.extend(_serialize_layered_triz_for_f2_prompt(req.layered_triz_solutions))
+    contradiction_lines.extend(f"- {c}" for c in req.contradictions)
+    contradictions_block = "\n".join(contradiction_lines) or "（無）"
+
     base_prompt = SUBSYSTEM_SUGGESTION.format(
         mission=req.mission,
-        contradictions="\n".join(f"- {c}" for c in req.contradictions) or "（無）",
+        contradictions=contradictions_block,
         existing_subsystems="\n".join(f"- {s}" for s in req.existing_subsystems) or "（無）",
         reference_library=library_summary,
     )

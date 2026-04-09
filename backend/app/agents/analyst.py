@@ -9,6 +9,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 from app.agents.base import call_llm_json
+from pydantic import ValidationError
+
 from app.prompts.analyst import (
     ANALYST_SYSTEM,
     BRIEF_EXTRACTION,
@@ -27,7 +29,16 @@ from app.prompts.analyst import (
     CONTRADICTION_FORMALIZATION,
     ASSUMPTION_EXTRACTION,
     UNKNOWN_FACTOR_DISCOVERY,
+    TC_TO_MULTI_PC_DECOMPOSITION,
 )
+from app.agents.triz_critic import should_trigger_pc_decomposition
+from app.tools.triz_kb import (
+    load_39_parameters,
+    load_40_principles,
+    load_separation_principles,
+    get_param_name,
+)
+from app.tools.separation_principles import build_separation_principle_id_context
 from app.models.schemas import (
     BriefExtractionRequest,
     BriefExtractionResponse,
@@ -56,6 +67,9 @@ from app.models.schemas import (
     AntiAnchorResponse,
     ContradictionFormalizeRequest,
     ContradictionFormalizeResponse,
+    ContradictionDecomposeRequest,
+    ContradictionDecomposeResponse,
+    DecomposedPC,
     AssumptionExtractRequest,
     AssumptionExtractResponse,
     UnknownFactorDiscoverRequest,
@@ -372,6 +386,10 @@ def _flatten_to_str(value) -> str:
 
 
 def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
+    # NOTE (§9.4): callers should pre-filter contradictions to leaf nodes
+    # using get_contradiction_leaves() before building `current_constraints`
+    # / `existing_alternatives`.  This avoids duplicate parent+child entries
+    # when a TC has been decomposed into child PCs.
     prompt = ANTI_ANCHOR_GENERATION.format(
         mission=req.mission,
         current_constraints="\n".join(f"- {c}" for c in req.current_constraints),
@@ -386,6 +404,125 @@ def generate_anti_anchor(req: AntiAnchorRequest) -> AntiAnchorResponse:
             if key in alt and not isinstance(alt[key], str):
                 alt[key] = _flatten_to_str(alt[key])
     return AntiAnchorResponse(**data)
+
+
+def decompose_tc_to_pcs(req: ContradictionDecomposeRequest) -> ContradictionDecomposeResponse:
+    """TC → multi-PC decomposition at the Explore stage.
+
+    Flow (per docs/e2e/module/Explore_TC_to_MultiPC_Decomposition_WBS.md §3.3):
+      1. Run L1 critic (should_trigger_pc_decomposition). If it says "no",
+         return immediately with triggered=False and empty decomposed_pcs.
+      2. Extract Socratic insights via the existing _extract_socratic_insights helper.
+      3. Load KB context (39 params + 40 principles + separation principle ids).
+      4. Format TC_TO_MULTI_PC_DECOMPOSITION prompt.
+      5. call_llm_json → parse JSON.
+      6. Validate (dedupe on derived_parameter, each separation_principle_id
+         in canonical 16-item set via DecomposedPC validator — Pydantic auto-rejects).
+      7. Return ContradictionDecomposeResponse. Wrap EVERYTHING in try/except —
+         on any failure return triggered=True, decomposed_pcs=[], reasoning=error.
+    """
+    # Step 1: L1 critic decides whether drill-down is warranted.
+    # Build a minimal ContradictionFormalizeResponse stub from the request —
+    # the critic only reads engineering_statement / improving_param / worsening_param.
+    # Use model_construct() to bypass unrelated required-field validation.
+    tc_stub = ContradictionFormalizeResponse.model_construct(
+        engineering_statement=req.engineering_statement,
+        improving_param=req.improving_param,
+        worsening_param=req.worsening_param,
+        type="TC",
+    )
+
+    try:
+        triggered, reason = should_trigger_pc_decomposition(
+            tc_response=tc_stub,
+            severity=req.severity,
+            natural_description=req.engineering_statement,
+            candidate_principles=req.candidate_principles,
+            rd_manual=req.rd_manual,
+            enable_llm_critic=False,  # cheaper: rule layer only inside decomposition
+        )
+    except Exception as exc:  # noqa: BLE001 — error isolation per WBS §3.3
+        logger.exception("L1 critic failed inside decompose_tc_to_pcs")
+        return ContradictionDecomposeResponse(
+            triggered=True,
+            trigger_reason=f"critic failed: {exc}",
+            decomposed_pcs=[],
+            reasoning=f"Decomposition failed: critic error {exc}",
+        )
+
+    if not triggered:
+        return ContradictionDecomposeResponse(
+            triggered=False,
+            trigger_reason=reason,
+            decomposed_pcs=[],
+            reasoning="L1 critic judged drill-down unnecessary.",
+        )
+
+    # Step 2-6: run decomposition with error isolation
+    try:
+        socratic_insights = _extract_socratic_insights(
+            getattr(req, "socraticAnswers", None) or []
+        )
+
+        prompt = TC_TO_MULTI_PC_DECOMPOSITION.format(
+            engineering_statement=req.engineering_statement,
+            improving_param=req.improving_param or 0,
+            improving_name=get_param_name(req.improving_param) if req.improving_param else "",
+            worsening_param=req.worsening_param or 0,
+            worsening_name=get_param_name(req.worsening_param) if req.worsening_param else "",
+            mission=req.mission or "（未提供）",
+            constraints="\n".join(f"- {c}" for c in req.constraints) or "（尚無）",
+            kpis="\n".join(f"- {k}" for k in req.kpis) or "（尚無）",
+            clarified_insights=socratic_insights,
+            params_context=load_39_parameters(),
+            principles_context=load_40_principles(),
+            separation_principles_context=build_separation_principle_id_context(),
+        )
+
+        raw = call_llm_json(ANALYST_SYSTEM, prompt)
+        data = json.loads(raw)
+
+        raw_pcs = data.get("decomposed_pcs", []) or []
+        llm_reasoning = str(data.get("reasoning", "") or "")
+
+        # Validate + dedupe
+        seen_params: set[str] = set()
+        validated_pcs: list[DecomposedPC] = []
+        for idx, item in enumerate(raw_pcs):
+            if not isinstance(item, dict):
+                logger.warning("Skipping non-dict PC at index %d: %r", idx, item)
+                continue
+            derived = str(item.get("derived_parameter", "")).strip()
+            if derived and derived in seen_params:
+                logger.warning(
+                    "Duplicate derived_parameter '%s' at index %d — dropping", derived, idx
+                )
+                continue
+            try:
+                pc = DecomposedPC(**item)
+            except ValidationError as ve:
+                logger.warning(
+                    "Rejecting invalid PC at index %d (derived=%r): %s",
+                    idx, derived, ve.errors(),
+                )
+                continue
+            seen_params.add(pc.derived_parameter)
+            validated_pcs.append(pc)
+
+        return ContradictionDecomposeResponse(
+            triggered=True,
+            trigger_reason=reason,
+            decomposed_pcs=validated_pcs,
+            reasoning=llm_reasoning,
+        )
+    except Exception as exc:  # noqa: BLE001 — error isolation per WBS §3.3
+        logger.exception("decompose_tc_to_pcs failed")
+        return ContradictionDecomposeResponse(
+            triggered=True,
+            trigger_reason=reason,
+            decomposed_pcs=[],
+            reasoning=f"Decomposition failed: {exc}",
+        )
 
 
 def discover_unknown_factors(req: UnknownFactorDiscoverRequest) -> UnknownFactorDiscoverResponse:

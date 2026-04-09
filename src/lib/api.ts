@@ -6,6 +6,7 @@
  */
 
 import type { ZodType } from "zod";
+import type { InterfaceContractMap } from "@/types/generated/subsystem";
 
 const API_PREFIX = "/api/v1";
 const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
@@ -580,6 +581,15 @@ export interface ScamperTransformRequest {
   subsystem_name: string;
   subsystem_description: string;
   related_contradictions?: string[];
+  /** RD-confirmed 6-dim interface contracts keyed by neighbour name.
+   *  Optional so existing legacy call sites compile unchanged. When set,
+   *  the backend prompt tells the LLM to respect the contract boundaries
+   *  and to declare preserve/modify/break per dimension. (WBS 10.1) */
+  interface_contracts?: InterfaceContractMap;
+  /** Stable djb2 fingerprint of the contract snapshot at RD-confirm time.
+   *  Used by the FE to detect drift and block SCAMPER generation until
+   *  RD re-confirms the subsystem. */
+  contracts_hash?: string;
 }
 
 export interface ScamperVariantResult {

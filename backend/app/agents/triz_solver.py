@@ -16,11 +16,15 @@ from app.prompts.triz_solver import (
     SUFIELD_ANALYSIS,
     SCAMPER_TRANSFORM,
     SUBSYSTEM_SUGGESTION,
+    L1_CRITIC_PROMPT,
+    DEEPEN_LINK_DERIVE_PROMPT,
+    DIFFERENTIAL_ANALYSIS_PROMPT,
 )
 from app.tools.triz_kb import (
     build_triz_tc_context,
     build_triz_pc_context,
     build_sufield_context,
+    get_param_name,
     lookup_matrix,
 )
 from app.models.schemas import (
@@ -36,6 +40,21 @@ from app.models.schemas import (
     InterfaceContract,
     SpatialEstimate,
     BBox,
+    # Layered drill-down (v7)
+    LayeredTrizSolution,
+    L1Surface,
+    L2RootCause,
+    L3StructuralCheck,
+    DeepenLink,
+    SeparationCandidate,
+    SuFieldModel,
+    DifferentialAnalysis,
+    DifferentialPairAnalysis,
+    RecommendedRoute,
+    PhaseBDirective,
+    SolveTrizLayeredRequest,
+    SolveTrizLayeredResponse,
+    TrizSuggestion,
 )
 from app.services import reference_library  # legacy direct access (kept for back-compat)
 from app.services.spatial_lookup import LookupQuery, default_resolver
@@ -205,6 +224,469 @@ def analyze_sufield(req: SuFieldRequest) -> SuFieldResponse:
         system_state=data.get("system_state", "unknown"),
         matched_solutions=data.get("matched_solutions", []),
     )
+
+
+# ---------------------------------------------------------------------------
+# Layered Drill-Down (v7)
+#
+# Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §4–§8
+#      docs/diagrams/create-ux-spec.md v7 Tab ① 區塊 B
+#      docs/e2e/module/TRIZ_Layered_Drilldown_Development_WBS.md §3–§5
+#
+# Philosophy: TC/PC/SF are NOT mutually-exclusive routes. They are the three
+# layers of one drill-down diagnosis. `solve_triz_layered` reuses the existing
+# `_solve_tc` / `_solve_pc` / `_solve_sf` primitives unchanged, then wraps them
+# in a LayeredTrizSolution with deepen_link (ARIZ L1→L2) and cross-layer
+# differential analysis for RD decision-making.
+# ---------------------------------------------------------------------------
+
+
+def _tc_suggestions_to_models(data: dict) -> list[TrizSuggestion]:
+    """Parse raw LLM output into validated TrizSuggestion list, tolerant to errors."""
+    out: list[TrizSuggestion] = []
+    for s in data.get("suggestions", []) or []:
+        try:
+            out.append(TrizSuggestion.model_validate(s))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("drop malformed TC suggestion: %s (%s)", s, exc)
+    return out
+
+
+def _l1_critic(
+    *,
+    natural_description: str,
+    improving: int | None,
+    worsening: int | None,
+    candidate_principles: list[int],
+    l1_suggestions: list[TrizSuggestion],
+) -> tuple[bool, str, float]:
+    """Judge whether L1 suggestions are mere trade-offs (→ trigger L2 deepen)
+    or contain at least one root-cause breakthrough.
+
+    Uses a rule + LLM composite (§4.1):
+      - Rule: if principles ≤ 2 → trigger_l2 with confidence 0.9.
+      - Otherwise: ask LLM to classify each suggestion as trade-off vs breakthrough.
+
+    Returns (trigger_l2, reason, confidence).
+    """
+    # Rule-based fast path: too few principles → matrix is thin, deepen immediately
+    if len(candidate_principles) <= 2:
+        return True, f"矩陣推薦原理僅 {len(candidate_principles)} 條，建議深挖為 PC", 0.9
+
+    if not l1_suggestions:
+        return True, "L1 未產出任何有效 suggestion，直接深挖", 0.9
+
+    improving_name = get_param_name(improving)
+    worsening_name = get_param_name(worsening)
+
+    suggestions_block = "\n".join(
+        f"- #{s.principle_number or '?'} {s.principle_name}: {s.suggestion}"
+        for s in l1_suggestions
+    )
+
+    prompt = L1_CRITIC_PROMPT.format(
+        natural_description=natural_description,
+        improving=f"{improving} {improving_name}".strip(),
+        worsening=f"{worsening} {worsening_name}".strip(),
+        candidate_principles=candidate_principles,
+        l1_suggestions=suggestions_block,
+    )
+    try:
+        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except (json.JSONDecodeError, Exception) as exc:
+        logger.warning("L1 critic LLM call failed: %s — defaulting to trigger_l2=False", exc)
+        return False, "critic LLM 無回應，預設不深挖", 0.0
+
+    trigger = bool(data.get("trigger_l2", False))
+    reason = str(data.get("reason") or "")
+    try:
+        confidence = float(data.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return trigger, reason, max(0.0, min(1.0, confidence))
+
+
+def _derive_pc_from_tc(
+    *,
+    natural_description: str,
+    improving: int | None,
+    worsening: int | None,
+) -> DeepenLink:
+    """ARIZ-style deepen_link: TC (improving, worsening) → PC (derived_parameter, separation_candidates).
+
+    Ref §4.3 contract. LLM-backed with a minimal rule fallback when LLM fails.
+    """
+    default_link = DeepenLink(from_tc_pair=(improving, worsening))
+
+    if not improving or not worsening:
+        return default_link
+
+    improving_name = get_param_name(improving)
+    worsening_name = get_param_name(worsening)
+    prompt = DEEPEN_LINK_DERIVE_PROMPT.format(
+        natural_description=natural_description,
+        improving=improving,
+        improving_name=improving_name,
+        worsening=worsening,
+        worsening_name=worsening_name,
+    )
+    try:
+        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except (json.JSONDecodeError, Exception) as exc:
+        logger.warning("deepen_link LLM call failed: %s", exc)
+        return default_link
+
+    candidates: list[SeparationCandidate] = []
+    for c in data.get("separation_type_candidates") or []:
+        try:
+            candidates.append(SeparationCandidate.model_validate(c))
+        except Exception:
+            continue
+    # sort by confidence desc
+    candidates.sort(key=lambda c: c.confidence, reverse=True)
+
+    return DeepenLink(
+        from_tc_pair=(improving, worsening),
+        derived_physical_parameter=str(data.get("derived_physical_parameter") or ""),
+        contradiction_statement=str(data.get("contradiction_statement") or ""),
+        separation_type_candidates=candidates,
+    )
+
+
+# ---- L1 / L2 / L3 thin wrappers around existing primitives ----------------
+
+
+def _run_l1(req: SolveTrizLayeredRequest) -> L1Surface:
+    """Run the L1 (TC) layer — wraps existing _solve_tc primitive."""
+    if not (req.improving_param and req.worsening_param):
+        return L1Surface(
+            improving_param=req.improving_param,
+            worsening_param=req.worsening_param,
+            candidate_principles=[],
+            suggestions=[],
+            critic_trigger_l2=True,
+            critic_reason="缺 improving/worsening 參數，L1 無法跑，直接建議深挖 PC",
+            critic_confidence=0.9,
+            status="error",
+        )
+
+    tc_req = TrizLookupRequest(
+        project_id=req.project_id,
+        contradiction_id=req.contradiction_id,
+        natural_description=req.natural_description,
+        improving_param=req.improving_param,
+        worsening_param=req.worsening_param,
+        type="TC",
+    )
+    tc_resp = _solve_tc(tc_req)
+    return L1Surface(
+        improving_param=tc_resp.mapped_improving or req.improving_param,
+        worsening_param=tc_resp.mapped_worsening or req.worsening_param,
+        candidate_principles=list(tc_resp.candidate_principles),
+        suggestions=list(tc_resp.suggestions),
+        status="ran",
+    )
+
+
+def _run_l2(req: SolveTrizLayeredRequest, l1: L1Surface) -> L2RootCause:
+    """Run the L2 (PC) layer with an ARIZ deepen_link from L1."""
+    deepen = _derive_pc_from_tc(
+        natural_description=req.natural_description,
+        improving=l1.improving_param,
+        worsening=l1.worsening_param,
+    )
+
+    # Build a synthetic PC problem statement if RD did not provide one
+    pc_statement = (
+        req.physical_contradiction
+        or deepen.contradiction_statement
+        or req.natural_description
+    )
+    pc_req = TrizLookupRequest(
+        project_id=req.project_id,
+        contradiction_id=req.contradiction_id,
+        natural_description=req.natural_description,
+        physical_contradiction=pc_statement,
+        type="PC",
+    )
+    try:
+        pc_resp = _solve_pc(pc_req)
+        suggestions = list(pc_resp.suggestions)
+        status = "ran"
+    except Exception as exc:
+        logger.warning("L2 _solve_pc failed: %s", exc)
+        suggestions = []
+        status = "error"
+
+    return L2RootCause(
+        triggered=True,
+        trigger_reason="",  # populated by orchestrator
+        deepen_link=deepen,
+        suggestions=suggestions,
+        status=status,
+    )
+
+
+def _run_l3(req: SolveTrizLayeredRequest) -> L3StructuralCheck:
+    """Run the L3 (SF) layer — always parallel, role=structural_lens."""
+    sf_req = TrizLookupRequest(
+        project_id=req.project_id,
+        contradiction_id=req.contradiction_id,
+        natural_description=req.natural_description,
+        sf_substance_1=req.sf_substance_1,
+        sf_substance_2=req.sf_substance_2,
+        sf_field=req.sf_field,
+        type="SF",
+    )
+    try:
+        sf_resp = _solve_sf(sf_req)
+    except Exception as exc:
+        logger.warning("L3 _solve_sf failed: %s — L3 degrades to empty", exc)
+        return L3StructuralCheck(status="error")
+
+    # Extract standard_ids from suggestions (principle_name format: "<id> <name>")
+    matched_ids: list[str] = []
+    for s in sf_resp.suggestions:
+        head = (s.principle_name or "").split(" ", 1)[0]
+        if head and head[0].isdigit():
+            matched_ids.append(head)
+
+    # Try to fetch su-field model from SuFieldResponse via analyze_sufield for richness
+    su_field_req = SuFieldRequest(
+        project_id=req.project_id,
+        system_description=req.natural_description,
+        current_issues=[req.natural_description],
+        contradiction_id=req.contradiction_id,
+        substance_1=req.sf_substance_1,
+        substance_2=req.sf_substance_2,
+        field_type=req.sf_field,
+    )
+    try:
+        sf_full = analyze_sufield(su_field_req)
+        su_field_model = SuFieldModel(
+            S1=str(sf_full.su_field.get("S1") or ""),
+            S2=str(sf_full.su_field.get("S2") or ""),
+            F=str(sf_full.su_field.get("F") or ""),
+            state=sf_full.system_state if sf_full.system_state in
+                {"incomplete", "effective", "harmful", "insufficient", "unknown"}
+                else "unknown",
+        )
+    except Exception as exc:
+        logger.debug("L3 su_field enrichment failed: %s", exc)
+        su_field_model = SuFieldModel(state="unknown")
+
+    return L3StructuralCheck(
+        su_field_model=su_field_model,
+        matched_standard_solutions=matched_ids,
+        suggestions=list(sf_resp.suggestions),
+        status="ran",
+    )
+
+
+def _run_differential_analysis(
+    req: SolveTrizLayeredRequest,
+    l1: L1Surface,
+    l2: L2RootCause | None,
+    l3: L3StructuralCheck,
+) -> DifferentialAnalysis:
+    """LLM-generated cross-layer differential + recommended_route (§5)."""
+
+    def _layer_block(layer_name: str, suggestions: list, extra: str = "") -> str:
+        bullets = "\n".join(f"  - {s.principle_name}: {s.suggestion}" for s in (suggestions or []))
+        return f"{layer_name}: {extra}\n{bullets or '  (無)'}"
+
+    l1_block = _layer_block(
+        "L1 (TC)",
+        l1.suggestions,
+        f"depth={l1.depth_indicator}, principles={l1.candidate_principles}",
+    )
+    if l2 and l2.status == "ran":
+        l2_block = _layer_block(
+            "L2 (PC)",
+            l2.suggestions,
+            f"deepen_link.param={l2.deepen_link.derived_physical_parameter if l2.deepen_link else ''}",
+        )
+    else:
+        l2_block = "L2: skipped or not triggered"
+    l3_block = _layer_block(
+        "L3 (SF)",
+        l3.suggestions,
+        f"state={l3.su_field_model.state}, matched={l3.matched_standard_solutions}",
+    )
+
+    prompt = DIFFERENTIAL_ANALYSIS_PROMPT.format(
+        natural_description=req.natural_description,
+        severity=req.severity,
+        l1_block=l1_block,
+        l2_block=l2_block,
+        l3_block=l3_block,
+    )
+    try:
+        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
+        data = json.loads(raw) if raw and raw.strip() else {}
+    except (json.JSONDecodeError, Exception) as exc:
+        logger.warning("differential_analysis LLM failed: %s — using rule fallback", exc)
+        data = {}
+
+    def _pair(d):
+        try:
+            return DifferentialPairAnalysis.model_validate(d or {})
+        except Exception:
+            return DifferentialPairAnalysis()
+
+    # Rule-based recommended_route fallback (§5.2)
+    def _fallback_route() -> RecommendedRoute:
+        has_l2 = bool(l2 and l2.status == "ran")
+        has_l3 = bool(l3 and l3.status == "ran")
+        if has_l2 and req.severity in {"fatal", "major"} and has_l3:
+            return RecommendedRoute(
+                primary="L2 + L3 組合（突破路線）",
+                fallback="L1 單獨（快速路線）",
+                adopted_layers=["L2", "L3"],
+                rationale=f"severity={req.severity}，L2 深挖可行且 L3 可補結構旁路",
+            )
+        if has_l2 and req.severity == "minor":
+            return RecommendedRoute(
+                primary="L1 + L3",
+                fallback="L2 單獨",
+                adopted_layers=["L1", "L3"] if has_l3 else ["L1"],
+                rationale="severity=minor，避免過度深挖",
+            )
+        return RecommendedRoute(
+            primary="L1 + L3" if has_l3 else "L1 單獨",
+            fallback="L1 單獨",
+            adopted_layers=["L1", "L3"] if has_l3 else ["L1"],
+            rationale="L2 未觸發，走 L1+L3 組合",
+        )
+
+    route_data = data.get("recommended_route")
+    try:
+        route = RecommendedRoute.model_validate(route_data) if route_data else _fallback_route()
+    except Exception:
+        route = _fallback_route()
+
+    # Apply L3 bridge text back onto the L3 layer object
+    bridge = data.get("l3_bridge") or {}
+    if isinstance(bridge, dict):
+        l3.supports_l1 = str(bridge.get("supports_l1") or l3.supports_l1)
+        l3.supports_l2 = str(bridge.get("supports_l2") or l3.supports_l2)
+        l3.standalone_value = str(bridge.get("standalone_value") or l3.standalone_value or "L3 結構旁路本身可獨立改善系統")
+
+    return DifferentialAnalysis(
+        l1_vs_l2=_pair(data.get("l1_vs_l2")),
+        l1_vs_l3=_pair(data.get("l1_vs_l3")),
+        l2_vs_l3=_pair(data.get("l2_vs_l3")),
+        recommended_route=route,
+    )
+
+
+def _should_trigger_l2(
+    req: SolveTrizLayeredRequest,
+    l1: L1Surface,
+) -> tuple[bool, str]:
+    """L2 trigger decision (WBS 3.4 / 4.1 / 4.2).
+
+    Order (first match wins):
+      1. quick_mode + severity=minor → skip (quick_mode guard).
+      2. force_l2 → trigger (RD manual override).
+      3. severity ∈ {fatal, major} → trigger automatically.
+      4. L1 critic_trigger_l2 with confidence ≥ 0.5 → trigger.
+      5. otherwise → skip.
+
+    Returns (should_trigger, reason_for_decision).
+    """
+    if req.quick_mode and req.severity == "minor":
+        return False, "quick_mode skipped (severity=minor)"
+    if req.force_l2:
+        return True, "RD manual override (force_l2=true)"
+    if req.severity in {"fatal", "major"}:
+        return True, f"severity={req.severity} → 預設深挖"
+    if l1.critic_trigger_l2 and l1.critic_confidence >= 0.5:
+        return True, f"L1 critic: {l1.critic_reason}"
+    if l1.critic_trigger_l2 and l1.critic_confidence < 0.5:
+        return False, f"L1 critic 低信心 ({l1.critic_confidence:.2f})，改由 RD 手動決定"
+    return False, "L1 已足夠深入，不需深挖"
+
+
+def _build_lts_id(project_id: str, contradiction_id: str) -> str:
+    cid = contradiction_id.replace("C-", "").strip() or "UNKNOWN"
+    return f"LTS-{cid}"
+
+
+def solve_triz_layered(req: SolveTrizLayeredRequest) -> SolveTrizLayeredResponse:
+    """Orchestrate the three-layer drill-down TRIZ solution for ONE contradiction.
+
+    Pipeline (§4):
+        L1 (TC, always)  →  critic  →  maybe L2 (PC, deepen_link)
+                            │
+                            └─→  L3 (SF, always, structural_lens, in parallel)
+                                      │
+                                      └─→  differential_analysis (LLM)
+
+    The three primitives `_solve_tc` / `_solve_pc` / `_solve_sf` are reused
+    unchanged; this function is a thin orchestrator (§9.1).
+    """
+    with phase_timer("solve_triz_layered"):
+        # L1 — always
+        l1 = _run_l1(req)
+
+        # L1 critic (skip if L1 errored on missing params)
+        if l1.status == "ran":
+            trig, reason, conf = _l1_critic(
+                natural_description=req.natural_description,
+                improving=l1.improving_param,
+                worsening=l1.worsening_param,
+                candidate_principles=l1.candidate_principles,
+                l1_suggestions=l1.suggestions,
+            )
+            l1.critic_trigger_l2 = trig
+            l1.critic_reason = reason
+            l1.critic_confidence = conf
+
+        # L2 — conditional
+        should_l2, l2_reason = _should_trigger_l2(req, l1)
+        if should_l2:
+            l2 = _run_l2(req, l1)
+            l2.trigger_reason = l2_reason
+        else:
+            l2 = L2RootCause(
+                triggered=False,
+                trigger_reason=l2_reason,
+                deepen_link=None,
+                suggestions=[],
+                status="skipped_quick_mode"
+                if (req.quick_mode and req.severity == "minor")
+                else "skipped_condition",
+            )
+
+        # L3 — always (parallel-in-spirit; currently sequential to keep the
+        # LLM client simple, but causally independent of L1/L2)
+        l3 = _run_l3(req)
+
+        # Differential analysis
+        diff = _run_differential_analysis(req, l1, l2 if l2.status == "ran" else None, l3)
+
+        lts = LayeredTrizSolution(
+            id=_build_lts_id(req.project_id, req.contradiction_id),
+            project_id=req.project_id,
+            contradiction_id=req.contradiction_id,
+            contradiction_natural_description=req.natural_description,
+            severity=req.severity,
+            l1_surface=l1,
+            l2_root_cause=l2 if (l2.status == "ran" or l2.triggered) else None,
+            l3_structural_check=l3,
+            differential_analysis=diff,
+            phase_b_directive=PhaseBDirective(),  # defaults: intra-LTS skip, cross-contradiction check
+        )
+        emit_counter(
+            "triz_layered_solved",
+            severity=req.severity,
+            l2_ran=str(l2.status == "ran").lower(),
+            quick_mode=str(req.quick_mode).lower(),
+        )
+        return SolveTrizLayeredResponse(layered_solution=lts)
 
 
 def _resolve_spatial_via_layers(
@@ -437,11 +919,72 @@ class IncompleteLLMResponseError(Exception):
         }
 
 
+def _format_contracts_for_scamper_prompt(contracts: dict) -> str:
+    """Render the RD-confirmed interface_contracts dict into a compact XML-ish
+    block that the LLM can read alongside the related_contradictions.
+
+    Falls back to a single line stating that no structured contracts were
+    provided so the prompt stays grammatically consistent when the FE hasn't
+    sent any (e.g. legacy callers, or a subsystem the LLM never produced
+    contracts for). WBS 10.1 — F3 SCAMPER contract consumption.
+    """
+    if not contracts:
+        return "<interface_contracts>（未提供結構化契約，僅依矛盾生成）</interface_contracts>"
+
+    lines = ["<interface_contracts>"]
+    for neighbour in sorted(contracts.keys()):
+        c = contracts[neighbour]
+        # c is an InterfaceContract pydantic model OR a plain dict (after
+        # model_validate both shapes work identically via attribute access).
+        get = (lambda k: getattr(c, k, "") or "") if hasattr(c, "envelope") else (lambda k: c.get(k, "") or "")
+        parts = [
+            f"envelope: {get('envelope')}",
+            f"loadPath: {get('loadPath')}",
+            f"thermalPath: {get('thermalPath')}",
+            f"signalPath: {get('signalPath')}",
+            f"datumTolerance: {get('datumTolerance')}",
+            f"serviceability: {get('serviceability')}",
+        ]
+        spatial = getattr(c, "spatial", None) if hasattr(c, "envelope") else c.get("spatial")
+        if spatial is not None:
+            bbox = getattr(spatial, "bbox", None) if hasattr(spatial, "bbox") else spatial.get("bbox")
+            mass_g = getattr(spatial, "mass_g", None) if hasattr(spatial, "mass_g") else spatial.get("mass_g")
+            if bbox is not None:
+                x = getattr(bbox, "x_mm", None) if hasattr(bbox, "x_mm") else bbox.get("x_mm")
+                y = getattr(bbox, "y_mm", None) if hasattr(bbox, "y_mm") else bbox.get("y_mm")
+                z = getattr(bbox, "z_mm", None) if hasattr(bbox, "z_mm") else bbox.get("z_mm")
+                parts.append(f"spatial: {x}x{y}x{z} mm / {mass_g or 0} g")
+            elif mass_g is not None:
+                parts.append(f"spatial: - / {mass_g} g")
+        lines.append(f"↔ {neighbour} ({' | '.join(parts)})")
+    lines.append("</interface_contracts>")
+    return "\n".join(lines)
+
+
 def scamper_transform(req: ScamperRequest) -> ScamperResponse:
+    # WBS 10.1 telemetry: track whether callers are passing structured
+    # contracts and whether they send the companion hash. FE should always
+    # send the hash once wave-6 ships; the counter lets us spot stragglers.
+    emit_counter(
+        "scamper.contracts_provided",
+        value=1,
+        has_contracts=bool(req.interface_contracts),
+        project_id=req.project_id,
+    )
+    if req.interface_contracts and not req.contracts_hash:
+        emit_counter(
+            "scamper.hash_missing",
+            value=1,
+            project_id=req.project_id,
+            subsystem_name=req.subsystem_name,
+        )
+
+    interface_contracts_block = _format_contracts_for_scamper_prompt(req.interface_contracts)
     prompt = SCAMPER_TRANSFORM.format(
         subsystem_name=req.subsystem_name,
         subsystem_description=req.subsystem_description,
         related_contradictions="\n".join(f"- {c}" for c in req.related_contradictions),
+        interface_contracts_block=interface_contracts_block,
     )
     raw = call_llm_json(TRIZ_SOLVER_SYSTEM, prompt)
     data = json.loads(raw)

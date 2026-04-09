@@ -132,6 +132,176 @@ The "principle_name" field MUST be one of the following exactly:
 """
 
 # ---------------------------------------------------------------------------
+# Layered Drill-Down (v7) — L1 Critic + L2 Deepen_link + Differential Analysis
+# Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §4.1–§4.4, §5, §7
+# ---------------------------------------------------------------------------
+
+L1_CRITIC_PROMPT = """\
+<task>
+Critically evaluate whether a set of TC (Technical Contradiction) suggestions \
+merely trades off the conflict, or genuinely resolves its physical root cause.
+</task>
+
+<context>
+<contradiction>{natural_description}</contradiction>
+<tc_pair>improving #{improving} vs worsening #{worsening}</tc_pair>
+<candidate_principles>{candidate_principles}</candidate_principles>
+<l1_suggestions>
+{l1_suggestions}
+</l1_suggestions>
+</context>
+
+<instructions>
+You are an ARIZ-style critic. Judge the L1 suggestions against this rubric:
+
+- **trade-off 折衷**: The suggestion only rebalances the two conflicting parameters \
+  (e.g. accept slightly worse #17 in exchange for slightly better #21). It does \
+  NOT redefine the operating envelope. The physical conflict still exists.
+- **根因突破**: The suggestion removes the conflict at the physics level — either \
+  by splitting the problem across time/space/condition/whole-part (separation), \
+  by introducing a phase change, by crossing into a different operating regime, \
+  or by re-architecting the energy path so the two parameters are no longer coupled.
+
+Decide:
+1. Are ALL L1 suggestions merely trade-offs? → trigger_l2 = true, high confidence.
+2. Does AT LEAST ONE suggestion already achieve 根因突破? → trigger_l2 = false.
+3. Ambiguous or mixed? → trigger_l2 = true, confidence < 0.6 so the UI can let the RD decide.
+
+Respond in 繁體中文 for `reason`.
+</instructions>
+
+<output_schema>
+{{
+  "trigger_l2": true,
+  "reason": "四條建議皆屬折衷修補，未改變功率與溫度的物理耦合。",
+  "confidence": 0.88
+}}
+</output_schema>
+"""
+
+DEEPEN_LINK_DERIVE_PROMPT = """\
+<task>
+Apply ARIZ-style deepening: transform a Technical Contradiction (TC) between two \
+engineering parameters into a Physical Contradiction (PC) on a single physical \
+quantity, and propose which separation principle(s) can resolve it.
+</task>
+
+<context>
+<contradiction>{natural_description}</contradiction>
+<tc_pair>
+  improving_param: #{improving} {improving_name}
+  worsening_param: #{worsening} {worsening_name}
+</tc_pair>
+</context>
+
+<instructions>
+1. Identify the single **physical quantity** whose two required values create the \
+   conflict. Examples:
+     - (#1 weight, #14 strength) → cross-section thickness t (must be large & small)
+     - (#21 power, #17 temperature) → instantaneous power P(t) (must be high & low)
+     - (#9 speed, #13 stability) → centre-of-gravity height h_cg
+   The quantity MUST be a real, measurable physical property, NOT a product feature.
+
+2. State the physical contradiction as: "<param> must <A> AND must <B>".
+
+3. For each of the 4 separation principles (time, space, condition, whole_part), \
+   decide whether it applies and with what confidence (0.0–1.0):
+     - time:       the two required values occur at different moments
+     - space:      at different locations on the same object
+     - condition:  under different external conditions (temperature, load, field)
+     - whole_part: whole requires one value, local parts require the other
+
+4. Only include separation types with confidence ≥ 0.4. At least one type MUST be \
+   present. Rank by confidence (highest first).
+
+Respond in 繁體中文 for all free-text fields. Keep physics names in English.
+</instructions>
+
+<output_schema>
+{{
+  "derived_physical_parameter": "瞬時功率 P(t)",
+  "contradiction_statement": "P(t) 必須 ≥ P_peak（爬坡）且必須 ≤ P_thermal（散熱上限）",
+  "separation_type_candidates": [
+    {{"type": "time", "confidence": 0.85, "rationale": "爬坡 10 秒允許 P_peak，巡航降回 P_thermal"}},
+    {{"type": "condition", "confidence": 0.62, "rationale": "溫度 <100°C 時允許高功率"}}
+  ]
+}}
+</output_schema>
+"""
+
+DIFFERENTIAL_ANALYSIS_PROMPT = """\
+<task>
+Synthesise a cross-layer differential analysis for a LayeredTrizSolution — \
+comparing L1 (phenomenon, TC), L2 (root cause, PC) and L3 (structural, SF) — \
+and recommend a drill-down route (primary + fallback).
+</task>
+
+<context>
+<contradiction>{natural_description}</contradiction>
+<severity>{severity}</severity>
+<l1>
+{l1_block}
+</l1>
+<l2>
+{l2_block}
+</l2>
+<l3>
+{l3_block}
+</l3>
+</context>
+
+<instructions>
+1. For each pair (L1↔L2, L1↔L3, L2↔L3) write a short Traditional-Chinese comparison:
+   - L1 vs L2: on_solving_degree (L1 only optimises, L2 removes root cause), \
+     on_effort, on_risk.
+   - L1 vs L3: orthogonality (time/space vs energy path).
+   - L2 vs L3: synergy (how the two reinforce each other; quantify if possible).
+
+2. Decide **recommended_route**:
+   - If L2 exists AND severity ∈ {{fatal, major}} AND L3 supports L2 → \
+     primary = "L2 + L3 組合（突破路線）", fallback = "L1 單獨（快速路線）".
+   - If L2 exists but severity = minor → primary = "L1 + L3", fallback = "L2 單獨".
+   - If L2 skipped → primary = "L1 + L3", fallback = "L1 單獨".
+   - Always populate `adopted_layers` with the LAYER IDs that make up the primary \
+     route ("L1" / "L2" / "L3").
+
+3. `rationale` (繁中): justify the route in 1–2 sentences, citing severity, \
+   evidence floor, and cross-layer synergy.
+
+4. Also write L3's bridge text (supports_l1 / supports_l2 / standalone_value). \
+   standalone_value MUST always be non-empty — L3 is a structural_lens that \
+   always has independent value.
+</instructions>
+
+<output_schema>
+{{
+  "l1_vs_l2": {{
+    "on_solving_degree": "L1 在既有 trade-off 上優化 10-15%；L2 以時間分離消除主矛盾",
+    "on_effort": "L1 小改 BOM；L2 需新增感測與韌體",
+    "on_risk": "L1 低；L2 需驗證感測可靠度"
+  }},
+  "l1_vs_l3": {{
+    "orthogonality": "L1 處理「何時冷卻」，L3 處理「熱如何傳」，互補不衝突"
+  }},
+  "l2_vs_l3": {{
+    "synergy": "L2 時間分離 + L3 熱管緩衝 → 峰值窗口 +40%"
+  }},
+  "recommended_route": {{
+    "primary": "L2 + L3 組合（突破路線）",
+    "fallback": "L1 單獨（快速路線）",
+    "adopted_layers": ["L2", "L3"],
+    "rationale": "severity=major，RD 階段有韌體資源，L3 熱管對 BOM 影響可控"
+  }},
+  "l3_bridge": {{
+    "supports_l1": "為脈衝冷卻提供熱容緩衝",
+    "supports_l2": "延長峰值功率窗口 +40%",
+    "standalone_value": "即使不採 L1/L2，本身改善 15%"
+  }}
+}}
+</output_schema>
+"""
+
+# ---------------------------------------------------------------------------
 # SCAMPER Transform
 # ---------------------------------------------------------------------------
 
@@ -148,6 +318,7 @@ Apply the SCAMPER creative-transformation method to the subsystem below.
 <related_contradictions>
 {related_contradictions}
 </related_contradictions>
+{interface_contracts_block}
 </context>
 
 <instructions>
@@ -162,6 +333,10 @@ For each of the 7 SCAMPER actions, propose a concrete transformation:
 7. **Reverse** — Invert a sequence, direction, or role.
 
 For each transformation: state the benefit AND any new contradiction it may introduce.
+
+任何 transformation 都必須聲明它是否保留 / 修改 / 打破某一個介面契約維度 \
+(`envelope/loadPath/thermalPath/signalPath/datumTolerance/serviceability/spatial`)。\
+若打破，列入 `new_contradiction`。
 </instructions>
 
 <output_schema>

@@ -509,6 +509,167 @@ class SuFieldResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Step 5a-X: LayeredTrizSolution — drill-down (L1 TC / L2 PC / L3 SF)
+#
+# Ref: docs/e2e/TRIZ_Layered_DrillDown_Optimization.md §5
+#      docs/e2e/TRIZ_Multi_Solution_Adoption_Strategy.md v1.1 §2 M6
+#      docs/diagrams/create-ux-spec.md v7 Tab ① 區塊 B
+#
+# Frozen enums (WBS 1.2):
+#   LayerRole: phenomenon | root_cause | structural_lens
+#   DepthIndicator: "trade-off 改良" | "根因突破" | "功能鏈缺陷修補"
+#   SeparationType: time | space | condition | whole_part
+# ---------------------------------------------------------------------------
+
+LayerRole = Literal["phenomenon", "root_cause", "structural_lens"]
+DepthIndicator = Literal["trade-off 改良", "根因突破", "功能鏈缺陷修補"]
+SeparationType = Literal["time", "space", "condition", "whole_part"]
+EvidenceLevelFloor = Literal["E0", "E1", "E2", "E3", "E4"]
+LayerStatus = Literal["ran", "skipped_quick_mode", "skipped_condition", "error"]
+
+
+class L1Surface(BaseModel):
+    """L1 — TC 現象層（永遠跑）。"""
+    layer_role: LayerRole = "phenomenon"
+    type: Literal["TC"] = "TC"
+    improving_param: int | None = None
+    worsening_param: int | None = None
+    candidate_principles: list[int] = Field(default_factory=list)
+    suggestions: list[TrizSuggestion] = Field(default_factory=list)
+    depth_indicator: DepthIndicator = "trade-off 改良"
+    evidence_level_floor: EvidenceLevelFloor = "E1"
+    # critic output (WBS 4.1)
+    critic_trigger_l2: bool = False
+    critic_reason: str = ""
+    critic_confidence: float = 0.0
+    status: LayerStatus = "ran"
+
+
+class SeparationCandidate(BaseModel):
+    type: SeparationType
+    rationale: str = ""
+    confidence: float = 0.0
+
+
+class DeepenLink(BaseModel):
+    """ARIZ 深挖：從 L1 TC 對推導出 L2 PC 的 (derived_parameter + separation types)."""
+    from_layer: Literal["L1_surface"] = "L1_surface"
+    from_tc_pair: tuple[int | None, int | None] = (None, None)
+    derived_physical_parameter: str = ""
+    contradiction_statement: str = ""
+    separation_type_candidates: list[SeparationCandidate] = Field(default_factory=list)
+
+
+class L2RootCause(BaseModel):
+    """L2 — PC 本質層（有條件跑）。"""
+    layer_role: LayerRole = "root_cause"
+    type: Literal["PC"] = "PC"
+    triggered: bool = False
+    trigger_reason: str = ""
+    deepen_link: DeepenLink | None = None
+    suggestions: list[TrizSuggestion] = Field(default_factory=list)
+    depth_indicator: DepthIndicator = "根因突破"
+    evidence_level_floor: EvidenceLevelFloor = "E1"
+    status: LayerStatus = "skipped_condition"
+
+
+class SuFieldModel(BaseModel):
+    S1: str = ""
+    S2: str = ""
+    F: str = ""
+    state: Literal["incomplete", "effective", "harmful", "insufficient", "unknown"] = "unknown"
+
+
+class L3StructuralCheck(BaseModel):
+    """L3 — SF 結構層（永遠跑，角色=structural_lens 旁路）。"""
+    layer_role: LayerRole = "structural_lens"
+    type: Literal["SF"] = "SF"
+    su_field_model: SuFieldModel = Field(default_factory=SuFieldModel)
+    matched_standard_solutions: list[str] = Field(default_factory=list)
+    suggestions: list[TrizSuggestion] = Field(default_factory=list)
+    # LLM-produced bridge text (WBS 5.3)
+    supports_l1: str = ""
+    supports_l2: str = ""
+    standalone_value: str = ""
+    depth_indicator: DepthIndicator = "功能鏈缺陷修補"
+    evidence_level_floor: EvidenceLevelFloor = "E1"
+    status: LayerStatus = "ran"
+
+
+class DifferentialPairAnalysis(BaseModel):
+    on_solving_degree: str = ""
+    on_effort: str = ""
+    on_risk: str = ""
+    orthogonality: str = ""
+    synergy: str = ""
+
+
+class RecommendedRoute(BaseModel):
+    primary: str = ""          # e.g. "L2 + L3 組合（突破路線）"
+    fallback: str = ""         # e.g. "L1 單獨（快速路線）"
+    adopted_layers: list[Literal["L1", "L2", "L3"]] = Field(default_factory=list)
+    rationale: str = ""
+
+
+class DifferentialAnalysis(BaseModel):
+    """跨層差異分析 — 由 LLM 在 orchestrator 最後一步產生。"""
+    l1_vs_l2: DifferentialPairAnalysis = Field(default_factory=DifferentialPairAnalysis)
+    l1_vs_l3: DifferentialPairAnalysis = Field(default_factory=DifferentialPairAnalysis)
+    l2_vs_l3: DifferentialPairAnalysis = Field(default_factory=DifferentialPairAnalysis)
+    recommended_route: RecommendedRoute = Field(default_factory=RecommendedRoute)
+
+
+class PhaseBDirective(BaseModel):
+    """指示 Phase B 掃描如何處理同一 LTS 內的多層採納。"""
+    same_contradiction_intra_layer_conflict: Literal["skip", "check"] = "skip"
+    cross_contradiction_conflict: Literal["skip", "check"] = "check"
+
+
+class LayeredTrizSolution(BaseModel):
+    """v7: 一個矛盾對應一張分層診斷卡（L1 + L2? + L3 + differential）。
+
+    取代舊設計的「每矛盾三條 pending 候選」，改為一個堆疊診斷單元。
+    Schema 對齊 TRIZ_Layered_DrillDown_Optimization.md §5。
+    """
+    id: str                                     # e.g. "LTS-EBIKE-012"
+    project_id: str
+    contradiction_id: str
+    contradiction_natural_description: str = ""
+    severity: Literal["fatal", "major", "minor", "unknown"] = "unknown"
+
+    l1_surface: L1Surface
+    l2_root_cause: L2RootCause | None = None    # None → 未跑（condition 未達 或 quick_mode 跳過）
+    l3_structural_check: L3StructuralCheck
+
+    differential_analysis: DifferentialAnalysis = Field(default_factory=DifferentialAnalysis)
+    phase_b_directive: PhaseBDirective = Field(default_factory=PhaseBDirective)
+
+
+class SolveTrizLayeredRequest(BaseModel):
+    """POST /triz/solve-layered — 單矛盾版本（orchestrator 會遍歷多矛盾時呼叫 N 次）。"""
+    project_id: str
+    contradiction_id: str
+    natural_description: str
+    severity: Literal["fatal", "major", "minor", "unknown"] = "unknown"
+    # TC inputs
+    improving_param: int | None = None
+    worsening_param: int | None = None
+    # PC inputs (若 RD 手動提供，會覆寫 deepen_link 推導)
+    physical_contradiction: str | None = None
+    # SF inputs (直接傳遞給 _solve_sf)
+    sf_substance_1: str | None = None
+    sf_substance_2: str | None = None
+    sf_field: str | None = None
+    # Control flags (WBS 3.5 / 3.6)
+    quick_mode: bool = False         # severity=minor + quick_mode=true → L2 skipped
+    force_l2: bool = False           # RD 手動要求深挖，覆蓋所有條件
+
+
+class SolveTrizLayeredResponse(BaseModel):
+    layered_solution: LayeredTrizSolution
+
+
+# ---------------------------------------------------------------------------
 # Step 5c: SCAMPER
 # ---------------------------------------------------------------------------
 
@@ -517,6 +678,20 @@ class ScamperRequest(BaseModel):
     subsystem_name: str
     subsystem_description: str
     related_contradictions: list[str] = Field(default_factory=list)
+    # RD-confirmed structured 6-dim contracts, keyed by neighbour. Optional
+    # for backward-compat: scamper_transform degrades gracefully to the
+    # contradiction-only prompt when the dict is empty. When populated, the
+    # LLM is instructed to declare which contract dimension each variant
+    # preserves / modifies / breaks (WBS 10.1 — F3 reads RD-confirmed
+    # interface contracts so creative transformations respect boundaries).
+    interface_contracts: dict[str, "InterfaceContract"] = Field(default_factory=dict)
+    # Short stable fingerprint of the confirmed contract snapshot at the
+    # moment RD confirmed the subsystem. Not cryptographic — FE uses a
+    # djb2-style hash. If the FE later detects edits (hash mismatch) it
+    # blocks SCAMPER and forces re-confirm. The backend logs any inbound
+    # request whose hash is missing when contracts are present so we have
+    # a paper trail of clients that need updating.
+    contracts_hash: str = ""
 
 
 class ScamperVariant(BaseModel):
@@ -1137,3 +1312,12 @@ class WrittenAsset(BaseModel):
 class KnowledgeWritebackResponse(BaseModel):
     written_count: int
     assets: list[WrittenAsset] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Forward-reference resolution
+# ---------------------------------------------------------------------------
+# ScamperRequest references InterfaceContract (defined later in this file),
+# so we rebuild the model here once all symbols are in scope. Without this,
+# Pydantic v2 may fail to resolve the string annotation at validation time.
+ScamperRequest.model_rebuild()

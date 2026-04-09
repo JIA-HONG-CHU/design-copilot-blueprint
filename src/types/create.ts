@@ -81,6 +81,13 @@ export interface Subsystem {
   interfaceContracts?: InterfaceContractMap;
   source: SubsystemSource;
   createdAt?: string;
+  /**
+   * Snapshot hash of `interfaceContracts` captured at the moment RD confirmed
+   * the subsystem. Local-session state only (not persisted to Supabase in
+   * Wave 6 — see WBS 10.1). Used by the SCAMPER page to detect contract
+   * drift after confirmation and force re-confirm before regenerating.
+   */
+  confirmedContractsHash?: string;
 }
 
 // SCAMPER

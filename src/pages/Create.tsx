@@ -76,6 +76,7 @@ import {
   useUpdateSubsystem,
   useDeleteSubsystem,
   useScamperVariants,
+  useCreateScamperVariant,
   useUpdateScamperVariant,
   useAlternatives,
   useCreateAlternative,
@@ -88,6 +89,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTrackAssumptions } from "@/hooks/api/useTrack";
 import { useBrief, useConstraints, useKpis } from "@/hooks/api/useBrief";
 import { antiAnchorGenerate, trizSolve, scamperTransform, riskAnalyze, mustEvaluate, validationPassportGenerate, scamperSpatialOverlay, spatialComponentOverride, spatialLearnedComponent } from "@/lib/api";
+import { hashContracts, isContractDriftedSinceConfirm } from "@/lib/subsystemHash";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/api/useQueryConfig";
 import type { SpatialEstimate, BBox } from "@/types/generated/subsystem";
@@ -219,6 +221,7 @@ export default function Create() {
   const createSubsystem = useCreateSubsystem();
   const updateSubsystemMut = useUpdateSubsystem();
   const deleteSubsystemMut = useDeleteSubsystem();
+  const createScamperVariantMut = useCreateScamperVariant();
   const updateScamperVariant = useUpdateScamperVariant();
   const createAlternative = useCreateAlternative();
   const updateAlternativeMut = useUpdateAlternative();
@@ -618,8 +621,21 @@ export default function Create() {
   const toggleSubsystem = (ssId: string) => {
     const ss = subsystems.find(s => s.id === ssId);
     if (!ss) return;
-    setLocalSubsystems((prev) => prev.map((s) => (s.id === ssId ? { ...s, confirmed: !s.confirmed } : s)));
-    updateSubsystemMut.mutate({ id: ssId, confirmed: !ss.confirmed });
+    const nextConfirmed = !ss.confirmed;
+    // WBS 10.1: when RD flips to confirmed, snapshot the current interface
+    // contract hash into local session state so the SCAMPER page can detect
+    // post-confirmation edits. When flipping back to unconfirmed, clear it.
+    // The mutation hook does not round-trip this field, so it's purely
+    // in-memory — acceptable for Wave 6 per the architecture note.
+    const nextHash = nextConfirmed ? hashContracts(ss.interfaceContracts) : '';
+    setLocalSubsystems((prev) =>
+      prev.map((s) =>
+        s.id === ssId
+          ? { ...s, confirmed: nextConfirmed, confirmedContractsHash: nextHash }
+          : s,
+      ),
+    );
+    updateSubsystemMut.mutate({ id: ssId, confirmed: nextConfirmed });
   };
   const addSubsystem = () => {
     if (!id || !ssFormName.trim()) { toast.error("請輸入子系統名稱"); return; }
@@ -938,6 +954,78 @@ export default function Create() {
     if (!sv) return;
     setLocalScamperVariants((prev) => prev.map((v) => (v.id === svId ? { ...v, adopted: !v.adopted } : v)));
     updateScamperVariant.mutate({ id: svId, adopted: !sv.adopted });
+  };
+
+  // WBS 10.1: RD re-confirms a subsystem after editing contracts. Refreshes
+  // the stored hash to the current contract snapshot and clears any
+  // previously-generated SCAMPER variants for that subsystem from local
+  // state (they were computed against the stale contract boundary). We do
+  // NOT delete the rows from Supabase because there's no delete hook yet;
+  // the local clear is sufficient for within-session drift detection.
+  const reconfirmSubsystemContracts = (ssId: string) => {
+    const ss = subsystems.find((s) => s.id === ssId);
+    if (!ss) return;
+    const newHash = hashContracts(ss.interfaceContracts);
+    setLocalSubsystems((prev) =>
+      prev.map((s) =>
+        s.id === ssId ? { ...s, confirmedContractsHash: newHash } : s,
+      ),
+    );
+    setLocalScamperVariants((prev) => prev.filter((v) => v.subsystemId !== ssId));
+    toast.success('契約已重新確認，舊 SCAMPER 變形已清除');
+  };
+
+  // WBS 10.1: generate SCAMPER variants for a single confirmed subsystem.
+  // Passes the RD-confirmed 6-dim interface_contracts + stable hash so the
+  // backend can surface contract-respecting transformations and log any
+  // drift between what the FE considers confirmed and what lands on the
+  // server.
+  const SCAMPER_ACTION_LETTER: Record<string, ScamperAction> = {
+    substitute: 'S', combine: 'C', adapt: 'A', modify: 'M',
+    put_to_other_use: 'P', eliminate: 'E', reverse: 'R',
+  };
+  const handleGenerateScamperForSubsystem = async (ssId: string) => {
+    const ss = subsystems.find((s) => s.id === ssId);
+    if (!id || !ss) return;
+    if (isContractDriftedSinceConfirm(ss)) {
+      toast.error('介面契約已變更，請先重新確認後再生成 SCAMPER 變形');
+      return;
+    }
+    const loadKey = `scamper-${ssId}`;
+    setAiLoading((s) => ({ ...s, [loadKey]: true }));
+    try {
+      const hash = ss.confirmedContractsHash ?? hashContracts(ss.interfaceContracts);
+      const resp = await scamperTransform({
+        project_id: id,
+        subsystem_name: ss.name,
+        subsystem_description: ss.reason,
+        related_contradictions: ss.relatedContradictions,
+        interface_contracts: ss.interfaceContracts,
+        contracts_hash: hash,
+      });
+      for (const v of resp.variants) {
+        const letter = SCAMPER_ACTION_LETTER[(v.action || '').toLowerCase().replace(/\s+/g, '_')] ?? 'S';
+        await createScamperVariantMut.mutateAsync({
+          project_id: id,
+          subsystem_id: ssId,
+          action: letter,
+          description: v.description,
+          adopted: false,
+          new_contradictions: (v.new_contradictions ?? []).map((nc, i) => ({
+            id: `nc-${Date.now()}-${i}`,
+            description: nc,
+            severity: 'minor',
+            fedBack: false,
+          })) as unknown as never,
+        });
+      }
+      toast.success(`已為「${ss.name}」生成 ${resp.variants.length} 個 SCAMPER 變形`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`SCAMPER 生成失敗：${msg}`);
+    } finally {
+      setAiLoading((s) => ({ ...s, [loadKey]: false }));
+    }
   };
   // SCAMPER is a creative divergence tool (like Anti-Anchor).
   // newContradictions are displayed as risk notes, NOT fed back to convergence loop.
@@ -2107,13 +2195,52 @@ export default function Create() {
       <div className="space-y-8">
         {confirmedSubs.map((ss) => {
           const variants = scamperVariants.filter((v) => v.subsystemId === ss.id);
+          const drifted = isContractDriftedSinceConfirm(ss);
+          const loadKey = `scamper-${ss.id}`;
+          const generating = !!aiLoading[loadKey];
           return (
             <div key={ss.id} className="space-y-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                 <h4 className="text-sm font-semibold">{ss.name}</h4>
                 <Badge variant="secondary" className="text-[10px]">{variants.filter(v => v.adopted).length}/{variants.length} 已採用</Badge>
+                <div className="ml-auto">
+                  <AiButton
+                    size="sm"
+                    aiVariant="outline"
+                    className="text-xs"
+                    loading={generating}
+                    disabled={drifted || generating}
+                    onClick={() => handleGenerateScamperForSubsystem(ss.id)}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    {variants.length > 0 ? '重新生成 SCAMPER' : '生成 SCAMPER 變形'}
+                  </AiButton>
+                </div>
               </div>
+              {drifted && (
+                <Card className="border-red-400 bg-red-50 dark:bg-red-950/30">
+                  <CardContent className="p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-red-700 dark:text-red-400">
+                        契約已變更 — 請重新確認後再生成 SCAMPER 變形
+                      </p>
+                      <p className="text-[10px] text-red-600/80 dark:text-red-400/80 mt-0.5">
+                        介面契約自 RD 確認後已被編輯，既有變形可能不再符合邊界條件。
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="text-xs shrink-0"
+                      onClick={() => reconfirmSubsystemContracts(ss.id)}
+                    >
+                      重新確認並刷新雜湊
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {variants.map((v) => (
                   <Card key={v.id} className={`transition-all ${v.adopted ? "border-primary/30 bg-primary/[0.03]" : ""}`}>

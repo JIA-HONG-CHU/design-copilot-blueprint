@@ -170,7 +170,7 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 | 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 | 狀態 |
 |---------|--------|-------------------|------|------|
-| 10.1 | **F3 SCAMPER** 讀取已確認之結構化契約（UC6）；Frozen 後解鎖規則（§8.1） | 契約變更 invalidate 策略有 log 或版本號 | 7.7 | 🔄 Wave 6 進行中（ScamperRequest 加 interface_contracts + contracts_hash；FE 漂移 banner） |
+| 10.1 | **F3 SCAMPER** 讀取已確認之結構化契約（UC6）；Frozen 後解鎖規則（§8.1） | 契約變更 invalidate 策略有 log 或版本號 | 7.7 | ✅ `ScamperRequest.interface_contracts` + `contracts_hash`；prompt 加入 6 維 + spatial 注入；FE `subsystemHash.ts` djb2 + `isContractDriftedSinceConfirm` predicate；renderScamper 漂移 banner + 重新確認按鈕；觀測計數 `scamper.contracts_provided` / `scamper.hash_missing` |
 | 10.2 | **Pre-CAD** `spatial_score` deterministic 輸入來自 validator（架構 §5.2 / create-ux-spec ④） | 評分與 Tab ② 所見 package 一致；可追溯 | 3.3 | ✅ evaluator fix: 空 PackageMap/validator 崩潰時強制 neutral 3 + source 標記，不再信任 LLM |
 | 10.3 | **Pre-CAD spatial trace** UI（hover 展開 bbox/clash/總質量） | 與 ④ 統一評估 wireframe 對齊 | 10.2 | ⚠️ `SpatialTraceHover.tsx` 元件完成 + schemas `SpatialTrace` model 凍結；但 PreCadReview.tsx 目前未消費 API 回應，元件以 trace=null/score=0 置入佔位，等 Pre-CAD 頁接 API 後自動啟用 |
 | 10.4 | 與 **Tab ① TRIZ** 進入條件銜接（矛盾資料傳入 UC1） | 整合測試一條龍 | 2.2 | ✅ test_tab1_to_tab2_e2e.py (6 tests: id 保留 / 共矛盾耦合 / spatial 覆寫 / empty / package_map 篩選 / hermetic) |

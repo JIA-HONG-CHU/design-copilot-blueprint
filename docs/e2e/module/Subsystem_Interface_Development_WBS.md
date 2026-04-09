@@ -178,8 +178,8 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 
 | 任務 ID | 工作項 | 交付物 / 完成準則 | 依賴 |
 |---------|--------|-------------------|------|
-| 11.1 | 後端：**pure function** 單測（§5.1：resolver、validator、svg） | CI 綠燈 | 3.x, 6.x |
-| 11.2 | API **契約測試**（Pact 或 schema snapshot）針對 2.2、4.1、5.1、6.1 | 破壞性更會失敗 | 2.2 |
+| 11.1 | 後端：**pure function** 單測（§5.1：resolver、validator、svg） | CI 綠燈 | 3.x, 6.x | ✅ (既有 test_spatial_validator.py 617 行) |
+| 11.2 | API **契約測試**（Pact 或 schema snapshot）針對 2.2、4.1、5.1、6.1 | 破壞性更會失敗 | 2.2 | ✅ test_subsystem_contract.py (17 tests, 4 endpoints) |
 | 11.3 | FE：**關鍵使用者流程** E2E（Suggest → Map → Override → Confirm → SCAMPER enabled） | 錄影或 trace 存 artifact | 7.x, 8.x |
 | 11.4 | 可觀測性：UC1 各 phase 耗時、Tavily/LLM 失敗率 metric | Dashboard 或 log 欄位約定 | 2.1 |
 | 11.5 | 本 WBS 與 **create-ux-spec / Forward_Subsystem** 對照表維護 | 版本升級時更新「對齊文件對應表」 | 全案 |

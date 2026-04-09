@@ -713,3 +713,20 @@ def phase_b_check_conflict(sol_a, sol_b):
 > **TC 是現象、PC 是核心、SF 是結構 — 這不是選擇題，是診斷報告的三層。**
 > 讓 Copilot 的輸出從「一堆候選」升級為「一份分層診斷 + 推薦路線」，是把 TRIZ 方法論真正工程化的關鍵一步。
 
+---
+
+## Changelog
+
+### v1.2（2026-04-09）— Explore 階段 L1 critic + 多 PC 深挖上線
+
+- **新增**：Explore 階段 TC→多 PC 分解能力（`POST /contradictions/{cid}/decompose`）
+  - L1 critic 5 條規則自動判斷是否觸發深挖（severity / hits / rd_manual / 同屬性互斥語言 / LLM trade-off critic）
+  - `TC_TO_MULTI_PC_DECOMPOSITION` prompt 產出 2-5 個互異 `derived_parameter`，各自綁 16 項分離原則之一
+  - 防退化硬約束：每個 PC 必須是同屬性 A/¬A 互斥，不得退化為 N 個小 TC
+  - 子 PC 以 `parent_contradiction_id` FK 掛回父 TC（migration 009）
+- **新增**：`_solve_pc` hint-path（§9.1）— Explore 產出的 `separation_principle_id` 作為下游 TRIZ solver 的 pre-filter
+- **新增**：CLD / Anti-Anchor 增加 derived_parameter 提示（§9.3.3 / §9.4.1）— 指引 LLM 用子 PC 的物理變數作為 CLD 節點名
+- **差異**：與 §6.7 `deepen_link` 契約的差異 — 本實作擴充為 `list[DeepenLink]`（一 TC 可推導多個 derived_parameter），原 spec 為單一
+- **未實作**：L3 (SF) 平行旁路、`solve_triz_layered` orchestrator、`differential_analysis` — 延後至 L3 WBS（`Explore_L3_SF_Parallel_Check_WBS.md`）
+- **WBS 參照**：`docs/e2e/module/Explore_TC_to_MultiPC_Decomposition_WBS.md`
+

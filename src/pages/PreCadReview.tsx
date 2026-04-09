@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { Solution } from "@/types/solution";
 import { ReviewDimension, SolutionReview } from "@/types/preCadReview";
 import { ContradictionSeverity } from "@/types/contradiction";
 import { SpatialTraceHover } from "@/components/precad/SpatialTraceHover";
-import type { SpatialTrace } from "@/lib/api";
+import { preCadAnalyze, type PreCadAnalyzeResponse } from "@/lib/api";
 
 // Constraint feasibility — from DB constraints table
 const feasibilityStatusConfig = {
@@ -95,6 +95,42 @@ const PreCadReview = () => {
   const [conclusion, setConclusion] = useState("");
   const [reviewingSolutionId, setReviewingSolutionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // WBS 10.3: per-solution Pre-CAD AI analysis cache.
+  // No Supabase column stores `spatial_trace`; the backend endpoint is
+  // stateless, so we call `preCadAnalyze` on demand when the review dialog
+  // opens for a candidate and cache the response locally by solution id.
+  const [aiAnalysisBySol, setAiAnalysisBySol] = useState<Record<string, PreCadAnalyzeResponse>>({});
+  const [aiAnalysisStatus, setAiAnalysisStatus] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
+
+  useEffect(() => {
+    if (!reviewingSolutionId) return;
+    const sol = candidates.find((c) => c.id === reviewingSolutionId);
+    if (!sol) return;
+    if (aiAnalysisStatus[reviewingSolutionId] && aiAnalysisStatus[reviewingSolutionId] !== "idle") return;
+
+    let cancelled = false;
+    setAiAnalysisStatus((p) => ({ ...p, [reviewingSolutionId]: "loading" }));
+    preCadAnalyze(reviewingSolutionId, {
+      project_id: sol.projectId,
+      alternative_name: sol.name,
+      mechanism: sol.mechanism || sol.description || sol.name,
+      constraints: constraints.map((c: any) => c.description).filter(Boolean),
+    })
+      .then((resp) => {
+        if (cancelled) return;
+        setAiAnalysisBySol((p) => ({ ...p, [reviewingSolutionId]: resp }));
+        setAiAnalysisStatus((p) => ({ ...p, [reviewingSolutionId]: "done" }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAiAnalysisStatus((p) => ({ ...p, [reviewingSolutionId]: "error" }));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewingSolutionId]);
 
   const toggleSelected = (sId: string) => {
     setSelectedIds((prev) =>
@@ -429,18 +465,33 @@ const PreCadReview = () => {
                       <div className="flex items-center gap-2">
                         {getRatingIcon(dim.rating)}
                         <span>{dim.label}</span>
-                        {dim.id === "space" && (
-                          // WBS 10.3: hover-card trace for the deterministic
-                          // spatial_score. `spatial_trace` is not yet wired
-                          // into this manual review UI (which uses RadioGroup
-                          // ratings instead of a numeric API score), so until
-                          // an API-backed score row lands here we render the
-                          // component in its "no trace" state as a marker.
-                          <SpatialTraceHover
-                            trace={(null as SpatialTrace | null)}
-                            score={0}
-                          />
-                        )}
+                        {dim.id === "space" && (() => {
+                          // WBS 10.3: wire the hover-card to the real
+                          // PreCadAnalyzeResponse fetched on dialog open.
+                          const status = aiAnalysisStatus[reviewingSolutionId] ?? "idle";
+                          const resp = aiAnalysisBySol[reviewingSolutionId];
+                          if (status === "loading") {
+                            return (
+                              <span className="text-xs text-muted-foreground">空間追蹤計算中…</span>
+                            );
+                          }
+                          if (status === "done" && resp) {
+                            return (
+                              <SpatialTraceHover
+                                trace={resp.spatial_trace ?? null}
+                                score={resp.spatial_score ?? 0}
+                              />
+                            );
+                          }
+                          if (status === "error") {
+                            return (
+                              <span className="text-xs text-destructive">AI 分析失敗</span>
+                            );
+                          }
+                          return (
+                            <span className="text-xs text-muted-foreground">尚未執行 AI 分析</span>
+                          );
+                        })()}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-3 pt-2">

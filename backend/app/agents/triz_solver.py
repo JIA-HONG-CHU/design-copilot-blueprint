@@ -40,6 +40,7 @@ from app.models.schemas import (
 from app.services import reference_library  # legacy direct access (kept for back-compat)
 from app.services.spatial_lookup import LookupQuery, default_resolver
 from app.services.spatial_validator import discover_package
+from app.observability import emit_counter, phase_timer
 
 
 def solve_triz(req: TrizLookupRequest) -> TrizLookupResponse:
@@ -334,7 +335,8 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     # seed JSON. Web lookup is excluded from the prompt summary because it is
     # an on-demand layer, not an enumerable one.
     resolver = default_resolver(include_web=False)
-    library_summary = resolver.summarize_for_prompt(project_id=req.project_id)
+    with phase_timer("uc1.summarize", project_id=req.project_id):
+        library_summary = resolver.summarize_for_prompt(project_id=req.project_id)
 
     base_prompt = SUBSYSTEM_SUGGESTION.format(
         mission=req.mission,
@@ -344,7 +346,8 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     )
 
     # First attempt
-    raw = call_llm_json(TRIZ_SOLVER_SYSTEM, base_prompt)
+    with phase_timer("uc1.llm_suggest", attempt=1, project_id=req.project_id):
+        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, base_prompt)
     data = json.loads(raw)
     response = SubsystemSuggestResponse.model_validate(data)
 
@@ -355,6 +358,7 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     # are exactly the "interface contracts disappearing" bug we're eliminating.
     violations = _find_empty_contracts(response.subsystems)
     if violations:
+        emit_counter("uc1.llm_violations", value=len(violations), attempt=1)
         logger.warning(
             "suggest_subsystems: %d interface contracts had empty 6-dim fields "
             "on first attempt; retrying with targeted instruction",
@@ -365,12 +369,14 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
             + "\n\n"
             + _format_violations_for_retry(violations)
         )
-        raw = call_llm_json(TRIZ_SOLVER_SYSTEM, retry_prompt)
+        with phase_timer("uc1.llm_suggest", attempt=2, project_id=req.project_id):
+            raw = call_llm_json(TRIZ_SOLVER_SYSTEM, retry_prompt)
         data = json.loads(raw)
         response = SubsystemSuggestResponse.model_validate(data)
 
         violations = _find_empty_contracts(response.subsystems)
         if violations:
+            emit_counter("uc1.llm_incomplete_final", value=1, project_id=req.project_id)
             # Bubble up a structured error; the FastAPI router will translate
             # this into an HTTP 502 with enough detail for the FE to show the
             # user a meaningful "LLM produced incomplete output, please retry"
@@ -387,17 +393,21 @@ def suggest_subsystems(req: SubsystemSuggestRequest) -> SubsystemSuggestResponse
     # lookup ENABLED — we're willing to spend a search call here when the
     # LLM cites web: or an unknown key, to keep the data grounded).
     full_resolver = default_resolver(include_web=True)
-    _resolve_spatial_via_layers(response.subsystems, req.project_id, full_resolver)
+    with phase_timer("uc1.resolve_spatial", project_id=req.project_id):
+        _resolve_spatial_via_layers(response.subsystems, req.project_id, full_resolver)
 
     # Discovery: compute the package map from whatever spatial estimates we
     # ended up with. This never blocks the response — if the validator finds
     # nothing useful (e.g., LLM omitted spatial entirely), it returns an empty
     # PackageMap and the caller can ignore it.
-    try:
-        response.package_map = discover_package(response.subsystems)
-    except Exception as exc:  # pragma: no cover - defensive, validator must not break the agent
-        logger.warning("spatial validator failed: %s", exc)
-        response.package_map = None
+    with phase_timer("uc1.discover_package", project_id=req.project_id) as _phase:
+        try:
+            response.package_map = discover_package(response.subsystems)
+        except Exception as exc:  # pragma: no cover - defensive, validator must not break the agent
+            emit_counter("uc1.validator_fallback", value=1, error_type=type(exc).__name__)
+            logger.warning("spatial validator failed: %s", exc)
+            response.package_map = None
+            _phase["status"] = "fallback"
 
     return response
 

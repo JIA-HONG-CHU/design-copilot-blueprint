@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Iterable, Protocol
 
 from app.models.schemas import BBox, SpatialEstimate
+from app.observability import emit_counter, phase_timer
 
 logger = logging.getLogger(__name__)
 
@@ -343,19 +344,23 @@ class WebSearchBackend:
         full_query = f"{search_query} dimensions mm weight datasheet specifications"
         try:
             from app.services.web_search import search_web
-            response = asyncio.run(search_web(full_query, max_results=self._max_results))
+            with phase_timer("tavily.search", key=query.key or ""):
+                response = asyncio.run(search_web(full_query, max_results=self._max_results))
         except RuntimeError:
             # Already inside an event loop (e.g. FastAPI request handler).
             # In that case the caller should await the async variant — fall
             # back to no result rather than blocking. Tests cover the
             # synchronous path; the async path is wired in routers later.
             logger.debug("web backend: cannot run sync search inside async loop")
+            emit_counter("tavily.event_loop_conflict")
             return None
         except Exception as exc:  # pragma: no cover - network issues
             logger.debug("web backend: search failed: %s", exc)
+            emit_counter("tavily.error", error_type=type(exc).__name__)
             return None
 
         if not response.results:
+            emit_counter("tavily.empty_results", key=query.key or "")
             return None
 
         for result in response.results:
@@ -370,6 +375,7 @@ class WebSearchBackend:
                 confidence="library" if mass else "estimate",
                 rationale=f"{result.source}: {result.title[:80]}",
             )
+        emit_counter("tavily.no_dims", key=query.key or "")
         return None
 
     def summarize(self, project_id: str = "") -> list[str]:

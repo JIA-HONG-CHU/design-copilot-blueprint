@@ -16,6 +16,7 @@ from typing import Protocol, TypeVar
 from pydantic import BaseModel
 
 from app.core.config import LLMProvider, settings
+from app.observability import emit_counter, phase_timer
 
 logger = logging.getLogger(__name__)
 
@@ -338,8 +339,20 @@ def call_llm_json(
     if max_tokens is not None:
         _warn_if_high_token_usage(system, user_message, max_tokens)
     json_system = system + "\n\n回覆格式：純 JSON，不要 markdown code block。"
-    raw = _call_provider(json_system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
-    return _strip_code_fences(raw)
+    with phase_timer("llm.call", model=(model or settings.default_model or "")):
+        raw = _call_provider(json_system, user_message, model=model, max_tokens=max_tokens, temperature=temperature)
+    cleaned = _strip_code_fences(raw)
+    if not cleaned or not cleaned.strip():
+        emit_counter("llm.empty_response")
+    else:
+        # Observability-only parse probe: emit a counter when the payload is
+        # unparseable JSON. We deliberately do NOT raise here — downstream
+        # callers handle parse errors themselves (some tolerate empty dicts).
+        try:
+            json.loads(cleaned)
+        except json.JSONDecodeError:
+            emit_counter("llm.json_parse_fail")
+    return cleaned
 
 
 def call_llm_json_parsed(

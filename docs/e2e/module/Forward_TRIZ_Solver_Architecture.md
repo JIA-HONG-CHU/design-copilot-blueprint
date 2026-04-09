@@ -1,8 +1,13 @@
 # 正向分析・TRIZ 解矛盾：系統架構說明書（SA 視角）
 
-> **版本**：v1.1 | **日期**：2026-04-08 | **觀點**：Systems Analyst
-> **對齊依據**：`AI_Agent_Architecture.md` v1.4、`RD_Design_Copilot_整合流程.md` v1.6、`docs/diagrams/triz-to-scamper-flow.md` v11、`Forward_Subsystem_Discovery_Architecture.md` v2.0、`TRIZ_Layered_DrillDown_Optimization.md` v1.0
+> **版本**：v1.2 | **日期**：2026-04-09 | **觀點**：Systems Analyst
+> **對齊依據**：`AI_Agent_Architecture.md` v1.4、`RD_Design_Copilot_整合流程.md` v1.6、`docs/diagrams/triz-to-scamper-flow.md` v11、`Forward_Subsystem_Discovery_Architecture.md` v2.0、`TRIZ_Layered_DrillDown_Optimization.md` v1.0、`TRIZ_Layered_Drilldown_Development_WBS.md` v1.3、`TRIZ_Layered_Rollout_Runbook.md` v1.0
 > **文件目的**：以 SA 視角拆解「正向分析・TRIZ 解矛盾」階段（F1）的所有架構面向。F1 是正向路徑的第一站，輸入為 Step 3 識別出的矛盾，輸出為**同一矛盾的分層 drill-down 診斷**（L1 現象 / L2 本質 / L3 結構），聚合為 `LayeredTrizSolution[]` 供下游 F2 子系統定義消費。每張圖以 Mermaid 呈現。
+>
+> **v1.2 變更摘要**（WBS 6.3/6.4/11.1/12.1/12.8 落地）：
+> - §13 摘要表新增 3 列：`check_phase_b_conflict` 結構化 helper / `/triz/solve-layered` endpoint 上線 / `SubsystemSuggestRequest.layered_triz_solutions[]` F2 hand-off 升級
+> - 與 `TRIZ_Layered_Rollout_Runbook.md` 對齊灰度切換流程
+> - `supabase/migrations/010_triz_layered_drilldown.sql` apply 後 `concept_routes.layered_solution` JSONB 與 `layered_triz_solutions` 表可持久化 LTS
 >
 > **v1.1 變更摘要**（對齊 `TRIZ_Layered_DrillDown_Optimization.md`）：
 > - §1.2 使命：新增「分層 drill-down」為第一等公民
@@ -1156,6 +1161,9 @@ flowchart LR
 | LLM 回應非 JSON | 三條 solver 都有 empty_fallback | §7.4 |
 | 表面解與根因解被同級競爭（v1.1） | 分層 drill-down + LayeredTrizSolution + differential_analysis | §6.2 §6.7 §7.0 §7.6 |
 | ARIZ 精神無處安放（v1.1） | deepen_link 契約自動把 TC 深挖為 PC | §6.7 |
+| Phase B 同矛盾誤判為衝突（v1.2 — WBS 6.3/6.4） | `evaluator.check_phase_b_conflict` 結構化 helper：同一 LTS 跨層 SKIP、跨 LTS 同矛盾 WARN、跨矛盾 CHECK | §6.2 [TRIZ_Layered_DrillDown_Optimization.md §8.3] |
+| 後端升級擋到既有 `/triz/solve` 消費者（v1.2） | `POST /triz/solve-layered` 為新入口；舊 `/triz/solve` 保留為 primitive 並由 orchestrator 內部復用 | §7.1 §10 [TRIZ_Layered_Rollout_Runbook.md §5] |
+| 下游 F2 無法區分舊/新 hand-off（v1.2 — WBS 11.1） | `SubsystemSuggestRequest.layered_triz_solutions[]` optional 欄位；空 → 向後相容走 `contradictions[]` | §10 [Forward_Subsystem_Discovery_Architecture.md §3.1] |
 
 ---
 

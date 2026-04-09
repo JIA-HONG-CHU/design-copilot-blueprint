@@ -15,67 +15,69 @@
 
 ### Infrastructure
 
-- [ ] `npm install -D @playwright/test`
-- [ ] `npx playwright install --with-deps chromium`（或依 CI 環境選）
-- [ ] `playwright.config.ts` 於 repo root，指定 `baseURL`、`webServer` 自動啟 dev server
-- [ ] `e2e/` 目錄於 repo root，設為 Playwright testDir
-- [ ] `package.json` scripts 新增：`test:e2e`、`test:e2e:headed`
-- [ ] CI workflow：Playwright job 獨立於 unit test job，artifact 上傳 trace
+- `npm install -D @playwright/test`
+- `npx playwright install --with-deps chromium`（或依 CI 環境選）
+- `playwright.config.ts` 於 repo root，指定 `baseURL`、`webServer` 自動啟 dev server
+- `e2e/` 目錄於 repo root，設為 Playwright testDir
+- `package.json` scripts 新增：`test:e2e`、`test:e2e:headed`
+- CI workflow：Playwright job 獨立於 unit test job，artifact 上傳 trace
 
 ### Backend stub/mock 策略
 
-- [ ] 決定 E2E 是對真後端還是 stub：
+- 決定 E2E 是對真後端還是 stub：
   - **(a) 真後端**：需要 `.env.test`、seed Supabase schema、LLM mock（Anthropic 測試 key 或 httpx hook）
   - **(b) MSW（推薦）**：瀏覽器端攔截 `fetch` 讓 E2E 不依賴 backend 實例
-- [ ] 若選 (b)：`src/mocks/handlers.ts` 定義 `POST /scamper/subsystem-suggestions` 等 endpoint 的 canned 回應
-- [ ] 若選 (a)：建立 `backend/scripts/seed_e2e.py` 產生固定 brief / contradictions / project
+- 若選 (b)：`src/mocks/handlers.ts` 定義 `POST /scamper/subsystem-suggestions` 等 endpoint 的 canned 回應
+- 若選 (a)：建立 `backend/scripts/seed_e2e.py` 產生固定 brief / contradictions / project
 
 ### 必測流程（從 WBS 11.3 原始描述：Suggest → Map → Override → Confirm → SCAMPER enabled）
 
 1. **登入 / 進 project**
-   - [ ] 已有 `id` 的 project landing 頁可直達 `/create?projectId=...`
+  - 已有 `id` 的 project landing 頁可直達 `/create?projectId=...`
 2. **完成 Brief 與 TRIZ**
-   - [ ] 用 canned brief + 至少 1 個矛盾跳到 Tab ②
+  - 用 canned brief + 至少 1 個矛盾跳到 Tab ②
 3. **Suggest**
-   - [ ] 點「AI 建議子系統」
-   - [ ] 等待 `POST /scamper/subsystem-suggestions` 完成
-   - [ ] 斷言三層樹渲染、至少 1 個 module 可見
+  - 點「AI 建議子系統」
+  - 等待 `POST /scamper/subsystem-suggestions` 完成
+  - 斷言三層樹渲染、至少 1 個 module 可見
 4. **Package Map**
-   - [ ] 斷言 `PackageMapPanel` 的 inline SVG 存在
-   - [ ] 若有 clash，斷言紅色 banner 出現
+  - 斷言 `PackageMapPanel` 的 inline SVG 存在
+  - 若有 clash，斷言紅色 banner 出現
 5. **Override**
-   - [ ] 點任一 module 的「我來給數字」
-   - [ ] 填 bbox + mass_g → 送出
-   - [ ] 斷言該 module 的 badge 變「RD 簽核」或 reference_source 有 `rd_override:` 前綴
+  - 點任一 module 的「我來給數字」
+  - 填 bbox + mass_g → 送出
+  - 斷言該 module 的 badge 變「RD 簽核」或 reference_source 有 `rd_override:` 前綴
 6. **Confirm**
-   - [ ] 勾選 ≥1 個 module 的 confirmed checkbox
+  - 勾選 ≥1 個 module 的 confirmed checkbox
 7. **SCAMPER 解鎖**
-   - [ ] 斷言「下一步」按鈕 `disabled === false`
-   - [ ] 點下一步，斷言成功進入 step 3 `renderScamper()`
+  - 斷言「下一步」按鈕 `disabled === false`
+  - 點下一步，斷言成功進入 step 3 `renderScamper()`
 
 ### 次要流程
 
-- [ ] Overlay 對話框開啟 → 填 zone → 試算 → 關閉 → 主 Package Map 不變
-- [ ] 推升 learned → toast 成功
-- [ ] 無 spatial 資料時 PackageMapPanel 顯示佔位符不報錯
-- [ ] SCAMPER 解鎖閘：未確認任何 module 時「下一步」`disabled === true` + 提示文字
+- Overlay 對話框開啟 → 填 zone → 試算 → 關閉 → 主 Package Map 不變
+- 推升 learned → toast 成功
+- 無 spatial 資料時 PackageMapPanel 顯示佔位符不報錯
+- SCAMPER 解鎖閘：未確認任何 module 時「下一步」`disabled === true` + 提示文字
 
 ### 非功能性
 
-- [ ] 每個 spec 平均執行時間 < 10 秒
-- [ ] CI artifact 上 trace.zip + screenshot on failure
-- [ ] flaky retry ≤ 1
-- [ ] 並行度 = 1（subsystems 共用同一個 project id 情境下避免競態）
+- 每個 spec 平均執行時間 < 10 秒
+- CI artifact 上 trace.zip + screenshot on failure
+- flaky retry ≤ 1
+- 並行度 = 1（subsystems 共用同一個 project id 情境下避免競態）
 
 ## 預估工作量
 
-| 任務 | 估時 |
-|---|---|
-| Infrastructure + config | 0.5 day |
-| MSW handlers + fixtures | 0.5 day |
-| 5 個主流程 spec | 1 day |
-| CI 整合 + debug flaky | 0.5 day |
-| 文件（本文件補齊實際結果） | 0.25 day |
+
+| 任務                      | 估時       |
+| ----------------------- | -------- |
+| Infrastructure + config | 0.5 day  |
+| MSW handlers + fixtures | 0.5 day  |
+| 5 個主流程 spec             | 1 day    |
+| CI 整合 + debug flaky     | 0.5 day  |
+| 文件（本文件補齊實際結果）           | 0.25 day |
+
 
 **總計**：~ 2.75 day（一人）
 
@@ -87,4 +89,6 @@
 ---
 
 **修訂紀錄**
+
 - 2026-04-09 v0.1：skeleton，紀錄 Wave 5 延後決策與恢復條件。
+

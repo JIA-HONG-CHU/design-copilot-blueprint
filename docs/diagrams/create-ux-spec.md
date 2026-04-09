@@ -1,5 +1,17 @@
 # Create 頁面 UX 設計規格
 
+> **v7 (2026-04-09)**：對齊 TRIZ 分層 drill-down 架構（`docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` v1.0 + `TRIZ_Multi_Solution_Adoption_Strategy.md` v1.1）。
+> - **Tab ① TRIZ 解矛盾徹底重寫**：從「TC/PC/SF 三選一候選池」改為「`LayeredTrizSolution` 分層診斷報告」。RD 收到的不再是並列選擇題，而是 L1 現象 → L2 根因 → L3 結構旁路的三層 drill-down 卡片。
+> - 新增 **deepen_link 視覺化**（L1 的 TC 參數對如何被 ARIZ 深挖為 L2 的物理根因）。
+> - 新增 **critic badge**（L1 被判為「trade-off 折衷」時顯示紅色提示，說明為何觸發 L2）。
+> - 新增 **L2 觸發狀態**（必跑 / 條件跑 / 跳過）與手動「🔽 深挖 L2」按鈕。
+> - 新增 **differential_analysis 面板**（跨層差異 + 推薦路線 + fallback + rationale）。
+> - 採納互動三選：`[採納推薦路線]`、`[自訂組合]`、`[只採 L1 快速路線]`。
+> - 決策中心新增 **`layered` 卡片類型**（對應 M6 跨層 drill-down，與 `single` / `composite` 並列）；layered 卡片以堆疊呈現 L1/L2/L3。
+> - **Phase B 邏輯更新**：同一 `LayeredTrizSolution` 內跨層解 SKIP 互斥檢查；僅跨矛盾才做衝突分析。UI 移除「同矛盾多路徑警告」，改為「跨矛盾衝突」提示。
+> - 方案追溯六要素新增第 7 項「drill-down 層級」（L1/L2/L3）。
+> - 新增 **quick_mode flag**（severity=minor 時只跑 L1+L3，L2 跳過）。
+>
 > **v6 (2026-04-08)**：對齊 architecture v10 — Tab ② 子系統定義新增 Spatial Discovery Validator UI。
 > - 介面契約展開區新增 spatial 區塊（bbox + mass + confidence badge）
 > - 新增 Package Map 面板（SVG 包絡圖 + clash 警示）
@@ -60,14 +72,20 @@
 │  │                                                                │ │
 │  │  所有候選攤平 · RD adopt/skip · Phase B 交叉檢查               │ │
 │  │                                                                │ │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │ │
-│  │  │ AA 路線1 │ │ AA 路線2 │ │ TRIZ-TC │ │ SCAMPER │           │ │
-│  │  │ 反向/創意│ │ 反向/創意│ │ 正向/演繹│ │ 正向/創意│           │ │
-│  │  │ 信心:65 │ │ 信心:58 │ │ 信心:82 │ │ 信心:71 │           │ │
-│  │  │ [adopt] │ │ [skip]  │ │ [adopt] │ │ [skip]  │           │ │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │ │
+│  │  ┌─────────┐ ┌──────────────┐ ┌─────────┐ ┌─────────┐      │ │
+│  │  │ AA 路線1 │ │ TRIZ-Layered │ │ TRIZ-L1 │ │ SCAMPER │      │ │
+│  │  │ single  │ │ ▢ L1 現象層   │ │ single  │ │ single  │      │ │
+│  │  │ 反向/創意│ │ ▢ L2 根因層   │ │ 正向/演繹│ │ 正向/創意│      │ │
+│  │  │ 信心:65 │ │ ▢ L3 結構層   │ │ 信心:78 │ │ 信心:71 │      │ │
+│  │  │         │ │ 推薦:L2+L3    │ │         │ │         │      │ │
+│  │  │ [adopt] │ │ [採納推薦]    │ │ [adopt] │ │ [skip]  │      │ │
+│  │  └─────────┘ └──────────────┘ └─────────┘ └─────────┘      │ │
+│  │     ↑             ↑                  ↑           ↑           │ │
+│  │    單一         layered            單一       composite      │ │
+│  │                (M6 跨層)                      (同層合併)     │ │
 │  │                                                                │ │
-│  │  [執行 Phase B 收斂掃描]  → 通過 ✓ / 有衝突 ⚠                 │ │
+│  │  [執行 Phase B 收斂掃描]  → 通過 ✓ / 跨矛盾衝突 ⚠              │ │
+│  │  （同一 LTS 內跨層解自動 SKIP 互斥檢查，不再觸發「同矛盾多路徑警告」）│ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
 │  ④ 統一評估                                                        │
@@ -120,16 +138,100 @@
 └─────────────────────────────────────────────────┘
 ```
 
-**Tab ① TRIZ 解矛盾**
+**Tab ① TRIZ 解矛盾（v7 重寫：分層 drill-down 診斷）**
 
-| 元素 | 互動 | 觸發 |
+> 對應架構：`Forward_TRIZ_Solver_Architecture.md` + `TRIZ_Layered_DrillDown_Optimization.md` v1.0。**關鍵觀念轉變**：TC/PC/SF 不再是「三選一候選」，而是同一矛盾的三層診斷鏡 — L1 現象層（必跑）、L2 根因層（由 critic 或 severity 條件觸發）、L3 結構層（必跑平行旁路）。RD 收到的是一份 `LayeredTrizSolution` 分層報告，不是並列 pending 候選池。
+
+##### 區塊 A：矛盾總覽 + Phase A 健康度
+
+| 元素 | 互動 | 觸發 / API |
 |------|------|------|
 | [啟動 Phase A] | 矛盾健康度分析 | startPhaseA() |
 | [重新執行] | 重新分析 | startPhaseA() |
-| 矛盾列表 | 每矛盾展開 → TC/PC/SF 三組候選 | 唯讀 |
-| TC/PC/SF 候選 | pending → adopted / skipped / edited | updateTrizSolution() |
+| 矛盾列表 | 每矛盾一列，展開成「分層診斷卡」（見區塊 B） | 唯讀 |
+| severity badge | `fatal` / `major` / `minor`，決定 L2 預設觸發策略 | 唯讀 |
 | 收斂 Dashboard | confidence / health / fatal·major·minor | 唯讀 |
+| quick_mode toggle | 專案層級開關：minor 矛盾只跑 L1+L3，L2 預設跳過 | setQuickMode() |
 | 人類審核 | converged/halted 時 → 確認或重試 | setReviewConfirmed() |
+
+##### 區塊 B：LayeredTrizSolution 分層診斷卡（每矛盾一張）
+
+> **結構**：一個矛盾 → 一張卡片 → 堆疊三層（L1→L2→L3）。不再用 tab 或 toggle 呈現，改用**垂直堆疊**讓 drill-down 路徑一目了然。
+
+```
+┌─ C-EBIKE-012：馬達功率密度 vs 散熱  [major]  ────────┐
+│                                                      │
+│ 🔵 L1 — 現象層 (TC)     [必跑 ✓]       [展開 ▼]    │
+│    查表 (#21 功率 × #17 溫度) → 原理 [19,35,3,36]   │
+│    4 條具體化 suggestion • effort: low-med           │
+│    depth: trade-off 改良                              │
+│    ⚠ critic：四條皆為折衷修補，無本質突破 → 觸發 L2 │
+│    [採納全部] [採納選取] [🔽 深挖 L2]               │
+│                                                      │
+│ 🟡 L2 — 根因層 (PC)    [已觸發 ✓]      [展開 ▼]    │
+│    deepen_link：                                      │
+│      (#21, #17) ─ARIZ 深挖─▶ 瞬時功率 P(t)          │
+│      P(t) 必須 ≥ P_peak 且 必須 ≤ P_thermal          │
+│    分離類型：⏱ time (0.85) │ 🎚 condition (0.62)   │
+│    2 條具體化 suggestion • effort: med-high          │
+│    depth: 根因突破                                    │
+│    [採納] [跳過] [RD 手動編輯]                       │
+│                                                      │
+│ 🟢 L3 — 結構層 (SF)    [必跑 ✓ 旁路]   [展開 ▼]    │
+│    Su-Field: S1=定子 │ S2=外殼 │ F=熱場 [insufficient]│
+│    matched: 2.2.1 / 2.4.1                             │
+│    relationship to others:                            │
+│      supports L1 #19: "為脈衝冷卻提供熱容緩衝"       │
+│      supports L2 time: "峰值窗口 +40%"               │
+│      standalone: "獨立改善 15%"                       │
+│    [採納] [跳過]                                     │
+│                                                      │
+│ ─── ✨ differential_analysis ───                     │
+│ L1 vs L2：L1 優化 10-15% 瞬時；L2 重定義 envelope +30%│
+│ L1 vs L3：正交（時間 × 結構）                         │
+│ L2 vs L3：強增效 → 峰值窗口 +40%                      │
+│                                                      │
+│ 🎯 推薦路線：L2 + L3 組合（突破路線）                │
+│    fallback：L1 單獨（快速路線）                      │
+│    rationale：severity=major + 韌體資源充足          │
+│                                                      │
+│ [採納推薦路線]  [自訂組合]  [只採 L1 快速路線]       │
+└──────────────────────────────────────────────────────┘
+```
+
+| 元素 | 互動 | 觸發 / API |
+|------|------|------|
+| 分層卡片頂部 | 矛盾 ID + 自然語言描述 + severity badge | 唯讀 |
+| 三層垂直堆疊 | L1/L2/L3 各自摺疊展開 | 本地 state |
+| L1 區塊 header | 永遠顯示「必跑 ✓」狀態，配藍色 | 唯讀 |
+| L1 critic badge | 若 critic 判為 `trade-off 折衷` → 紅字警示並推薦觸發 L2 | 唯讀（來自 backend critic） |
+| L1 suggestions | 每條 TC 原理 + 具體化文字 + cross_domain_example + effort/expected_gain | updateTrizSolution(layer="L1") |
+| L1 [🔽 深挖 L2] | 手動按鈕，即使 critic 沒觸發也能強制深挖 | POST /triz/solve-layered?force_l2=true |
+| L2 區塊 header | 三種狀態：`必跑/已觸發 ✓` / `條件未達 ⊘` / `quick_mode 跳過 ⊘` | 唯讀 |
+| L2 trigger_reason | hover 顯示觸發理由（critic 判定 / severity / RD 手動） | 唯讀 |
+| L2 deepen_link 視覺化 | 以箭頭圖 `(參數對) → 物理根因` 呈現 ARIZ 深挖 | 唯讀 |
+| L2 分離類型 chips | time/space/condition/whole_part 四種帶 confidence 分數 | 唯讀 |
+| L2 suggestions | 每條 separation + principle_refs + concrete | updateTrizSolution(layer="L2") |
+| L2 [RD 手動編輯] | 允許 RD 修改 derived_parameter 或分離類型後重算 | editDeepenLink() |
+| L3 區塊 header | 永遠顯示「必跑 ✓ 旁路」，配綠色 | 唯讀 |
+| L3 Su-Field 模型 | S1/S2/F 三角標示 + state badge（insufficient/harmful/incomplete） | 唯讀 |
+| L3 standard_solutions | 76 標準解 ID + 具體化建議 | 唯讀 |
+| L3 relationship_to_other_layers | 明示此 L3 建議如何強化 L1/L2，或能否 standalone | 唯讀（關鍵！） |
+| differential_analysis 面板 | 三對比對（L1vs L2 / L1 vs L3 / L2 vs L3） | 唯讀 |
+| recommended_route 區塊 | primary + fallback + rationale，高亮顯示 | 唯讀 |
+| [採納推薦路線] | 一鍵採納 differential 建議的組合 → 產生 `layered` Concept Route | adoptLayeredSolution(mode="recommended") |
+| [自訂組合] | 開啟對話框，RD 勾選 L1/L2/L3 任意子集 | adoptLayeredSolution(mode="custom") |
+| [只採 L1 快速路線] | 放棄深挖與結構補強，走 fallback | adoptLayeredSolution(mode="fallback") |
+
+##### 區塊 C：採納後的候選輸出
+
+採納動作會產出一張 **`layered` 類型的 Concept Route 卡片**送進候選池（見 §決策中心）：
+
+- `recommended` → 包含 L2+L3（或 differential_analysis 指定的層組合），type=`layered`
+- `custom` → 包含 RD 勾選的層，type=`layered`（僅採一層時降級為 `single`）
+- `fallback` → 僅 L1，若 L1 內部採納多條 TC 原理且互相強化，可進一步標為 `composite`（走 §TRIZ_Multi_Solution_Adoption_Strategy M1-M3 同層合併）
+
+> **重要**：同一 `LayeredTrizSolution` 只會產生**一張** Concept Route 卡片（堆疊呈現內部層次），不會產生三張。這是 v7 與 v6 的根本差別 — 消除了「每矛盾選一條路徑」的選擇題語意。
 
 **Tab ② 子系統定義（含 Spatial Discovery）**
 
@@ -190,21 +292,37 @@
 
 | 元素 | 互動 | 觸發 |
 |------|------|------|
-| 方案卡片 | 橫向排列，統一格式 | — |
+| 方案卡片 | 橫向排列，支援三種 type：`single` / `composite` / `layered` | — |
 | 來源 badge | 反向(amber) / 正向(blue) + 具體步驟 | 唯讀 |
+| type badge | `single` / `composite` (M1-M3 同層合併) / `layered` (M6 跨層 drill-down) | 唯讀 |
+| layered 卡片的層堆疊 | 卡片內部顯示 L1/L2/L3 三個迷你層徽章（已採納的顯示實心，未採納顯示空心） | 唯讀 |
 | [adopt] / [skip] | 切換採用狀態 | updateAlternative() |
-| ⚠ 同矛盾多路徑警告 | 自動偵測 | 即時 |
-| [執行 Phase B] | 只送 adopted 做交叉檢查 | startPhaseB() |
+| ~~⚠ 同矛盾多路徑警告~~ | **v7 移除**：同一 LTS 內跨層解為合法 drill-down 組合，Phase B 自動 SKIP 互斥 | — |
+| ⚠ 跨矛盾衝突提示 | 僅在不同 `contradiction_id` 的解法互斥時顯示 | 即時 |
+| [執行 Phase B] | 只送 adopted 做交叉檢查；`phase_b_directive` 控制同 LTS SKIP | startPhaseB() |
 | Phase B 結果 | converged ✓ / halted ⚠ | 即時更新 |
 | [確認進入 MUST] | Phase B 通過後才可按 | goNext() |
 
 #### 方案卡片三層資訊
 
-| 層 | 內容 | 展示方式 |
-|----|------|----------|
-| **第一眼** | 名稱 · 來源 · 信心 · MUST/Pre-CAD | 卡片頂部，始終可見 |
-| **第二眼** | 核心機制 · 優點 · 缺點 | 展開第一層 |
-| **第三眼** | 假設(E0-E4) · 驗證需求 · 弱點 · VP | 展開第二層 |
+| 層 | single / composite | layered (新增，v7) | 展示方式 |
+|----|-----|-----|----------|
+| **第一眼** | 名稱 · 來源 · type · 信心 · MUST/Pre-CAD | 同左 + L1/L2/L3 採納徽章 + 推薦路線標籤 | 卡片頂部，始終可見 |
+| **第二眼** | 核心機制 · 優點 · 缺點 | 每層各自的 mechanism + depth_indicator + effort；differential_analysis 精簡版 | 展開第一層 |
+| **第三眼** | 假設(E0-E4) · 驗證需求 · 弱點 · VP | 每層獨立的 assumptions / VP；deepen_link 溯源；L3 relationship_to_other_layers | 展開第二層 |
+
+#### layered 卡片範例
+
+```
+┌─ CR-EMOTOR-008  [layered]  [正向/TRIZ]  信心:84 ─┐
+│ 🔵●  🟡●  🟢●   推薦路線：L2+L3 突破              │
+│ 主機制：雙模態功率管理 + 熱管陣列 S3 中介物           │
+│ MUST: ✓  Pre-CAD: 85%  ─────────  [skip] [adopt ✓]│
+└────────────────────────────────────────────────────┘
+```
+
+- 🔵● = L1 已採納（實心）；🟡● = L2 已採納；🟢● = L3 已採納
+- 🔵○ = 該層存在但未採納（空心）
 
 ### ④ 統一評估
 
@@ -233,6 +351,9 @@
 | **對稱卡片** | 兩張卡片等高等寬，點擊展開各自操作內容 |
 | **方法獨立** | 反向 = 創意（1 步），正向 = 演繹（3 sub-tab），不混用 |
 | **E2E 節點** | 正向的 TRIZ+子系統+SCAMPER 對外是 1 個節點，對內是 3 個 tab |
+| **分層而非選題** (v7) | Tab ① TRIZ 的輸出是一份 L1/L2/L3 分層診斷報告，不是並列 pending 候選池。RD 從「三選一」改為「採納 drill-down 組合」 |
+| **垂直堆疊呈現 drill-down** (v7) | 同一矛盾的三層解以垂直堆疊呈現，讓 ARIZ 深挖路徑（TC→PC）視覺化為上下關係，而非左右並列 |
+| **L3 永遠呈現** (v7) | 即使 L1/L2 已採納，L3 的結構旁路建議永遠顯示，避免結構盲點被 skip |
 | **報告格式統一** | 兩條路徑的候選卡片格式一致（mechanism + VP） |
 | **路徑色彩** | 反向 = amber（⚡暖色），正向 = blue（🎯冷色） |
 | **候選池匯流** | 所有候選進同一個池，在決策中心統一比較 |
@@ -280,7 +401,7 @@
 | 內部索引 | 顯示 | Stepper 層 | 內容層 |
 |----------|------|-----------|--------|
 | 0 | 反向探索 | 左卡片 | Anti-Anchor 操作 |
-| 1 | 正向: Tab ① TRIZ | 右卡片 | TRIZ 解矛盾 + Phase A |
+| 1 | 正向: Tab ① TRIZ | 右卡片 | TRIZ 分層 drill-down 診斷（L1/L2/L3 + differential_analysis）+ Phase A |
 | 2 | 正向: Tab ② 子系統 | 右卡片 | 3 層架構樹 + 6 維契約 + Spatial Discovery |
 | 3 | 正向: Tab ③ SCAMPER | 右卡片 | 創意變形 |
 | 4 | 決策中心 | 獨立區塊 | adopt/skip + Phase B |
@@ -289,16 +410,17 @@
 
 ---
 
-## 方案追溯六要素
+## 方案追溯七要素（v7 擴充）
 
 | # | 要素 | UI 位置 | 說明 |
 |---|------|---------|------|
 | 1 | 來源路徑 | 卡片 badge | 反向(amber) / 正向(blue) |
-| 2 | 來源步驟 | 卡片 badge | Anti-Anchor / TRIZ_TC / PC / SF / SCAMPER |
-| 3 | 解的矛盾 | 第三眼 | contradiction IDs + 描述 |
-| 4 | 涉及子系統 | 第三眼 | subsystem 名稱 + 層級 |
-| 5 | 基於假設 | 第三眼 | evidence_level E0-E4 + is_falsifiable |
-| 6 | 缺少驗證 | 第三眼 | required verifications + 成本/時長 |
+| 2 | 來源步驟 | 卡片 badge | Anti-Anchor / TRIZ-Layered / SCAMPER |
+| 3 | **drill-down 層級** (v7 新增) | 卡片層堆疊徽章 | layered: L1/L2/L3 採納組合 + recommended_route；single: 純 L1 或 L2；composite: L1 內部多原理合併 |
+| 4 | 解的矛盾 | 第三眼 | contradiction IDs + 描述 + severity |
+| 5 | 涉及子系統 | 第三眼 | subsystem 名稱 + 層級 |
+| 6 | 基於假設 | 第三眼 | evidence_level E0-E4 + is_falsifiable + 每層獨立 assumptions |
+| 7 | 缺少驗證 | 第三眼 | required verifications + 成本/時長；layered 卡片需列出跨層交互驗證項 |
 
 ---
 
@@ -316,7 +438,15 @@
 | Tab ② 區塊 C What-if Overlay | `Forward_Subsystem_Discovery_Architecture.md` | §7.4 overlay 流程 |
 | Spatial Confidence 視覺對應 | `Forward_Subsystem_Discovery_Architecture.md` | §8.2 confidence 流轉 |
 | Discovery vs Overlay 職責分離 | `Forward_Subsystem_Discovery_Architecture.md` | §1.2 設計原則 #1 |
-| Tab ① TRIZ 解矛盾 | `Forward_TRIZ_Solver_Architecture.md` | §6 三條路徑定義 |
+| Tab ① TRIZ 區塊 A 矛盾總覽 | `Forward_TRIZ_Solver_Architecture.md` | §6 三條路徑（作為底層 primitive） |
+| Tab ① TRIZ 區塊 B 分層診斷卡 | `TRIZ_Layered_DrillDown_Optimization.md` | §4 三層 Drill-Down 架構 + §5 LayeredTrizSolution schema + §7 案例 |
+| Tab ① L2 critic 觸發邏輯 | `TRIZ_Layered_DrillDown_Optimization.md` | §4.2 L2 觸發條件表 |
+| Tab ① deepen_link 視覺化 | `TRIZ_Layered_DrillDown_Optimization.md` | §4.3 L1→L2 deepen_link 契約 |
+| Tab ① L3 structural_lens 定位 | `TRIZ_Layered_DrillDown_Optimization.md` | §4.4 L3 旁路定位 |
+| Tab ① differential_analysis 面板 | `TRIZ_Layered_DrillDown_Optimization.md` | §5 資料模型 + §7.5 案例輸出 |
+| Tab ① quick_mode flag | `TRIZ_Layered_DrillDown_Optimization.md` | §10 Anti-Pattern 經驗法則 |
+| 決策中心 layered 卡片類型 | `TRIZ_Multi_Solution_Adoption_Strategy.md` v1.1 | §2 M6 跨層 drill-down + §4.2 Concept Route 資料模型擴展 |
+| 決策中心 Phase B 同 LTS SKIP | `TRIZ_Layered_DrillDown_Optimization.md` | §8.3 Phase B 掃描邏輯修訂 |
 | ④ Pre-CAD 五維雷達 spatial 算術 | `Forward_Subsystem_Discovery_Architecture.md` | §5.2 Pre-CAD spatial_score 改算術 |
 
 > **注意**：若架構文件版本升級（v10+），本 spec 必須同步檢查上表對應章節是否仍然成立，避免 UX 與架構脫鉤。

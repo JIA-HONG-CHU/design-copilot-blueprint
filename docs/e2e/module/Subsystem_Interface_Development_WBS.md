@@ -170,7 +170,7 @@ Brief + 矛盾 → POST subsystem-suggestions → LLM 樹 + 契約
 | 10.1 | **F3 SCAMPER** 讀取已確認之結構化契約（UC6）；Frozen 後解鎖規則（§8.1） | 契約變更 invalidate 策略有 log 或版本號 | 7.7 |
 | 10.2 | **Pre-CAD** `spatial_score` deterministic 輸入來自 validator（架構 §5.2 / create-ux-spec ④） | 評分與 Tab ② 所見 package 一致；可追溯 | 3.3 |
 | 10.3 | **Pre-CAD spatial trace** UI（hover 展開 bbox/clash/總質量） | 與 ④ 統一評估 wireframe 對齊 | 10.2 |
-| 10.4 | 與 **Tab ① TRIZ** 進入條件銜接（矛盾資料傳入 UC1） | 整合測試一條龍 | 2.2 |
+| 10.4 | 與 **Tab ① TRIZ** 進入條件銜接（矛盾資料傳入 UC1） | 整合測試一條龍 | 2.2 | ✅ test_tab1_to_tab2_e2e.py (6 tests: id 保留 / 共矛盾耦合 / spatial 覆寫 / empty / package_map 篩選 / hermetic) |
 
 ---
 

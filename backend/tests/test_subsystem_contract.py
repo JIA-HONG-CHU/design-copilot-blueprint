@@ -162,11 +162,15 @@ def _make_supabase_stub(existing_learned_rows=None):
 class TestSubsystemSuggestionsContract:
     """Lock the wire contract for POST /scamper/subsystem-suggestions."""
 
+    # v7 (WBS 11.1): added optional `layered_triz_solutions` field on top of
+    # the legacy shape. Default value is an empty list, so legacy callers stay
+    # byte-identical on the wire after serialisation.
     EXPECTED_REQUEST = {
         "project_id": "p1",
         "mission": "lightweight commuter e-bike",
         "contradictions": ["weight vs range"],
         "existing_subsystems": ["Motor"],
+        "layered_triz_solutions": [],
     }
 
     def test_request_schema_is_frozen(self):
@@ -179,6 +183,7 @@ class TestSubsystemSuggestionsContract:
             "mission": "m",
             "contradictions": [],
             "existing_subsystems": [],
+            "layered_triz_solutions": [],
         }
 
     def test_response_schema_top_level_keys(self):

@@ -41,11 +41,12 @@ AI 識別矛盾 → formalize_contradiction 回傳 TC
 
 | 優先 | 標籤 | 說明 |
 |------|------|------|
-| P0 | 1.x 基線 + 分離原則共用常數 | 下游 4 項任務包都依賴此 |
+| P0 | 1.x 基線 + 分離原則共用常數 + LayeredTrizSolution schema | 下游所有任務包都依賴此 |
 | P0 | 2.x 後端 L1 critic + 深挖 prompt + agent | 無此則無法產出多 PC |
 | P0 | 3.x DB migration + Supabase types | 無此則無法持久化子 PC |
 | P1 | 4.x 前端自動觸發 + 批次 insert | 與後端串接的關鍵閘 |
 | P1 | 5.x 前端巢狀卡片 + 分離原則 badge | UX 主要交付 |
+| P1 | 9.x 下游銜接（`_solve_pc` hint + Create 樹狀 solve + F2 adapter + CLD scope） | 防止 Explore 成果在下游被忽略 |
 | P2 | 6.x 父 TC 更新時 children stale 提示 | 防髒資料，可後補 |
 | P2 | 7.x 單測 + E2E | 回歸保護；e-Bike 驗證腳本 |
 
@@ -55,14 +56,15 @@ AI 識別矛盾 → formalize_contradiction 回傳 TC
 
 | ID | 工作包 | 主要交付物 |
 |----|--------|------------|
-| 1 | 基線與共用常數 | 16 分離原則雙端常數、型別表、文件對照 |
+| 1 | 基線與共用常數 | 16 分離原則雙端常數、型別表、文件對照、`LayeredTrizSolution` Pydantic + TS |
 | 2 | 後端：L1 critic | `should_trigger_pc_decomposition` + LLM critic prompt |
 | 3 | 後端：TC→多 PC 深挖 agent | `decompose_tc_to_pcs` + prompt + schema + router |
 | 4 | 資料庫：migration 與型別 | `006_pc_decomposition.sql` + supabase types |
 | 5 | 前端：自動觸發與持久化 | AI 識別 hook → 批次 insert → query invalidate |
-| 6 | 前端：巢狀卡片與分離原則 UI | `<DecomposedPCList>`、色條 badge、可折疊 rationale |
+| 6 | 前端：巢狀卡片與分離原則 UI | `<DecomposedChildrenList>`、色條 badge、可折疊 rationale |
 | 7 | 前端：父更新防護 | stale 標記 + 手動重新深挖按鈕（僅此例外） |
 | 8 | 測試、可觀測性、文件 | 單測/整合測/E2E；e-Bike 驗證腳本；runbook |
+| **9** | **下游銜接** | **`_solve_pc` hint / Create 樹狀 solve / F2 adapter / CLD scope / Phase B 相容性** |
 
 ---
 
@@ -74,6 +76,9 @@ AI 識別矛盾 → formalize_contradiction 回傳 TC
 | 1.2 | 建立前端對應常數 `src/lib/triz/separationPrinciples.ts` | 匯出 `SEPARATION_PRINCIPLES` + `getSeparationPrinciple(id)` + `CATEGORY_COLOR` (time=藍 / space=綠 / condition=橘 / whole_part=紫)；內容與 1.1 雙向可追溯 | 1.1 |
 | 1.3 | 新增單測防 drift：backend 與 frontend 清單的 `id` 集合必須一致 | `backend/tests/test_separation_principles_parity.py` 或前端 jest 讀取 JSON；任一端改動即 fail | 1.1, 1.2 |
 | 1.4 | 凍結新 Pydantic/TS 型別：`DecomposedPC` / `DeepenLink` 對齊表 | `schemas.py` 與 `src/types/explore.ts` 同步 PR；欄位命名 snake_case↔camelCase 對照清單 | 1.1 |
+| **1.5** | **新增 `LayeredTrizSolution` Pydantic 完整 schema 到 `backend/app/models/schemas.py`** | 對齊 `Forward_TRIZ_Solver_Architecture.md §6.7 / §10` 與 `Forward_Subsystem_Discovery_Architecture.md §3.1`；欄位：`id`, `contradiction_id`, `l1: L1Surface`, `l2: L2RootCause \| None`, `l3: L3StructuralCheck \| None`, `deepen_link: DeepenLink \| None`, `differential_analysis: DifferentialAnalysis \| None`, `adopted_route: str \| None`；巢狀類別 `L1Surface` / `L2RootCause` / `L3StructuralCheck` / `DeepenLink` / `SeparationCandidate` / `DifferentialAnalysis`；**本版 `l3` 永遠為 `None` 並帶 `l3_status: "deferred_to_external_wbs"` 註記欄位**（L3-γ 獨立 WBS） | 1.4 |
+| **1.6** | **前端對應 TS 型別 `src/types/trizLayered.ts`** | `LayeredTrizSolution` / `L1Surface` / `L2RootCause` / `DeepenLink` / `SeparationCandidate`；snake↔camel adapter；lint 鎖定與 1.5 欄位對應 | 1.5 |
+| **1.7** | **前端 helper `src/lib/triz/assembleLayeredSolution.ts`** | 函數 `assembleLayeredSolution(parentTc, childPcs[]): LayeredTrizSolution`；本版僅拼 L1+L2，L3 固定 `null` + `l3_status="deferred"`；含單測 | 1.6 |
 
 ---
 

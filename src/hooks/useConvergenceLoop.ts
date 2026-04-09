@@ -93,7 +93,7 @@ function nextNodeId(prefix: string): string {
 const initialState: ConvergenceState = {
   iteration: 0,
   status: 'idle',
-  phase: 'A',
+  phase: 'B',  // v8: Phase A retired — always Phase B
   branches: [],
   graph: { nodes: [], edges: [] },
   health: 'healthy',
@@ -261,7 +261,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
       try {
         scanResult = await convergenceScan({
           project_id: projectId,
-          alternatives: phaseRef.current === 'A' ? [] : alternatives,
+          alternatives: alternatives,  // v8: always Phase B, no empty-list branch
           contradictions: contradictions.map((c) => ({
             id: c.id,
             natural_description: c.naturalDescription,
@@ -458,13 +458,8 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
     return { initialBranches, initialGraph, initialFatal, initialMajor };
   }, [projectId, contradictions, buildInitialGraph, runScanRound]);
 
-  // ------------------------------------------------------------------
-  // startPhaseA — contradiction space health check only (no alternatives)
-  // Used by TRIZ step: just analyse contradictions, don't check solutions.
-  // ------------------------------------------------------------------
-  const startPhaseA = useCallback(() => {
-    _bootstrap('A');
-  }, [_bootstrap]);
+  // v8: startPhaseA removed — L1 critic subsumes Phase A's role.
+  // Only Phase B (cross-check with adopted alternatives) remains.
 
   // ------------------------------------------------------------------
   // startPhaseB — full cross-check with adopted alternatives
@@ -475,12 +470,11 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   }, [_bootstrap]);
 
   // ------------------------------------------------------------------
-  // startExploration — backward-compatible (auto-detects phase)
+  // startExploration — always Phase B (v8: Phase A retired)
   // ------------------------------------------------------------------
   const startExploration = useCallback(() => {
-    const phase = alternatives.length > 0 ? 'B' : 'A';
-    _bootstrap(phase);
-  }, [_bootstrap, alternatives]);
+    _bootstrap('B');
+  }, [_bootstrap]);
 
   // ------------------------------------------------------------------
   // confirmSeverity — override a node's severity in the graph
@@ -648,7 +642,7 @@ export function useConvergenceLoop(options: UseConvergenceLoopOptions): Converge
   return {
     state,
     startExploration,
-    startPhaseA,
+    // startPhaseA removed in v8
     startPhaseB,
     confirmSeverity,
     forceHalt,

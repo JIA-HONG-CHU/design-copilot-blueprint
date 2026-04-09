@@ -721,7 +721,7 @@ export interface ConvergenceScanRequest {
   mission?: string;
   constraints?: string[];
   kpis?: string[];
-  phase?: "A" | "B";  // "A" = contradiction-only, "B" = full cross-check
+  phase?: "B";  // v8: always "B" — Phase A retired (L1 critic subsumes)
   /** v7 WP 10.6: when non-empty, Phase B scanner applies the SKIP rules
    *  described in TRIZ_Layered_DrillDown_Optimization.md §8.3. Back-compat
    *  default is an empty array (legacy flat mode). */
@@ -746,7 +746,7 @@ export interface ConvergenceScanResponse {
   force_pause: boolean;
   pause_reason: string;
   reasoning_trace: string;
-  phase: "A" | "B";
+  phase: "B";  // v8: always "B"
 }
 
 export function convergenceScan(body: ConvergenceScanRequest) {

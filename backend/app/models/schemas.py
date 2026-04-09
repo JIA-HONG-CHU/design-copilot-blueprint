@@ -832,7 +832,7 @@ class ConvergenceScanRequest(BaseModel):
     mission: str = ""
     constraints: list[str] = Field(default_factory=list)
     kpis: list[str] = Field(default_factory=list)
-    phase: str = "B"  # "A" = contradiction-only, "B" = full cross-check
+    phase: str = "B"  # v8: always "B" — Phase A retired (L1 critic subsumes)
     # v7 WP 10.6: optional Phase B directives for layered Concept Routes.
     # Empty list → legacy behaviour (flat mode). Non-empty → scanner pairs
     # alternatives by lts_id and applies SKIP / WARN / CHECK per §8.3.
@@ -842,7 +842,7 @@ class ConvergenceScanRequest(BaseModel):
 class SecondaryContradiction(BaseModel):
     description: str
     severity: str  # fatal, major, minor
-    source_alternative: str = ""  # empty in Phase A (no alternatives)
+    source_alternative: str = ""  # may be empty if no source identified
     type: str = "TC"  # TC, PC, or SF
     improving_param: int | None = None
     worsening_param: int | None = None

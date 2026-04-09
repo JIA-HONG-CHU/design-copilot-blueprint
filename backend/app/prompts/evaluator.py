@@ -240,114 +240,22 @@ Rules:
 
 # ---------------------------------------------------------------------------
 # Convergence Scan
+#
+# v8 NOTE: Phase A (CONVERGENCE_SCAN_PHASE_A) has been retired. Its six
+# responsibilities are now handled by v7's layered architecture:
+#   - Well-formedness → L1 status="error" + critic badge
+#   - Severity → directly drives L2 trigger
+#   - Hidden contradictions → Step 2 Socratic + Step 3 formalization
+#   - Cross-contradiction dedup → Phase B crossLtsRedundancyWarnings
+#   - Global convergence score → per-LTS differential_analysis
+#   - Architecture halt → ArchitectureHaltOverlay (phase-agnostic, via Phase B)
+#
+# Only Phase B (CONVERGENCE_SCAN) survives — it cross-checks adopted
+# alternatives against contradictions. See create-ux-spec.md v8.
 # ---------------------------------------------------------------------------
 
-CONVERGENCE_SCAN_PHASE_A = """\
-<task>
-Analyse the contradiction space for inter-contradiction conflicts, circular \
-dependencies, and coverage gaps — WITHOUT any solution alternatives.
-This is Phase A (problem-space health check) of the convergence pipeline.
-</task>
-
-<language>回覆語言：繁體中文。description 和 reasoning 欄位必須使用繁體中文，\
-讓工程師直接看懂。技術術語保留英文（如 TRIZ 參數編號）。</language>
-
-<context>
-<mission>{mission}</mission>
-<project_constraints>
-{constraints}
-</project_constraints>
-<project_kpis>
-{kpis}
-</project_kpis>
-<contradictions>
-{contradictions}
-</contradictions>
-</context>
-
-<method>
-Analyse the contradiction set through four lenses:
-
-1. **Inter-contradiction conflicts** — Do any contradictions share or oppose the same \
-TRIZ parameters? (e.g., C1 improves P14 while C2 worsens P14). Record each conflict \
-as a secondary contradiction with source set to the originating contradiction ID.
-
-2. **Circular dependencies** — Detect chains where resolving C1 would worsen C2, \
-resolving C2 would worsen C3, and resolving C3 would worsen C1. Any cycle of length \
-≥ 2 counts. If found, set architecture_health to "circular".
-
-3. **Severity amplification** — Identify combinations of contradictions whose \
-simultaneous presence makes the problem space harder than the sum of parts \
-(e.g., two major contradictions that share the same worsening parameter \
-amplify to fatal-level difficulty).
-
-4. **Coverage gaps** — Given the mission, constraints, and KPIs, are there critical \
-engineering dimensions (thermal, structural, cost, safety, supply chain, regulatory) \
-that NO existing contradiction addresses? Report each gap as a minor secondary \
-contradiction.
-
-5. **Semantic deduplication** — Before finalising secondary contradictions, check:
-   a. Does this new contradiction describe the SAME causal chain as an existing \
-contradiction, just using different TRIZ parameters or wording? \
-(e.g., "thermal throttling worsens latency" vs "model complexity worsens latency" \
-are different parameter encodings of the same "compute→latency" root cause)
-   b. If the causal chain is equivalent → set `is_confirmatory: true` \
-(confirms existing contradiction, does NOT count as new)
-   c. Only contradictions with genuinely DIFFERENT causal chains → `is_confirmatory: false`
-   d. Coverage gaps that repeat the same engineering dimension across rounds \
-→ merge into one, do not duplicate
-</method>
-
-<convergence_formula>
-Compute these intermediate values:
-
-  total = count of all contradictions
-  well_formed = contradictions with both improving_param and worsening_param set \
-(or physical_contradiction filled for PC type)
-  non_circular = contradictions NOT part of any detected circular chain
-  no_fatal_interaction = 1 if no fatal inter-contradiction conflict found, else 0
-  has_coverage = 1 if total >= 2 and no critical coverage gaps, else 0
-
-  convergence_score = round(
-    0.30 × (well_formed / max(total, 1))
-    + 0.30 × (non_circular / max(total, 1))
-    + 0.25 × no_fatal_interaction
-    + 0.15 × has_coverage
-  ) × 100
-
-Show all intermediate values in reasoning_trace.
-
-Architecture health thresholds:
-  - Any circular dependency detected → "circular"
-  - convergence_score > 80  → "healthy"
-  - 50 ≤ convergence_score ≤ 80 → "warning"
-  - convergence_score < 50  → "critical"
-
-If any fatal inter-contradiction conflict exists → force_pause = true.
-</convergence_formula>
-
-<output_schema>
-{{
-  "reasoning_trace": "Phase A analysis: C1(P14→P1) and C3(P26→P14) share P14 — potential interaction ... intermediate: total=4, well_formed=3, non_circular=4, no_fatal=1, has_coverage=1 → score=round(0.30×0.75+0.30×1+0.25×1+0.15×1)×100=89",
-  "new_contradictions": [
-    {{
-      "description": "C1 and C3 share parameter P14 — resolving one may constrain the other",
-      "severity": "major",
-      "source_alternative": "ctr-001",
-      "type": "TC",
-      "improving_param": 14,
-      "worsening_param": null,
-      "reasoning": "C1 improves P14 while C3 worsens P14; solving both simultaneously requires careful parameter decoupling",
-      "is_confirmatory": false
-    }}
-  ],
-  "convergence_score": 89,
-  "architecture_health": "healthy",
-  "force_pause": false,
-  "pause_reason": ""
-}}
-</output_schema>
-"""
+# Phase A prompt removed — was here as CONVERGENCE_SCAN_PHASE_A (~105 lines).
+# Git history preserves the full template for reference if ever needed.
 
 CONVERGENCE_SCAN = """\
 <task>

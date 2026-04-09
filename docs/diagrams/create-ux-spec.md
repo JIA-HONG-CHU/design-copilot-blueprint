@@ -1,5 +1,14 @@
 # Create 頁面 UX 設計規格
 
+> **v8 (2026-04-09)**：**Phase A（矛盾空間健康度）退役**。
+> - 第一性原理分析：Phase A 的六項職責已被 v7 的 L1 critic（per-card 品質閘門）、severity-driven L2 trigger、differential_analysis（per-LTS 推薦路線）、Phase B `crossLtsRedundancyWarnings`（跨矛盾去重）全面覆蓋。Phase A 的全域 `convergence_score` 閘門壓縮 N 個矛盾為一個數字，反而造成資訊損失。
+> - Tab ① 從「先 Phase A 掃描 → 再生成 TRIZ」的兩步流程，簡化為**一鍵直出分層 drill-down 診斷報告**。
+> - 新增**輕量 client-side pre-check**（非 LLM）：TC 矛盾缺少 improving/worsening 時 toast 警告，L1 critic badge 接手後續。
+> - `CONVERGENCE_SCAN_PHASE_A` prompt 退役（~105 lines，git history 保留）。
+> - `useConvergenceLoop.startPhaseA()` 移除；`startPhaseB()` 保留供 Decision Hub Phase B 交叉檢查。
+> - `ArchitectureHaltOverlay` 保留（phase-agnostic，Phase B 仍可觸發）。
+> - 「收斂監控」面板中的 Phase A Score / Health / Fatal/Major/Minor 行移除。
+>
 > **v7 (2026-04-09)**：對齊 TRIZ 分層 drill-down 架構（`docs/e2e/TRIZ_Layered_DrillDown_Optimization.md` v1.0 + `TRIZ_Multi_Solution_Adoption_Strategy.md` v1.1）。
 > - **Tab ① TRIZ 解矛盾徹底重寫**：從「TC/PC/SF 三選一候選池」改為「`LayeredTrizSolution` 分層診斷報告」。RD 收到的不再是並列選擇題，而是 L1 現象 → L2 根因 → L3 結構旁路的三層 drill-down 卡片。
 > - 新增 **deepen_link 視覺化**（L1 的 TC 參數對如何被 ARIZ 深挖為 L2 的物理根因）。
@@ -91,8 +100,8 @@
 │  ④ 統一評估                                                        │
 │  [ MUST 快篩 (M1-M6) ]  →  [ Pre-CAD 審查 (5D) ]                 │
 │                                                                    │
-│  ⑤ 收斂監控（摺疊）                                                │
-│  正向 Phase A: Score 85% ● healthy │ Fatal:0 Major:0 Minor:5      │
+│  ⑤ 收斂監控（摺疊）— v8: Phase A 退役                                │
+│  （Phase A Score 已由每張 LayeredSolutionCard 的 critic badge 取代） │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -146,8 +155,7 @@
 
 | 元素 | 互動 | 觸發 / API |
 |------|------|------|
-| [啟動 Phase A] | 矛盾健康度分析 | startPhaseA() |
-| [重新執行] | 重新分析 | startPhaseA() |
+| ~~[啟動 Phase A]~~ | ~~矛盾健康度分析~~ | v8 退役：L1 critic per-card + differential_analysis 取代，一鍵直出分層診斷 |
 | 矛盾列表 | 每矛盾一列，展開成「分層診斷卡」（見區塊 B） | 唯讀 |
 | severity badge | `fatal` / `major` / `minor`，決定 L2 預設觸發策略 | 唯讀 |
 | 收斂 Dashboard | confidence / health / fatal·major·minor | 唯讀 |
@@ -338,7 +346,7 @@
 
 | 元素 | 互動 | 說明 |
 |------|------|------|
-| 正向 Phase A | Score / Health / Fatal·Major·Minor | 唯讀 |
+| ~~正向 Phase A~~ | ~~Score / Health / Fatal·Major·Minor~~ | v8 退役：L1 critic per-card + differential_analysis 取代 |
 | Risk Register | minor 清單 | 展開 |
 | 反向無 Phase A | 創意工具不做收斂分析 | — |
 

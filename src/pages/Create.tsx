@@ -637,6 +637,13 @@ export default function Create() {
       );
       return;
     }
+    // v8 client-side pre-check (replaces Phase A's "well-formed contradiction" validation).
+    // Non-blocking toast — L1 critic will catch and badge these anyway.
+    const malformedTC = contrs.filter(c => c.type === 'TC' && (!c.improvingParam || !c.worseningParam));
+    if (malformedTC.length > 0) {
+      toast.warning(`${malformedTC.length} 條 TC 矛盾缺少改善/惡化參數，L1 矩陣查表可能不完整`);
+    }
+
     setAiLoading((p) => ({ ...p, trizGen: true }));
 
     // ── v7 branch: layered drill-down mode ────────────────────────────────
@@ -2340,142 +2347,7 @@ export default function Create() {
         </div>
         )}
 
-        <Separator />
-
-        {/* ── Section B: Phase A — Contradiction space health check (compact) ── */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">Phase A：矛盾空間健康度</h3>
-            {state.status !== 'idle' && (
-              <div className="flex items-center gap-2">
-                <AiButton aiVariant="outline" size="sm" loading={state.status === 'exploring'} onClick={handleStartPhaseA} className="text-[10px] h-7 px-2">
-                  {state.status === 'exploring' ? '分析中...' : '重新分析'}
-                </AiButton>
-                {state.status === 'halted' && (
-                  <Button variant="outline" size="sm" onClick={forceContinue} className="text-[10px] h-7 px-2">
-                    強制繼續
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Idle: prompt to start */}
-          {state.status === 'idle' && (
-            <Card className="border-dashed border bg-muted/20">
-              <CardContent className="p-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  分析矛盾間的交互衝突、循環依賴與覆蓋盲區
-                </p>
-                <AiButton
-                  aiVariant="outline"
-                  size="sm"
-                  loading={false}
-                  onClick={handleStartPhaseA}
-                  disabled={!canStart}
-                  className="text-xs shrink-0"
-                >
-                  啟動分析
-                </AiButton>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Exploring: compact loading */}
-          {state.status === 'exploring' && state.iteration === 0 && (
-            <Card className="border-primary/40 bg-primary/5">
-              <CardContent className="p-3 flex items-center gap-3">
-                <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
-                <p className="text-xs">AI 正在分析 {contradictionsList.length} 條矛盾的健康度...</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Result: compact summary card */}
-          {state.status !== 'idle' && state.iteration > 0 && (() => {
-            const healthMap = {
-              healthy: { icon: '✅', cls: 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40 dark:border-emerald-700', text: '健康' },
-              warning: { icon: '⚠️', cls: 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/40 dark:border-amber-700', text: '警告' },
-              critical: { icon: '🔴', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '危險' },
-              circular: { icon: '🔄', cls: 'border-red-300 bg-red-50/50 dark:bg-red-950/40 dark:border-red-700', text: '循環依賴' },
-            };
-            const h = healthMap[state.health] || healthMap.healthy;
-            const showDetail = state.health !== 'healthy';
-            const nodeCount = state.graph.nodes.filter(n => n.type === 'contradiction').length;
-            const edgeCount = state.graph.edges.length;
-            return (
-              <Card className={cn("transition-all", h.cls)}>
-                <CardContent className="p-3 space-y-2">
-                  {/* Summary row */}
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span>{h.icon}</span>
-                      <span className="font-medium">{h.text}</span>
-                      <span className="text-muted-foreground">Score: {state.confidence}%</span>
-                      <span className="text-muted-foreground">|</span>
-                      <span className="text-muted-foreground">{nodeCount} 矛盾 · {edgeCount} 交互</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[10px]">
-                      {state.fatalCount.total > 0 && (
-                        <span className="text-red-600 dark:text-red-400 font-medium">Fatal: {state.fatalCount.resolved}/{state.fatalCount.total}</span>
-                      )}
-                      {state.majorCount.total > 0 && (
-                        <span className="text-orange-600 dark:text-orange-400 font-medium">Major: {state.majorCount.resolved}/{state.majorCount.total}</span>
-                      )}
-                      {state.minorCount > 0 && (
-                        <span className="text-muted-foreground">Minor: {state.minorCount}</span>
-                      )}
-                      {state.fatalCount.total === 0 && state.majorCount.total === 0 && state.minorCount === 0 && (
-                        <span className="text-muted-foreground">無新增矛盾</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Risk register summary (if any minors) */}
-                  {state.riskRegister.length > 0 && (
-                    <details className="text-[10px]">
-                      <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
-                        Risk Register ({state.riskRegister.length} 項)
-                      </summary>
-                      <ul className="mt-1 space-y-0.5 pl-3 text-muted-foreground">
-                        {state.riskRegister.slice(0, 5).map((r) => (
-                          <li key={r.id}>- {r.description}</li>
-                        ))}
-                        {state.riskRegister.length > 5 && (
-                          <li className="italic">...另有 {state.riskRegister.length - 5} 項</li>
-                        )}
-                      </ul>
-                    </details>
-                  )}
-
-                  {/* Expandable graph — only for non-healthy states */}
-                  {showDetail && (
-                    <details className="pt-1">
-                      <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
-                        展開矛盾收斂圖
-                      </summary>
-                      <div className="mt-2 space-y-2">
-                        <ConvergenceGraph nodes={state.graph.nodes} edges={state.graph.edges} />
-                      </div>
-                    </details>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })()}
-
-          {/* Human review — only for converged/halted with issues */}
-          {(state.status === 'converged' || state.status === 'halted') && state.health !== 'healthy' && (
-            <HumanReviewPanel
-              branches={state.branches}
-              riskRegister={state.riskRegister}
-              onConfirm={() => setReviewConfirmed(true)}
-              onRetry={retryBranch}
-              onConfirmSeverity={confirmSeverity}
-            />
-          )}
-        </div>
-
+        {/* v8: Phase A section retired — L1 critic per-card replaces global scan. */}
         <KnowledgeRefsPanel refs={mockStepKnowledgeRefs[1] ?? []} />
       </div>
     );

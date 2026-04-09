@@ -55,7 +55,7 @@ export interface MinorContradiction {
 
 // ── Main Convergence State ──
 
-export type ConvergencePhase = 'A' | 'B';
+export type ConvergencePhase = 'B';  // v8: Phase A retired — L1 critic subsumes
 
 export interface ConvergenceState {
   iteration: number;

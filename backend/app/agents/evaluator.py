@@ -10,7 +10,7 @@ from app.prompts.evaluator import (
     EVALUATOR_SYSTEM,
     RISK_ANALYSIS,
     CONVERGENCE_SCAN,
-    CONVERGENCE_SCAN_PHASE_A,
+    # CONVERGENCE_SCAN_PHASE_A removed in v8 — L1 critic subsumes Phase A
     MUST_EVALUATION,
     PRE_CAD_ANALYSIS,
     WANT_CRITERIA_SEED,
@@ -324,31 +324,24 @@ def scan_convergence(req: ConvergenceScanRequest) -> ConvergenceScanResponse:
     constraints = "\n".join(f"- {c}" for c in req.constraints) or "（尚無）"
     kpis = "\n".join(f"- {k}" for k in req.kpis) or "（尚無）"
 
-    if req.phase == "A":
-        # Phase A: contradiction-only health check (no alternatives needed)
-        prompt = CONVERGENCE_SCAN_PHASE_A.format(
-            contradictions=contradiction_json,
-            mission=mission, constraints=constraints, kpis=kpis,
+    # v8: Phase A retired — only Phase B (full alternative × contradiction cross-check)
+    # remains. L1 critic + severity-driven L2 trigger + differential_analysis
+    # subsume Phase A's per-contradiction health assessment.
+    alternatives_for_prompt, skip_notes = _apply_layered_directives(req)
+    if skip_notes:
+        import logging
+        logging.getLogger(__name__).info(
+            "Phase B: applied %d layered directives: %s",
+            len(req.layered_directives), "; ".join(skip_notes),
         )
-    else:
-        # Phase B: full alternative × contradiction cross-check.
-        # v7 WP 10.6: apply layered_directives to SKIP intra-LTS drill-down
-        # pairs before handing the alternative list to the LLM.
-        alternatives_for_prompt, skip_notes = _apply_layered_directives(req)
-        if skip_notes:
-            import logging
-            logging.getLogger(__name__).info(
-                "Phase B: applied %d layered directives: %s",
-                len(req.layered_directives), "; ".join(skip_notes),
-            )
-        prompt = CONVERGENCE_SCAN.format(
-            alternatives=json.dumps(
-                [a.model_dump() for a in alternatives_for_prompt],
-                ensure_ascii=False, indent=2,
-            ),
-            contradictions=contradiction_json,
-            mission=mission, constraints=constraints, kpis=kpis,
-        )
+    prompt = CONVERGENCE_SCAN.format(
+        alternatives=json.dumps(
+            [a.model_dump() for a in alternatives_for_prompt],
+            ensure_ascii=False, indent=2,
+        ),
+        contradictions=contradiction_json,
+        mission=mission, constraints=constraints, kpis=kpis,
+    )
 
     raw = call_llm_json(EVALUATOR_SYSTEM, prompt)
     data = json.loads(raw)

@@ -103,6 +103,7 @@ import type { MustCriterionResult } from "@/lib/api";
 import type { PackageMap } from "@/types/generated/subsystem";
 import { useSubsystemSuggestion } from "@/hooks/api/useSubsystemSuggestion";
 import { useProject } from "@/hooks/api/useProjects";
+import { useSocraticQuestions } from "@/hooks/api/useExplore";
 // TODO: Replace mockStepKnowledgeRefs with a useKnowledgeRefs hook once a knowledge_refs DB table is created (Sprint 5+)
 import { mockStepKnowledgeRefs } from "@/data/mockKnowledgeRefs";
 import { MissionContext } from "@/components/create/MissionContext";
@@ -203,6 +204,8 @@ export default function Create() {
   const { data: brief } = useBrief(id);
   const { data: briefConstraints = [] } = useConstraints(id);
   const { data: briefKpis = [] } = useKpis(id);
+  // Access Socratic Q&A materials
+  const { data: socraticQuestions = [] } = useSocraticQuestions(id);
 
   const briefMission = brief?.mission || '';
   const constraintStrings = useMemo(
@@ -216,6 +219,12 @@ export default function Create() {
   const contradictionDescs = useMemo(
     () => (contradictionsQuery.data || []).map((c) => c.engineeringStatement || c.naturalDescription || '').filter(Boolean),
     [contradictionsQuery.data],
+  );
+  const socraticQaStrings = useMemo(
+    () => socraticQuestions
+      .filter((q) => q.answer && q.answer.trim().length > 0)
+      .map((q) => `[${q.category}] Q: ${q.text} → A: ${q.answer}`),
+    [socraticQuestions],
   );
 
   // ── API Hooks: mutations ──
@@ -583,6 +592,7 @@ export default function Create() {
           ? constraintStrings
           : MOCK_MISSION.contradictions.map((c) => c.description),
         existing_alternatives: [],
+        socraticAnswers: socraticQaStrings,
       });
       // Optimistic: build display data from API result immediately
       const optimistic: AntiAnchorRoute[] = result.routes.map((route, i) => ({
